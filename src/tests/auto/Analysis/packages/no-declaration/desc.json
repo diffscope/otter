@@ -1,0 +1,9 @@
+{
+    "$version": "1.0",
+    "id": "otter/test-no-declaration",
+    "version": "1.0.0.0",
+    "runtimeLevel": 1,
+    "contributions": {
+        "analysis": [ { "id": "f0" } ]
+    }
+}

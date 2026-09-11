@@ -1,0 +1,10 @@
+{
+    "name": "otterrmvpe",
+    "interpreters": [
+        {
+            "interface": "org.openvpi.analysis.F0",
+            "level": 1,
+            "variant": "rmvpe"
+        }
+    ]
+}

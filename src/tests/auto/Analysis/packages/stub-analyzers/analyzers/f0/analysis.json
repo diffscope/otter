@@ -1,0 +1,6 @@
+{
+    "interface": "org.openvpi.analysis.F0",
+    "level": 1,
+    "variant": "stub",
+    "name": { "_": "Stub F0", "zh-CN": "桩 F0" }
+}

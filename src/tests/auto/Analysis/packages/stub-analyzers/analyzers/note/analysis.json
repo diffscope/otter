@@ -1,0 +1,9 @@
+{
+    "interface": "org.openvpi.analysis.Note",
+    "level": 1,
+    "variant": "stub",
+    "name": "Stub Note",
+    "configuration": {
+        "beat": 0.25
+    }
+}

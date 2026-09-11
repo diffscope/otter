@@ -111,7 +111,10 @@ lite 当前经 `srt-audio` + `srt-extract` + `plugins/Extract/{rmvpe,game}` 抽�
 otter (库，链接进宿主)
 ├── Analysis/AnalysisContrib.h      类别与声明：AnalysisCategory / AnalysisSpec
 ├── Analysis/AnalysisExecutive.h    顶层入口：AnalysisExtension / AnalysisExecutive
-├── Analysis/AnalysisProvider.h     提供者抽象 + AnalysisProviderPlugin（插件 IID）
+├── Analysis/AnalysisProvider.h     提供者抽象（自带契约守卫，见 A15）
+├── Analysis/AnalysisProviderPlugin.h  插件 IID
+├── Analysis/AnalysisRunner.h       执行生命周期：一次一个、状态、取消归属（A16）
+├── Support/ManifestValues.h        声明读取器，两个提供者共用
 └── Api/
     ├── Common/1/CommonApiL1.h      AudioSegment、Knob、ProgressCallback
     ├── F0/1/F0ApiL1.h              org.openvpi.analysis.F0 契约面
@@ -633,7 +636,32 @@ refactor 的 `GameExtractor` 迁移时丢了这个 session，`inferSlice` 里 `k
 **代价（已接受）**：`SynthUnit::loadedPackages()` 会同时包含两类包，宿主枚举时要按 contributions
 的类别筛。
 
-### A14 — 进度回调放在 `StartInput`
+### A14 — 提供者不得把扩展挂到自己不服务的声明上
+
+**决策**：`AnalysisProvider` 的构造函数接收它服务的 (interface, level, variant)，
+`createExtensions` 声明为 `final`，先用 `serves()` 守卫再委托给 `createAnalysisExtension()`。
+
+**依据**：`PackageLoader::attachSpecExtensions` 把**每一个已注册解释器**的 `createExtensions`
+作用到**每一份正在加载的声明**上（`synthrt/lib/Core/PackageLoader.cpp:955`）。这是 spec 2.4 有意
+为之——别的类别可以为新 role 供给执行体。无条件接受的提供者会把扩展挂满整个包，宿主向一份声明索取
+它没有的契约时会拿到一个不属于它的执行体，而不是 nullptr。
+
+**代价（已接受）**：提供者不能自己决定扩展的挂载条件。真需要时可以改成受保护的钩子，但那要等到
+真的有这种需求。
+
+**发现方式**：`test_AnalysisLoad` 断言 f0 声明上找不到 Note 扩展。两个提供者当时都挂满了。
+
+### A15 — 取消的归属在调用方线程上确定
+
+**决策**：`AnalysisRunner::begin()` 在调用方线程上认领执行并清掉上一次的取消标志；工作线程只跑
+函数体，不再清标志。同步与异步两条入口都先 `begin()`。
+
+**依据**：把清标志放在「工作开始处」对异步入口是错的——`stop()` 完全可能在 `startAsync()` 返回之后、
+工作线程进入函数体之前到达，那一次取消会被清掉。测试里这条必现。
+
+**代价（已接受）**：多一个类。但三个执行体否则要各写一遍同一段并发代码，而这段代码的错法是静默的。
+
+### A16 — 进度回调放在 `StartInput`
 
 **决策**：`ProgressCallback` 是 `StartInput` 的字段，不是 `RuntimeOptions` 的。
 
@@ -642,19 +670,29 @@ refactor 的 `GameExtractor` 迁移时丢了这个 session，`inferSlice` 里 `k
 
 ## 10. 实施里程碑
 
-| 里程碑 | 内容 | 验收 |
+| 里程碑 | 内容 | 状态 |
 | :-- | :-- | :-- |
-| **M1** | 仓库骨架：CMake、vcpkg 清单与 port、`otter_global.h`、README | 空库能编译、能被 `find_package(otter)` 消费 |
-| **M2** | 类别与契约头：`AnalysisContrib` / `AnalysisExecutive` / `AnalysisProvider` / `Api/Common`、`Api/F0`、`Api/Note` | 类别注册进 `ContribCategoryRegistry`，单测能建 `SynthUnit` 并取到该类别 |
-| **M3** | `rmvpe` 提供者插件：移植推理与 `interpF0`，去掉切片与重采样，接 `voicingThreshold` / `interpolateUnvoiced` | 装一个 rmvpe 模型包，对一段固定 wav 抽出 f0，与 refactor 实现逐帧比对 |
-| **M4** | `game` 提供者插件：移植四阶段推理，补回 `dur2bd`，接全部旋钮与 `language` | 同上；另验 `knownNotes` 非空时边界条件生效 |
-| **M5** | 打包脚本与两个模型包，打包 lint（对齐 wolf 的 `check-declarations.py`） | 两个包能被 `SynthUnit::openPackage` 装载并跑通 |
-| **M6** | lite 接入：talcs 供音频、捞回 RMS 切片器、`ExtractPitchTask` / `ExtractMidiTask` 改写、设置界面从选文件改为选已装抽参器 | lite 抽音高与抽 MIDI 端到端跑通；变速曲的音符位置正确 |
+| **M1** | 仓库骨架：CMake、vcpkg 清单与 port | **完成**。`find_package(otter)` 从安装树可用，消费者不引用任何符号仍拿到类别 |
+| **M2** | 类别与契约头 | **完成**。`test_AnalysisContrib` / `test_AnalysisLoad` / `test_AnalysisRuntime` |
+| **M3** | `rmvpe` 提供者 | **完成**。`test_Rmvpe`，跑在真实 ONNX 图上 |
+| **M4** | `game` 提供者，补回 `dur2bd` | **完成**。`test_Game`，含对齐路径 |
+| **M5** | 打包 lint 与模型 fixture | **完成**。`scripts/check-declarations.py`、`scripts/make-model-fixtures.py` |
+| **M6** | lite 接入：talcs 供音频、捞回 RMS 切片器、两个 Task 改写、设置界面改为选已装抽参器 | 未开始，依赖 lite 迁到 synthrt main + wolf |
 
-M6 依赖 lite 迁移到 synthrt main + wolf，与那条线合流。
+### 已验证与未验证
+
+**已验证**：类别注册、包加载（含 `DataOnly`）、解释器发现、扩展点挂载、执行体创建、同步与异步执行、
+取消、输入校验、旋钮透传、两个提供者在真实 ONNX 图上的完整链路、对齐路径确实跑了 `dur2bd`、
+`find_package(otter)` 从安装树消费、无 dsinfer 的最小构建优雅降级。
+
+**未验证**：抽出来的数值是否正确。模型 fixture 有真实签名但权重是算术，验的是提供者那一半契约。
+数值需要真实的 rmvpe 与 GAME 权重，本机没有；相关用例在缺 fixture 时跳过而不是假装通过。
 
 ## 11. 未决
 
 - **`Align` / `Transcribe` 的契约面。** 本轮只登记 `interface` 名与所属类别，不定义类型。
 - **是否需要 `AnalysisSession`。** wolf 有 `LinguistSession` 承载目录、就绪度与执行体池。otter 的
   抽参器数量少、一次只跑一个，暂不做；若 lite 接入时发现同样的样板在重复，再补。
+- **跨段边界连续性。** 切片归宿主之后，segmenter 的 `prev_boundaries` 本可由上一段的结果填充，
+  Level 1 没有要求宿主携带这个状态，所以两个槽都收调用方已知的边界。真实权重到位后值得复核这
+  对长句的影响。
