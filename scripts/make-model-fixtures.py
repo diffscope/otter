@@ -162,17 +162,23 @@ def build_note_segmenter(path: Path) -> None:
     """Places a boundary every N frames, where N comes from the threshold and the radius.
 
     Real segmentation is a diffusion loop; this is arithmetic over the same inputs. What it
-    preserves is the part a provider can get wrong: every declared input must arrive, and the
-    knobs must change the answer.
+    preserves is the part a provider can get wrong: every declared input must arrive, the knobs
+    must change the answer, and the shapes must be the ones a real export declares.
+
+    That last one is why `t` is `[B]` and not `["steps"]`, and why the two knobs are scalars.
+    An earlier version of this fixture wrote the shapes the provider happened to send, so the
+    provider was being checked against its own assumptions and passed. Against a real GAME export
+    it failed on the first call: every segmenter input shares one batch dimension, `t` included,
+    so a call carries one timestep and the sampling loop belongs to the caller.
     """
     x_seg = helper.make_tensor_value_info("x_seg", TensorProto.FLOAT, [1, "T", 4])
     maskT = helper.make_tensor_value_info("maskT", TensorProto.BOOL, [1, "T"])
     known = helper.make_tensor_value_info("known_boundaries", TensorProto.BOOL, [1, "T"])
     previous = helper.make_tensor_value_info("prev_boundaries", TensorProto.BOOL, [1, "T"])
     language = helper.make_tensor_value_info("language", TensorProto.INT64, [1])
-    threshold = helper.make_tensor_value_info("threshold", TensorProto.FLOAT, [1])
-    radius = helper.make_tensor_value_info("radius", TensorProto.INT64, [1])
-    t = helper.make_tensor_value_info("t", TensorProto.FLOAT, ["steps"])
+    threshold = helper.make_tensor_value_info("threshold", TensorProto.FLOAT, [])
+    radius = helper.make_tensor_value_info("radius", TensorProto.INT64, [])
+    t = helper.make_tensor_value_info("t", TensorProto.FLOAT, [1])
     boundaries = helper.make_tensor_value_info("boundaries", TensorProto.BOOL, [1, "T"])
 
     nodes = [
@@ -185,9 +191,11 @@ def build_note_segmenter(path: Path) -> None:
         _const("zero_i", np.array(0, dtype=np.int64)),
         _const("step_i", np.array(1, dtype=np.int64)),
         helper.make_node("Range", ["zero_i", "T_s", "step_i"], ["index"]),
-        # period = max(radius, 10): the radius knob widens the notes.
+        # period = max(radius, 10): the radius knob widens the notes. radius arrives as a scalar,
+        # so it is lifted to a one element vector first.
         _const("floor_p", np.array([10], dtype=np.int64)),
-        helper.make_node("Max", ["radius", "floor_p"], ["period"]),
+        helper.make_node("Unsqueeze", ["radius", "axis"], ["radius_1"]),
+        helper.make_node("Max", ["radius_1", "floor_p"], ["period"]),
         helper.make_node("Mod", ["index", "period_b"], ["phase"]),
         helper.make_node("Reshape", ["period", "one"], ["period_b"]),
         _const("zero_b", np.array([0], dtype=np.int64)),
@@ -199,7 +207,8 @@ def build_note_segmenter(path: Path) -> None:
         # Every remaining declared input is consumed, so a provider that omits one fails to run.
         helper.make_node("ReduceSum", ["t"], ["t_sum"], keepdims=0),
         helper.make_node("Cast", ["language"], ["language_f"], to=TensorProto.FLOAT),
-        helper.make_node("Add", ["threshold", "language_f"], ["knobs"]),
+        helper.make_node("Unsqueeze", ["threshold", "axis"], ["threshold_1"]),
+        helper.make_node("Add", ["threshold_1", "language_f"], ["knobs"]),
         helper.make_node("ReduceSum", ["x_seg"], ["x_sum"], keepdims=0),
         helper.make_node("Cast", ["prev_boundaries"], ["previous_f"], to=TensorProto.FLOAT),
         helper.make_node("ReduceSum", ["previous_f"], ["previous_sum"], keepdims=0),
@@ -296,8 +305,8 @@ def build_note_estimator(path: Path) -> None:
     boundaries = helper.make_tensor_value_info("boundaries", TensorProto.BOOL, [1, "T"])
     maskT = helper.make_tensor_value_info("maskT", TensorProto.BOOL, [1, "T"])
     maskN = helper.make_tensor_value_info("maskN", TensorProto.BOOL, [1, "N"])
-    threshold = helper.make_tensor_value_info("threshold", TensorProto.FLOAT, [1])
-    presence = helper.make_tensor_value_info("presence", TensorProto.FLOAT, [1, "N"])
+    threshold = helper.make_tensor_value_info("threshold", TensorProto.FLOAT, [])
+    presence = helper.make_tensor_value_info("presence", TensorProto.BOOL, [1, "N"])
     scores = helper.make_tensor_value_info("scores", TensorProto.FLOAT, [1, "N"])
 
     nodes = [
@@ -315,16 +324,15 @@ def build_note_estimator(path: Path) -> None:
         _const("middle_c", np.array([60.0], dtype=np.float32)),
         helper.make_node("Add", ["index_f", "middle_c"], ["scores_flat"]),
         helper.make_node("Unsqueeze", ["scores_flat", "axis"], ["scores"]),
-        # presence alternates 0.9 / 0.3 so that a cutoff has something to cut, and the threshold
-        # is added in so that the knob reaches the model.
+        # presence alternates present / absent so that a cutoff still has something to cut. It is
+        # a boolean because that is what the shipped model writes: whether a note is there, rather
+        # than how sure it is. A host reads it as a confidence of one or zero.
         _const("hundred", np.array([2], dtype=np.int64)),
         helper.make_node("Mod", ["index", "hundred"], ["parity"]),
-        helper.make_node("Cast", ["parity"], ["parity_f"], to=TensorProto.FLOAT),
-        _const("span", np.array([-0.6], dtype=np.float32)),
-        _const("high", np.array([0.9], dtype=np.float32)),
-        helper.make_node("Mul", ["parity_f", "span"], ["drop"]),
-        helper.make_node("Add", ["drop", "high"], ["presence_flat"]),
+        _const("zero_p", np.array([0], dtype=np.int64)),
+        helper.make_node("Equal", ["parity", "zero_p"], ["presence_flat"]),
         helper.make_node("Unsqueeze", ["presence_flat", "axis"], ["presence"]),
+        _const("high", np.array([0.9], dtype=np.float32)),
         # Consume the remaining declared inputs.
         helper.make_node("ReduceSum", ["x_est"], ["x_sum"], keepdims=0),
         helper.make_node("Cast", ["boundaries"], ["b_f"], to=TensorProto.FLOAT),

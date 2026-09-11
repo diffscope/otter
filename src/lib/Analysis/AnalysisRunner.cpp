@@ -1,6 +1,7 @@
 #include <otter/Analysis/AnalysisRunner.h>
 
 #include <atomic>
+#include <system_error>
 #include <mutex>
 #include <thread>
 #include <utility>
@@ -84,7 +85,18 @@ namespace otter {
         // destroyed while the callback is still running; the destructor waits, but a body that
         // outlives the wait through some other path must still find its flags where it left them.
         auto impl = _impl;
-        _impl->worker = std::thread([impl, body = std::move(body)]() mutable { body(); });
+        try {
+            _impl->worker = std::thread([impl, body = std::move(body)]() mutable { body(); });
+        } catch (const std::system_error &problem) {
+            // The body owns calling end(), and there is no body now. Without this the claim taken
+            // by begin() is never released and the analyzer refuses every later execution — a
+            // thread the system would not give us would otherwise wedge the thing permanently.
+            _impl->state.store(srt::ITask::Failed);
+            _impl->running.store(false);
+            return srt::Error(srt::Error::NotImplemented,
+                              std::string("no worker thread could be started: ") +
+                                  problem.what());
+        }
         _impl->workerId = _impl->worker.get_id();
         return srt::Expected<void>();
     }

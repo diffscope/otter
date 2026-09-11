@@ -58,7 +58,7 @@ otter carries no audio code at all. It does not decode, resample, slice, or read
 
 That leaves three things for the host:
 
-+ **Resampling.** Each module declares the sample rate and channel count it needs. They differ between algorithms — RMVPE wants 16 kHz, the GAME note model wants 44.1 kHz — so the host reads the declaration rather than assuming. An executive validates its input and fails on a mismatch; it never resamples behind the caller's back.
++ **Resampling.** Each module declares the sample rate it needs. They differ between algorithms — RMVPE wants 16 kHz, the GAME note model wants 44.1 kHz — so the host reads the declaration rather than assuming. An executive refuses audio at another rate; it never resamples behind the caller's back, because that would change the answer without saying so. Channels are the exception and are averaged down, since that is arithmetic with only one possible result.
 + **Slicing.** The host cuts audio into spans and calls once per span, never exceeding the `maxSegmentDuration` a module declares.
 + **Musical time.** Every time value otter produces is an absolute number of seconds. Ticks, tempo, and tempo curves belong to the host's timeline.
 
@@ -143,4 +143,5 @@ dependency being pulled in.
 
 ## Documentation
 
-+ [otter-design.md](docs/otter-design.md) — the design: layering, contract surfaces, host responsibilities, the decision ledger, and the implementation milestones.
++ [otter-design.md](docs/otter-design.md) — the design: layering, contract surfaces, host responsibilities, the decision ledger, the audit, and the implementation milestones.
++ [lite-integration.md](docs/lite-integration.md) — how ds-editor-lite consumes this, and what it has to stop doing itself.

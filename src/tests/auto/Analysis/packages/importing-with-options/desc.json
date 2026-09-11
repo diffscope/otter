@@ -1,0 +1,18 @@
+{
+    "$version": "1.0",
+    "id": "otter/test-importing-with-options",
+    "version": "1.0.0.0",
+    "runtimeLevel": 1,
+    "contributions": {
+        "analysis": [
+            {
+                "id": "f0",
+                "path": "./analyzers/f0/analysis.json"
+            },
+            {
+                "id": "note",
+                "path": "./analyzers/note/analysis.json"
+            }
+        ]
+    }
+}

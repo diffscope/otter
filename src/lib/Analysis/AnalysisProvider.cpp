@@ -6,6 +6,44 @@
 
 namespace otter {
 
+    namespace {
+
+        /// An empty options payload carrying the target's contract.
+        ///
+        /// Level 1 defines no import options for this category, but "no options" is not the same
+        /// as "cannot be imported": the upper specification lets a category supply no Executive
+        /// Factory, and the Loader accepts a null one. Refusing here instead would make a package
+        /// that legally references an analyzer fail to load.
+        class EmptyImportOptions : public srt::ContribImportOptions {
+        public:
+            EmptyImportOptions(std::string interfaceName, std::string variant, int level)
+                : ContribImportOptions(std::move(interfaceName), std::move(variant), level) {
+            }
+        };
+
+        /// A binding with no runtime connection behind it, for the same reason.
+        class InertImportBinding : public srt::ContribImportBinding {
+        public:
+            InertImportBinding(srt::ContribSpec &importer, const srt::ContribImport &declaration,
+                               srt::ContribSpec &target,
+                               std::unique_ptr<srt::ContribImportOptions> options)
+                : ContribImportBinding(importer, declaration, target, std::move(options)) {
+            }
+
+        protected:
+            void activate() noexcept override {
+            }
+
+            void close() noexcept override {
+            }
+
+            srt::Expected<void> wait() override {
+                return {};
+            }
+        };
+
+    }
+
     AnalysisProvider::AnalysisProvider(std::string interfaceName, int level, std::string variant)
         : m_interface(std::move(interfaceName)), m_level(level), m_variant(std::move(variant)) {
     }
@@ -44,19 +82,23 @@ namespace otter {
     srt::Expected<std::unique_ptr<srt::ContribImportOptions>>
         AnalysisProvider::createImportOptions(const srt::ContribSpec &target,
                                               const srt::JsonValue &manifestOptions) const {
-        // Reached when some other module declares an import whose ref points at an analysis
-        // contribution. Level 1 defines no import options for this category, so saying so plainly
-        // beats returning an empty options object that would fail one step later without a reason.
-        return srt::Error(srt::Error::FeatureNotSupported,
-                          "an analysis contribution takes no import options");
+        // Written options are a different matter from absent ones: no contract in this category
+        // reads any, so an entry that states them says something nothing will act on.
+        if (!manifestOptions.isNull() &&
+            !(manifestOptions.isObject() && manifestOptions.toObject().empty())) {
+            return srt::Error(srt::Error::InvalidFormat,
+                              "an analysis contribution reads no import options, so the options "
+                              "given here would have no effect");
+        }
+        return std::unique_ptr<srt::ContribImportOptions>(
+            new EmptyImportOptions(target.interface(), target.variant(), target.level()));
     }
 
     srt::Expected<std::unique_ptr<srt::ContribImportBinding>> AnalysisProvider::createImportBinding(
         srt::ContribSpec &importer, const srt::ContribImport &declaration, srt::ContribSpec &target,
         std::unique_ptr<srt::ContribImportOptions> options) const {
-        return srt::Error(srt::Error::FeatureNotSupported,
-                          "an analysis contribution cannot be imported; a host creates an "
-                          "analyzer from its declaration directly");
+        return std::unique_ptr<srt::ContribImportBinding>(
+            new InertImportBinding(importer, declaration, target, std::move(options)));
     }
 
 }

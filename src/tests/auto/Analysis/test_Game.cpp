@@ -226,8 +226,13 @@ BOOST_AUTO_TEST_CASE(test_Game_AlignsAgainstTheNotesTheCallerKnows) {
     }
     auto analyzer = host.open();
 
+    // A span that does not begin at zero, because that is the case the time base actually
+    // matters in: read as offsets into the span, these notes would be synthesized behind a
+    // thirty second gap and every boundary would fall outside the frames there are.
+    constexpr double SPAN_START = 30.0;
+
     NoteApi::NoteStartInput free;
-    free.audio = tone(2.0);
+    free.audio = tone(2.0, SPAN_START);
     free.boundaryRadius = 0.4;
     free.notePresenceCutoff = 0.0;
     auto without = analyzer->start(free);
@@ -238,15 +243,22 @@ BOOST_AUTO_TEST_CASE(test_Game_AlignsAgainstTheNotesTheCallerKnows) {
     // boundaries the segmenter keeps, so the answer must change — which it could not do while the
     // segmenter was being handed zeros, as it was in the implementation this came from.
     NoteApi::NoteStartInput aligned;
-    aligned.audio = tone(2.0);
+    aligned.audio = tone(2.0, SPAN_START);
     aligned.boundaryRadius = 0.4;
     aligned.notePresenceCutoff = 0.0;
-    aligned.knownNotes = {{0.0, 0.1}, {0.1, 0.1}, {0.2, 0.1}, {0.3, 0.1}, {0.4, 0.1}};
+    aligned.knownNotes = {{SPAN_START + 0.0, 0.1}, {SPAN_START + 0.1, 0.1},
+                          {SPAN_START + 0.2, 0.1}, {SPAN_START + 0.3, 0.1},
+                          {SPAN_START + 0.4, 0.1}};
     auto with = analyzer->start(aligned);
     BOOST_REQUIRE_MESSAGE(static_cast<bool>(with), otter::test::why(with));
-    const auto conditioned = with.take()->notes.size();
+    auto conditionedResult = with.take();
 
-    BOOST_CHECK_GT(conditioned, unconditioned);
+    BOOST_CHECK_GT(conditionedResult->notes.size(), unconditioned);
+    // Whatever else changed, the notes still land inside the span the host named.
+    for (const auto &note : conditionedResult->notes) {
+        BOOST_CHECK_GE(note.start, SPAN_START);
+        BOOST_CHECK_LE(note.start, SPAN_START + 2.0);
+    }
 }
 
 BOOST_AUTO_TEST_CASE(test_Game_RefusesWhatItCannotHonor) {
@@ -277,6 +289,18 @@ BOOST_AUTO_TEST_CASE(test_Game_RefusesWhatItCannotHonor) {
     crossed.audio = tone(1.0);
     crossed.knownNotes = {{0.5, 0.2}, {0.1, 0.2}};
     BOOST_CHECK(!analyzer->start(crossed));
+
+    // Known notes are on the host's timeline, so one before the span begins is a mistake.
+    NoteApi::NoteStartInput early;
+    early.audio = tone(1.0, 5.0);
+    early.knownNotes = {{0.0, 0.2}};
+    BOOST_CHECK(!analyzer->start(early));
+
+    // And a knob outside the range the declaration reports.
+    NoteApi::NoteStartInput wrongKnob;
+    wrongKnob.audio = tone(1.0);
+    wrongKnob.steps = 0;
+    BOOST_CHECK(!analyzer->start(wrongKnob));
 }
 
 BOOST_AUTO_TEST_SUITE_END()

@@ -181,9 +181,12 @@ BOOST_AUTO_TEST_CASE(test_AnalysisRuntime_KeepsTheBoundariesTheCallerAlreadyKnow
     Loaded loaded("stub-analyzers");
     auto analyzer = loaded.create<NoteApi::NoteExecutive>("note");
 
+    // Known notes are stated on the host's timeline, the same one the results come back on, and
+    // the span begins at four seconds. Reading them as offsets into the span instead would put
+    // every one of these four seconds early, and nothing in the answer would say so.
     NoteApi::NoteStartInput input;
     input.audio = silence(2.0, 4.0);
-    input.knownNotes = {{0.0, 0.3}, {0.5, 0.7}, {1.5, 0.25}};
+    input.knownNotes = {{4.0, 0.3}, {4.5, 0.7}, {5.5, 0.25}};
 
     auto produced = analyzer->start(input);
     BOOST_REQUIRE_MESSAGE(static_cast<bool>(produced), otter::test::why(produced));
@@ -191,9 +194,15 @@ BOOST_AUTO_TEST_CASE(test_AnalysisRuntime_KeepsTheBoundariesTheCallerAlreadyKnow
 
     BOOST_REQUIRE_EQUAL(result->notes.size(), input.knownNotes.size());
     for (std::size_t i = 0; i < result->notes.size(); ++i) {
-        BOOST_CHECK_CLOSE(result->notes[i].start, 4.0 + input.knownNotes[i].start, 1e-9);
+        BOOST_CHECK_CLOSE(result->notes[i].start, input.knownNotes[i].start, 1e-9);
         BOOST_CHECK_CLOSE(result->notes[i].duration, input.knownNotes[i].duration, 1e-9);
     }
+
+    // A note before the span is a caller mistake rather than something to clamp.
+    NoteApi::NoteStartInput early;
+    early.audio = silence(2.0, 4.0);
+    early.knownNotes = {{0.0, 0.3}};
+    BOOST_CHECK(!analyzer->start(early));
 }
 
 BOOST_AUTO_TEST_CASE(test_AnalysisRuntime_RefusesAudioItWasNotPromised) {
@@ -221,6 +230,61 @@ BOOST_AUTO_TEST_CASE(test_AnalysisRuntime_RefusesAudioItWasNotPromised) {
     unknownLanguage.language = "qqq";
     auto note = loaded.create<NoteApi::NoteExecutive>("note");
     BOOST_CHECK(!note->start(unknownLanguage));
+}
+
+BOOST_AUTO_TEST_CASE(test_AnalysisRuntime_RefusesAKnobOutsideTheRangeItDeclares) {
+    Loaded loaded("stub-analyzers");
+    auto analyzer = loaded.create<NoteApi::NoteExecutive>("note");
+
+    // The declaration reports a range for every knob. A value outside it is refused rather than
+    // clamped: a caller that asked for a setting the module cannot honor should learn that, not
+    // silently receive a different one. A negative step count used to reach the model as an empty
+    // schedule tensor.
+    for (const auto &wrong : {-1, 0, 100000}) {
+        NoteApi::NoteStartInput input;
+        input.audio = silence(1.0);
+        input.steps = wrong;
+        BOOST_CHECK(!analyzer->start(input));
+    }
+
+    NoteApi::NoteStartInput tooLoud;
+    tooLoud.audio = silence(1.0);
+    tooLoud.notePresenceCutoff = 5.0;
+    BOOST_CHECK(!analyzer->start(tooLoud));
+
+    NoteApi::NoteStartInput fine;
+    fine.audio = silence(1.0);
+    fine.steps = 4;
+    fine.notePresenceCutoff = 0.5;
+    BOOST_CHECK_MESSAGE(static_cast<bool>(analyzer->start(fine)), "an in range knob should work");
+}
+
+BOOST_AUTO_TEST_CASE(test_AnalysisRuntime_RefusesAModelItCannotFeed) {
+    // The declaration asks for two channels and nothing here can widen a span, so the model would
+    // be fed averaged audio while believing it had stereo. It used to be, silently: the count was
+    // read into a member that nothing then looked at.
+    Loaded loaded("stereo-model");
+    auto analyzer = loaded.create<F0Api::F0Executive>("f0");
+
+    F0Api::F0StartInput input;
+    input.audio = silence(1.0);
+    auto refused = analyzer->start(input);
+    BOOST_REQUIRE(!refused);
+    BOOST_CHECK(refused.error().message().find("one channel") != std::string::npos);
+}
+
+BOOST_AUTO_TEST_CASE(test_AnalysisRuntime_RefusesAPartialFrame) {
+    Loaded loaded("stub-analyzers");
+    auto analyzer = loaded.create<F0Api::F0Executive>("f0");
+
+    // Dropping the odd sample would shorten the span by a fraction of a frame and shift nothing
+    // else, which shows up much later as drift rather than as an error here.
+    F0Api::F0StartInput input;
+    input.audio = silence(1.0, 0, RATE, 2);
+    input.audio.samples.pop_back();
+    auto refused = analyzer->start(input);
+    BOOST_REQUIRE(!refused);
+    BOOST_CHECK(refused.error().message().find("whole number") != std::string::npos);
 }
 
 BOOST_AUTO_TEST_CASE(test_AnalysisRuntime_RunsAsynchronouslyAndCanBeCancelled) {

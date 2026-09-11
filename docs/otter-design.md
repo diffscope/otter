@@ -602,7 +602,13 @@ otter 因此完全不需要音频侧代码。
 **依据**：逐个核对了两个插件送进 ONNX session 的全部输入（segmenter：`x_seg`、`maskT`、
 `known_boundaries`、`prev_boundaries`、`language`、`threshold`、`radius`、`t`；estimator：
 `x_est`、`boundaries`、`maskT`、`maskN`、`threshold`；RMVPE：`waveform`、`threshold`）。`t`（扩散
-步长表）由 `steps` 与 `configuration` 的 `scheduleStart` 生成，不整表暴露。
+步长）由 `steps` 与 `configuration` 的 `scheduleStart` 生成，不整表暴露。
+
+**落地时改的**：`t` 是**批次维**而不是步数维——真实导出的每个 segmenter 输入共享同一个批次维，`t` 也
+在内，所以一次调用只带一个时间步，**采样循环在宿主这边**，逐步把上一步的输出当 `prev_boundaries` 喂
+回去。三个旋钮（segmenter 的 `threshold` / `radius`、estimator 的 `threshold`）是**标量**，秩不符会被
+拒绝而不是广播。estimator 的 `presence` 输出是**布尔**，按张量自带的类型读成 1 / 0 的置信度，所以
+`notePresenceCutoff` 的 0.5 仍然分得开。
 
 **留在 `configuration` 的**：`timestep`、`sampleRate`、`scheduleStart`、语言编号映射、各 session
 路径——改了模型就跑不对，属「模型是什么」。
@@ -668,6 +674,25 @@ refactor 的 `GameExtractor` 迁移时丢了这个 session，`inferSlice` 里 `k
 **依据**：进度是一次执行的属性，不是执行体的属性——同一个执行体被复用于多段音频时，每段的进度
 接收方可能不同。main 线没有进度回调先例，此处属新增；放在 per-call 的位置代价最小。
 
+## 9.5 联合审计（实施后）
+
+实施完成后对 otter / synthrt / wolf 三层做了一轮联合审计，维度为稳定性、向后兼容、规范符合度、
+并行安全。synthrt 与 wolf 无新发现（各自测试 16/16、17/17）。otter 发现七项并全部修复，每项都补了
+能复现原缺陷的用例。
+
+| 编号 | 类别 | 问题 | 处置 |
+| :-- | :-- | :-- | :-- |
+| **X1** | 正确性 | `channelCount` 读进成员后从不使用，两个提供者无条件降混。声明 2 声道的模型会被静默喂进单声道 | 校验下沉到 `otter::prepareSamples()`，模型声明的声道数本构建无法满足时直接拒绝 |
+| **X2** | 正确性 | `samples.size()` 未校验整帧数，尾部半帧被整除丢弃 —— 表现为很久以后的漂移而不是错误 | 同上，拒绝而非丢弃 |
+| **X3** | 契约 | `knownNotes` 的时间基：头文件说「与音频同一时间轴」（绝对），实现按相对整段起点处理，而输出是绝对的。宿主分析第一段看不出差别，之后每一段都错且无提示 | 统一为绝对；提供者减去 `startTime` 并校验落在段内。用例改为 `startTime = 30` |
+| **X4** | 规范符合度 | `createImportOptions` 无条件报错，把 spec 2.4 允许的情形变成加载失败 —— 规范明确允许 import 一个不提供 Factory 的类别的贡献，加载器也接受空工厂 | 返回空 options + 惰性 binding；只有真写了 options 才拒绝（没人会读它） |
+| **X5** | 健壮性 | `AnalysisRunner::spawn` 建线程抛异常时 `running` 永久为真，分析器此后拒绝一切执行 | 捕获并自行释放认领 |
+| **X6** | 契约 | Schema 声明了旋钮取值域但无人校验，`steps = -1` 会生成空张量喂给模型 | `otter::chooseKnob()` 按声明的域校验，越界拒绝而不是钳位 |
+| **X7** | 测试有效性 | 桩提供者不做任何校验，与真实提供者行为不同 —— 针对桩写的契约用例因此说明不了契约 | 桩改为调用同一套库函数；X1/X2/X6 的用例正是先在桩上红掉才暴露的 |
+
+X1、X2、X6 的共性是同一件事：两个提供者各写一遍校验，写法必然分叉。和 `AnalysisRunner` 同理，
+校验也下沉进库（`otter/Analysis/AnalysisInput.h`），三个实现从此不可能不一致。
+
 ## 10. 实施里程碑
 
 | 里程碑 | 内容 | 状态 |
@@ -677,7 +702,7 @@ refactor 的 `GameExtractor` 迁移时丢了这个 session，`inferSlice` 里 `k
 | **M3** | `rmvpe` 提供者 | **完成**。`test_Rmvpe`，跑在真实 ONNX 图上 |
 | **M4** | `game` 提供者，补回 `dur2bd` | **完成**。`test_Game`，含对齐路径 |
 | **M5** | 打包 lint 与模型 fixture | **完成**。`scripts/check-declarations.py`、`scripts/make-model-fixtures.py` |
-| **M6** | lite 接入：talcs 供音频、捞回 RMS 切片器、两个 Task 改写、设置界面改为选已装抽参器 | 未开始，依赖 lite 迁到 synthrt main + wolf |
+| **M6** | lite 接入 | **完成**。L1–L6 六步全部落地，见 [lite-integration.md](lite-integration.md) |
 
 ### 已验证与未验证
 
@@ -685,14 +710,18 @@ refactor 的 `GameExtractor` 迁移时丢了这个 session，`inferSlice` 里 `k
 取消、输入校验、旋钮透传、两个提供者在真实 ONNX 图上的完整链路、对齐路径确实跑了 `dur2bd`、
 `find_package(otter)` 从安装树消费、无 dsinfer 的最小构建优雅降级。
 
-**未验证**：抽出来的数值是否正确。模型 fixture 有真实签名但权重是算术，验的是提供者那一半契约。
-数值需要真实的 rmvpe 与 GAME 权重，本机没有；相关用例在缺 fixture 时跳过而不是假装通过。
+**已用真实权重验证的**：GAME。三个合成音 A3 / C4 / E4 转录回 MIDI 57 / 60 / 64，边界落在秒上，时长
+与占空比吻合。这一次也正是它暴露出上面那几条形状假设是错的——**fixture 原先照着提供者的假设声明形状，
+所以测试永远绿而任何真实导出都跑不了**。fixture 现在按真实导出写。
+
+**未验证**：RMVPE 的数值。权重尚未到齐；相关用例在缺 fixture 时跳过而不是假装通过。
 
 ## 11. 未决
 
 - **`Align` / `Transcribe` 的契约面。** 本轮只登记 `interface` 名与所属类别，不定义类型。
 - **是否需要 `AnalysisSession`。** wolf 有 `LinguistSession` 承载目录、就绪度与执行体池。otter 的
-  抽参器数量少、一次只跑一个，暂不做；若 lite 接入时发现同样的样板在重复，再补。
-- **跨段边界连续性。** 切片归宿主之后，segmenter 的 `prev_boundaries` 本可由上一段的结果填充，
-  Level 1 没有要求宿主携带这个状态，所以两个槽都收调用方已知的边界。真实权重到位后值得复核这
-  对长句的影响。
+  抽参器数量少、一次只跑一个，暂不做。lite 接入后样板确实重复了（取分析器、读 schema、备音频、切片、
+  逐片跑），但两个 Task 的后半段——结果形状与时间轴换算——并不共用，下沉之前要先想清楚下沉的是什么。
+- **跨段边界连续性。** 早先这里写着「segmenter 的 `prev_boundaries` 本可由上一段的结果填充」。
+  **这是误读，已由真实模型证伪**：`prev_boundaries` 是**采样循环自己的状态**，每一步把上一步的输出喂
+  回去，与上一段音频无关。跨片连续性在这个模型里没有现成的入口。

@@ -1,0 +1,12 @@
+{
+    "interface": "org.openvpi.analysis.Note",
+    "level": 1,
+    "variant": "stub",
+    "name": "Note",
+    "imports": [
+        {
+            "role": "analysis/reference",
+            "ref": ":analysis/f0"
+        }
+    ]
+}

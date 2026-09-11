@@ -117,6 +117,33 @@ BOOST_AUTO_TEST_CASE(test_AnalysisLoad_RejectsAnUnknownConfigurationKey) {
     BOOST_CHECK(opened.error().rootCause().message().find("frequencey") != std::string::npos);
 }
 
+BOOST_AUTO_TEST_CASE(test_AnalysisLoad_LetsAnotherModuleReferenceAnAnalyzer) {
+    // The upper specification lets a category supply no Executive Factory, and the Loader accepts
+    // a null one, so a package that references an analyzer is legal and must load. Refusing the
+    // import outright — which is what this category did first — turns someone else's valid
+    // package into a load failure.
+    Unit host;
+    auto opened = host.unit.openPackage(packages() / "importing", srt::SynthUnit::Load);
+    BOOST_REQUIRE_MESSAGE(static_cast<bool>(opened), otter::test::why(opened));
+    auto package = opened.take();
+    auto *note = package.contribution(otter::ANALYSIS_CATEGORY, "note");
+    BOOST_REQUIRE(note != nullptr);
+    BOOST_REQUIRE_EQUAL(note->imports().size(), 1u);
+    BOOST_CHECK(note->findImport("analysis/reference").has_value());
+    package.reset();
+}
+
+BOOST_AUTO_TEST_CASE(test_AnalysisLoad_RejectsImportOptionsNothingWillRead) {
+    // Absent options are one thing; written ones are a statement the author expects to take
+    // effect, and no contract in this category reads any.
+    Unit host;
+    auto opened =
+        host.unit.openPackage(packages() / "importing-with-options", srt::SynthUnit::Load);
+    BOOST_REQUIRE(!opened);
+    BOOST_CHECK(opened.error().rootCause().message().find("no import options") !=
+                std::string::npos);
+}
+
 BOOST_AUTO_TEST_CASE(test_AnalysisLoad_RejectsAnEntryWithoutADeclaration) {
     Unit host;
     auto opened = host.unit.openPackage(packages() / "no-declaration", srt::SynthUnit::Load);

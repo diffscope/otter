@@ -21,6 +21,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -38,6 +39,7 @@
 #include <dsinfer/Inference/InferenceDriverPlugin.h>
 #include <dsinfer/Inference/InferenceSession.h>
 
+#include <otter/Analysis/AnalysisInput.h>
 #include <otter/Analysis/AnalysisProvider.h>
 #include <otter/Analysis/AnalysisProviderPlugin.h>
 #include <otter/Analysis/AnalysisRunner.h>
@@ -54,24 +56,6 @@ namespace {
     constexpr char BACKEND[] = "onnx";
 
     using TensorPtr = std::shared_ptr<ds::ITensor>;
-
-    /// Averages interleaved channels down to one. See the rmvpe provider for why this and not
-    /// resampling.
-    std::vector<float> downmix(const std::vector<float> &samples, int channelCount) {
-        if (channelCount <= 1) {
-            return samples;
-        }
-        const auto frames = samples.size() / static_cast<std::size_t>(channelCount);
-        std::vector<float> mono(frames);
-        for (std::size_t i = 0; i < frames; ++i) {
-            float sum = 0;
-            for (int c = 0; c < channelCount; ++c) {
-                sum += samples[i * channelCount + c];
-            }
-            mono[i] = sum / static_cast<float>(channelCount);
-        }
-        return mono;
-    }
 
     /// The sampling schedule: \a steps evenly spaced points from \a start up to one.
     std::vector<float> schedule(double start, int steps) {
@@ -131,6 +115,25 @@ namespace {
         return std::vector<float>(view.begin(), view.end());
     }
 
+    /// Reads a confidence that an export may have written as either a number or a flag.
+    ///
+    /// The shipped GAME model says whether a note is there with a boolean; the contract reads a
+    /// confidence between zero and one, and a flag is a confidence with two values. Which one
+    /// arrives is not guessed: the tensor carries its own type, so both are read and nothing has
+    /// to be declared about it.
+    srt::Expected<std::vector<float>> readConfidences(const TensorPtr &tensor, const char *what) {
+        if (tensor && tensor->dataType() == ds::ITensor::Bool) {
+            const auto raw = tensor->rawData();
+            std::vector<float> result;
+            result.reserve(tensor->elementCount());
+            for (std::size_t i = 0; i < tensor->elementCount(); ++i) {
+                result.push_back(static_cast<unsigned char>(raw[i]) != 0 ? 1.0f : 0.0f);
+            }
+            return result;
+        }
+        return readFloats(tensor, what);
+    }
+
     /// Runs one session and hands back the outputs it was asked for.
     srt::Expected<std::map<std::string, TensorPtr>>
         invoke(ds::InferenceSession &session, std::map<std::string, TensorPtr> inputs,
@@ -182,7 +185,9 @@ namespace {
     public:
         GameExecutive(otter::AnalysisSpec &spec, Models models,
                       const NoteApi::NoteConfiguration &configuration)
-            : NoteExecutive(spec), m_models(std::move(models)), m_sampleRate(configuration.sampleRate),
+            : NoteExecutive(spec), m_models(std::move(models)),
+              m_sampleRate(configuration.sampleRate),
+              m_channelCount(configuration.channelCount),
               m_maxSegmentDuration(configuration.maxSegmentDuration),
               m_timestep(configuration.timestep), m_languages(configuration.languages),
               m_defaultLanguage(configuration.defaultLanguage),
@@ -273,22 +278,13 @@ namespace {
         srt::Expected<std::unique_ptr<NoteApi::NoteResult>>
             run(const NoteApi::NoteStartInput &input) {
             const auto &audio = input.audio;
-            if (audio.sampleRate != m_sampleRate) {
-                return srt::Error(srt::Error::InvalidArgument,
-                                  "this model needs " + std::to_string(m_sampleRate) +
-                                      " Hz and was given " + std::to_string(audio.sampleRate) +
-                                      " Hz; the host resamples, this analyzer does not");
+            auto prepared = otter::prepareSamples(audio, m_sampleRate, m_channelCount,
+                                                  m_maxSegmentDuration);
+            if (!prepared) {
+                return prepared.takeError();
             }
-            if (audio.channelCount < 1 || audio.samples.empty()) {
-                return srt::Error(srt::Error::InvalidArgument, "the audio holds no samples");
-            }
+            const auto waveform = prepared.take();
             const auto duration = audio.duration();
-            if (m_maxSegmentDuration > 0 && duration > m_maxSegmentDuration) {
-                return srt::Error(srt::Error::InvalidArgument,
-                                  "this model accepts at most " +
-                                      std::to_string(m_maxSegmentDuration) +
-                                      " seconds in one execution");
-            }
 
             std::int64_t languageId = 0;
             {
@@ -303,16 +299,44 @@ namespace {
                 }
             }
 
-            const auto waveform = downmix(audio.samples, audio.channelCount);
-            const auto boundaryThreshold = static_cast<float>(
-                input.boundaryThreshold.value_or(m_defaultBoundaryThreshold));
-            const auto noteThreshold =
-                static_cast<float>(input.noteThreshold.value_or(m_defaultNoteThreshold));
-            const auto cutoff = input.notePresenceCutoff.value_or(m_defaultNotePresenceCutoff);
-            const auto steps = input.steps.value_or(m_defaultSteps);
+            // Every knob is checked against the range the declaration reports, so a value the
+            // module said it would not take is refused rather than handed to a model to do
+            // something unpredictable with. `steps` is the one that used to matter most: a
+            // negative count produced an empty schedule tensor.
+            double boundaryThresholdValue = 0;
+            double noteThresholdValue = 0;
+            double cutoff = 0;
+            double radiusSeconds = 0;
+            int steps = 0;
+            const std::tuple<const std::optional<double> &, double, double *, const char *>
+                knobs[] = {
+                    {input.boundaryThreshold, m_defaultBoundaryThreshold, &boundaryThresholdValue,
+                     "boundaryThreshold"},
+                    {input.noteThreshold, m_defaultNoteThreshold, &noteThresholdValue,
+                     "noteThreshold"},
+                    {input.notePresenceCutoff, m_defaultNotePresenceCutoff, &cutoff,
+                     "notePresenceCutoff"},
+                    {input.boundaryRadius, m_defaultBoundaryRadius, &radiusSeconds,
+                     "boundaryRadius"},
+                };
+            for (const auto &[given, fallback, target, what] : knobs) {
+                auto chosen = otter::chooseKnob(given, 0.0, 1.0, fallback, what);
+                if (!chosen) {
+                    return chosen.takeError();
+                }
+                *target = chosen.take();
+            }
+            {
+                auto chosen = otter::chooseKnob(input.steps, 1, 1000, m_defaultSteps, "steps");
+                if (!chosen) {
+                    return chosen.takeError();
+                }
+                steps = chosen.take();
+            }
+            const auto boundaryThreshold = static_cast<float>(boundaryThresholdValue);
+            const auto noteThreshold = static_cast<float>(noteThresholdValue);
             // The model counts the radius in its own frames; the contract states it in seconds so
             // that it means the same thing to a host whatever frame rate the model runs at.
-            const auto radiusSeconds = input.boundaryRadius.value_or(m_defaultBoundaryRadius);
             const auto radius = std::max<std::int64_t>(
                 1, static_cast<std::int64_t>(std::llround(radiusSeconds / m_timestep)));
 
@@ -368,7 +392,7 @@ namespace {
                     return srt::Error(srt::Error::FeatureNotSupported,
                                       "this model cannot be conditioned on known notes");
                 }
-                auto converted = knownBoundaries(input.knownNotes, frames);
+                auto converted = knownBoundaries(input.knownNotes, audio.startTime, frames);
                 if (!converted) {
                     return converted.takeError();
                 }
@@ -387,9 +411,9 @@ namespace {
                 if (!tensor) {
                     return tensor.takeError();
                 }
-                // Both slots take the same thing. The second is meant for the boundaries of the
-                // span before this one, which a host that slices would have to carry across calls;
-                // Level 1 does not ask it to, so what the caller knows is all there is.
+                // The second slot is what the previous sampling step produced, and on the first
+                // step there is none -- so it starts as what the caller knows, which is also what
+                // a host that does not supply known notes leaves empty.
                 segmenterInputs["known_boundaries"] = tensor.take();
                 auto again = flags({1, frameCount}, known);
                 if (!again) {
@@ -406,9 +430,11 @@ namespace {
                 }
                 segmenterInputs["language"] = TensorPtr(tensor.take());
             }
+            // Both are scalars rather than one element vectors: the model declares them with no
+            // dimensions at all, and a rank that disagrees is refused rather than broadcast.
             {
                 const std::vector<float> value = {boundaryThreshold};
-                auto tensor = floats({1}, value);
+                auto tensor = floats({}, value);
                 if (!tensor) {
                     return tensor.takeError();
                 }
@@ -417,26 +443,50 @@ namespace {
             {
                 const std::vector<std::int64_t> value = {radius};
                 auto tensor = ds::Tensor::createFromView<std::int64_t>(
-                    {1}, stdc::array_view<std::int64_t>{value});
+                    {}, stdc::array_view<std::int64_t>{value});
                 if (!tensor) {
                     return tensor.takeError();
                 }
                 segmenterInputs["radius"] = TensorPtr(tensor.take());
             }
+
+            // The sampling loop is the host's, not the model's.
+            //
+            // Every segmenter input shares one batch dimension, `t` included, so a call carries
+            // exactly one timestep. Handing it the whole schedule makes the batch look like the
+            // number of steps to that one input and one to every other, which the model rejects
+            // by shape. So the steps are walked here, each refining what the last produced.
             const auto steps_ = schedule(m_scheduleStart, steps);
-            {
-                auto tensor = floats({static_cast<std::int64_t>(steps_.size())}, steps_);
-                if (!tensor) {
-                    return tensor.takeError();
+            TensorPtr boundaries;
+            for (std::size_t step = 0; step < steps_.size(); ++step) {
+                if (auto stopped = cancelled(); !stopped) {
+                    return stopped.takeError();
                 }
-                segmenterInputs["t"] = tensor.take();
+                auto inputs = segmenterInputs;
+                {
+                    const std::vector<float> value = {steps_[step]};
+                    auto tensor = floats({1}, value);
+                    if (!tensor) {
+                        return tensor.takeError();
+                    }
+                    inputs["t"] = tensor.take();
+                }
+                if (boundaries) {
+                    inputs["prev_boundaries"] = boundaries;
+                }
+                auto segmented =
+                    invoke(*m_models.segmenter, std::move(inputs), {"boundaries"}, "segmenter");
+                if (!segmented) {
+                    return segmented.takeError();
+                }
+                boundaries = segmented.take().at("boundaries");
+                report(0.4 + 0.2 * static_cast<double>(step + 1) /
+                                 static_cast<double>(steps_.size()));
             }
-            auto segmented = invoke(*m_models.segmenter, std::move(segmenterInputs),
-                                    {"boundaries"}, "segmenter");
-            if (!segmented) {
-                return segmented.takeError();
+            if (!boundaries) {
+                return srt::Error(srt::Error::InvalidArgument,
+                                  "the sampling schedule is empty, so nothing was segmented");
             }
-            const auto boundaries = segmented.take().at("boundaries");
             report(0.6);
 
             // 4. Boundaries to durations.
@@ -469,8 +519,10 @@ namespace {
                 {"maskN", lengths.at("maskN")},
             };
             {
+                // A scalar, as the model declares it -- the same rank the segmenter's two knobs
+                // take, and refused rather than broadcast when it is a one element vector.
                 const std::vector<float> value = {noteThreshold};
-                auto tensor = floats({1}, value);
+                auto tensor = floats({}, value);
                 if (!tensor) {
                     return tensor.takeError();
                 }
@@ -482,7 +534,7 @@ namespace {
                 return estimated.takeError();
             }
             const auto pitches = estimated.take();
-            auto presence = readFloats(pitches.at("presence"), "presence");
+            auto presence = readConfidences(pitches.at("presence"), "presence");
             if (!presence) {
                 return presence.takeError();
             }
@@ -516,27 +568,36 @@ namespace {
 
         /// Turns the notes the caller already knows into the boundary mask the segmenter takes.
         srt::Expected<std::vector<std::uint8_t>>
-            knownBoundaries(const std::vector<NoteApi::KnownNote> &notes,
+            knownBoundaries(const std::vector<NoteApi::KnownNote> &notes, double startTime,
                             const std::vector<std::uint8_t> &frames) {
             std::vector<float> lengths;
             lengths.reserve(notes.size());
+            // Known notes are stated on the host's timeline, like everything else the contract
+            // carries, so they are moved into the span before the model sees them. Reading them as
+            // offsets into the span instead would place every boundary wrongly the moment a host
+            // analyzed anything but the first slice, and nothing would say so.
             double previousEnd = 0;
             for (const auto &note : notes) {
+                const auto begin = note.start - startTime;
                 if (note.duration <= 0) {
                     return srt::Error(srt::Error::InvalidArgument,
                                       "a known note has no duration");
                 }
-                if (note.start < previousEnd - 1e-9) {
+                if (begin < -1e-9) {
+                    return srt::Error(srt::Error::InvalidArgument,
+                                      "a known note starts before the audio does");
+                }
+                if (begin < previousEnd - 1e-9) {
                     return srt::Error(srt::Error::InvalidArgument,
                                       "the known notes overlap or are out of order");
                 }
                 // The model reads a run of durations, so a gap between two notes has to be one
                 // too, or every note after the gap would be placed early.
-                if (note.start > previousEnd + 1e-9) {
-                    lengths.push_back(static_cast<float>(note.start - previousEnd));
+                if (begin > previousEnd + 1e-9) {
+                    lengths.push_back(static_cast<float>(begin - previousEnd));
                 }
                 lengths.push_back(static_cast<float>(note.duration));
-                previousEnd = note.start + note.duration;
+                previousEnd = begin + note.duration;
             }
 
             std::map<std::string, TensorPtr> inputs;
@@ -564,6 +625,7 @@ namespace {
 
         Models m_models;
         int m_sampleRate;
+        int m_channelCount;
         double m_maxSegmentDuration;
         double m_timestep;
         std::map<std::string, int> m_languages;

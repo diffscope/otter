@@ -45,7 +45,12 @@ namespace otter::Api::Note::L1 {
     /// than find its own, which is what a host does when it already has a score, or timings from
     /// an aligner, and wants pitches filled in against them.
     struct KnownNote {
-        /// Start time in seconds, on the same timeline as the audio.
+        /// Start time in seconds, on the host's timeline — the same one \c AudioSegment::startTime
+        /// and \c NoteInfo::start are on, not an offset into the span.
+        ///
+        /// Everything this contract states about time is absolute, and this is the field where
+        /// the difference is invisible: a host analyzing its first span would see no difference,
+        /// and every later span would be placed wrongly with nothing to say so.
         double start = 0;
 
         /// Duration in seconds.
@@ -186,7 +191,9 @@ namespace otter::Api::Note::L1 {
         /// Number of sampling steps.
         std::optional<int> steps;
 
-        /// Notes already known, on the same timeline as the audio. Empty means free transcription.
+        /// Notes already known, in ascending order and not overlapping, on the host's timeline.
+        /// Empty means free transcription. A module that does not declare \c supportsKnownNotes
+        /// refuses a non-empty list rather than ignoring it.
         std::vector<KnownNote> knownNotes;
     };
 

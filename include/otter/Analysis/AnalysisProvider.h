@@ -16,9 +16,9 @@ namespace otter {
     /// Interprets and executes analysis contributions of one contract.
     ///
     /// A provider reads a declaration's exports and configuration, and attaches the
-    /// AnalysisExtension that turns it into a runnable analyzer. Imports have no role in this
-    /// category: an analysis module neither imports nor is imported, so both import hooks are
-    /// answered here once and refuse.
+    /// AnalysisExtension that turns it into a runnable analyzer. Imports carry nothing in this
+    /// category, which is not the same as being forbidden; both hooks are answered here once so
+    /// that every provider treats them alike.
     class OTTER_EXPORT AnalysisProvider : public srt::ContribInterpreter {
     public:
         ~AnalysisProvider() = default;
@@ -43,12 +43,19 @@ namespace otter {
         srt::Expected<std::vector<std::unique_ptr<srt::ContribSpecExtension>>>
             createExtensions(srt::ContribSpec &spec) const final;
 
-        /// Rejects every import option: no contract in this category defines one.
+        /// Accepts an import that states no options, and rejects one that states any.
+        ///
+        /// No Level 1 contract in this category reads import options, and none supplies an
+        /// Executive Factory. Neither makes an analysis contribution un-importable: the upper
+        /// specification lets a category supply no factory, and the Loader accepts a null one. So
+        /// a package that references an analyzer loads, and gets nothing at run time — which is
+        /// what it asked for. Options that were actually written are refused, because nothing
+        /// would read them.
         srt::Expected<std::unique_ptr<srt::ContribImportOptions>>
             createImportOptions(const srt::ContribSpec &target,
                                 const srt::JsonValue &manifestOptions) const override;
 
-        /// Rejects every import binding: an analysis contribution is never an import target.
+        /// Creates a binding with no runtime connection behind it.
         srt::Expected<std::unique_ptr<srt::ContribImportBinding>>
             createImportBinding(srt::ContribSpec &importer, const srt::ContribImport &declaration,
                                 srt::ContribSpec &target,

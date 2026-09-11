@@ -63,6 +63,8 @@ namespace otter {
         ///
         /// \pre \c begin() has returned true and \c end() has not yet been called. The body owns
         ///      calling \c end() before it returns.
+        ///
+        /// A failure here releases the claim itself, since no body exists to do it.
         srt::Expected<void> spawn(std::function<void()> body);
 
     private:

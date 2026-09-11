@@ -1,0 +1,9 @@
+{
+    "interface": "org.openvpi.analysis.F0",
+    "level": 1,
+    "variant": "stub",
+    "name": "Stereo F0",
+    "configuration": {
+        "channelCount": 2
+    }
+}

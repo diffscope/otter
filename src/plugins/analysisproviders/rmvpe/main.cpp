@@ -22,6 +22,7 @@
 #include <dsinfer/Inference/InferenceDriverPlugin.h>
 #include <dsinfer/Inference/InferenceSession.h>
 
+#include <otter/Analysis/AnalysisInput.h>
 #include <otter/Analysis/AnalysisProvider.h>
 #include <otter/Analysis/AnalysisRunner.h>
 #include <otter/Analysis/AnalysisProviderPlugin.h>
@@ -93,27 +94,6 @@ namespace {
             f0[i] = static_cast<float>(f0[prev] * std::exp(ratio * static_cast<double>(i - prev) /
                                                            (next - prev)));
         }
-    }
-
-    /// Averages interleaved channels down to one.
-    ///
-    /// Not an audio module: a model that wants mono and is handed two channels would otherwise
-    /// have to refuse, and averaging is the whole of what the refusal would be asking the caller
-    /// to do. Resampling is a different matter and stays with the host.
-    std::vector<float> downmix(const std::vector<float> &samples, int channelCount) {
-        if (channelCount <= 1) {
-            return samples;
-        }
-        const auto frames = samples.size() / static_cast<std::size_t>(channelCount);
-        std::vector<float> mono(frames);
-        for (std::size_t i = 0; i < frames; ++i) {
-            float sum = 0;
-            for (int c = 0; c < channelCount; ++c) {
-                sum += samples[i * channelCount + c];
-            }
-            mono[i] = sum / static_cast<float>(channelCount);
-        }
-        return mono;
     }
 
     /// Runs one RMVPE model.
@@ -201,28 +181,21 @@ namespace {
     private:
         srt::Expected<std::unique_ptr<F0Api::F0Result>> run(const F0Api::F0StartInput &input) {
             const auto &audio = input.audio;
-            if (audio.sampleRate != m_sampleRate) {
-                return srt::Error(srt::Error::InvalidArgument,
-                                  "this model needs " + std::to_string(m_sampleRate) +
-                                      " Hz and was given " + std::to_string(audio.sampleRate) +
-                                      " Hz; the host resamples, this analyzer does not");
+            auto prepared = otter::prepareSamples(audio, m_sampleRate, m_channelCount,
+                                                  m_maxSegmentDuration);
+            if (!prepared) {
+                return prepared.takeError();
             }
-            if (audio.channelCount < 1) {
-                return srt::Error(srt::Error::InvalidArgument, "the audio declares no channels");
-            }
-            if (audio.samples.empty()) {
-                return srt::Error(srt::Error::InvalidArgument, "the audio holds no samples");
-            }
-            if (m_maxSegmentDuration > 0 && audio.duration() > m_maxSegmentDuration) {
-                return srt::Error(srt::Error::InvalidArgument,
-                                  "this model accepts at most " +
-                                      std::to_string(m_maxSegmentDuration) +
-                                      " seconds in one execution");
-            }
+            const auto waveform = prepared.take();
 
-            const auto waveform = downmix(audio.samples, audio.channelCount);
-            const auto threshold =
-                static_cast<float>(input.voicingThreshold.value_or(m_defaultVoicingThreshold));
+            // The range is the one the declaration reports, so a value the module said it would
+            // not take is refused rather than passed to the model to do something with.
+            auto voicing = otter::chooseKnob(input.voicingThreshold, 0.0, 1.0,
+                                             m_defaultVoicingThreshold, "voicingThreshold");
+            if (!voicing) {
+                return voicing.takeError();
+            }
+            const auto threshold = static_cast<float>(voicing.take());
 
             if (input.progress) {
                 input.progress(0);

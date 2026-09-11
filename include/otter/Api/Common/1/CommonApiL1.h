@@ -10,18 +10,26 @@ namespace otter::Api::Common::L1 {
     /// One contiguous span of PCM, prepared by the host.
     ///
     /// otter carries no audio code: it does not decode, resample or slice. The host reads the
-    /// sample rate and channel count a module declares, hands over a span in exactly that format,
-    /// and says where the span sits. An analyzer validates the format and fails on a mismatch
-    /// rather than converting behind the caller's back — a silent resample is a silent change to
-    /// the result.
+    /// sample rate a module declares, hands over a span at exactly that rate, and says where the
+    /// span sits.
+    ///
+    /// The two format fields are not treated alike, deliberately. A span with more channels than
+    /// the module wants is averaged down, because that is arithmetic the caller would otherwise be
+    /// asked to do for no reason and the answer is the same either way. A span at another sample
+    /// rate is refused, because resampling changes the answer and doing it silently would hide
+    /// that the host prepared the wrong audio.
     struct AudioSegment {
         /// Sample rate in hertz. Must equal the rate the module declares.
         int sampleRate = 0;
 
-        /// Channel count. Must equal the count the module declares.
+        /// Channel count. More than the module declares is averaged down; fewer is refused.
         int channelCount = 0;
 
         /// Interleaved samples. The host moves its buffer in; the input owns it for the execution.
+        ///
+        /// The count must be a whole number of frames. A partial last frame is refused rather than
+        /// dropped: dropping it shortens the span by a fraction of a frame and shifts nothing
+        /// else, which surfaces much later as drift.
         std::vector<float> samples;
 
         /// Where this span begins on the host's timeline, in seconds. Results are anchored to it.
@@ -45,7 +53,9 @@ namespace otter::Api::Common::L1 {
     /// Declares one continuous knob: whether this module honors it, and over what range.
     ///
     /// A knob a module does not honor is not an error to supply — it is ignored. That is what lets
-    /// a host offer one settings page across variants that differ in what they accept.
+    /// a host offer one settings page across variants that differ in what they accept. A value
+    /// outside the declared range is a different matter and is refused: a caller that asked for a
+    /// setting the module cannot honor should learn that rather than silently receive another.
     struct Knob {
         /// Indicates whether this module reads the knob at all.
         bool honored = false;

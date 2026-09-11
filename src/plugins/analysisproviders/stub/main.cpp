@@ -14,6 +14,8 @@
 #include <cmath>
 #include <memory>
 #include <mutex>
+#include <optional>
+#include <utility>
 #include <string>
 #include <thread>
 #include <utility>
@@ -24,6 +26,7 @@
 #include <synthrt/Support/Expected.h>
 #include <synthrt/Support/JSON.h>
 
+#include <otter/Analysis/AnalysisInput.h>
 #include <otter/Analysis/AnalysisProvider.h>
 #include <otter/Analysis/AnalysisRunner.h>
 #include <otter/Analysis/AnalysisProviderPlugin.h>
@@ -63,6 +66,9 @@ namespace {
         double frequency = 440;
         double beat = 0.5;
         bool supportsKnownNotes = true;
+        /// What the model claims to need. Declarable so that a test can ask for a span this build
+        /// cannot prepare.
+        int channelCount = 1;
     };
 
     /// Shared lifecycle for both stub executives.
@@ -118,21 +124,16 @@ namespace {
             return spawned;
         }
 
-        /// Checks what every contract checks, so the two stubs agree on what a bad input is.
+        /// Checks exactly what a shipped provider checks.
+        ///
+        /// Through the same library call, not a second implementation of it. A stub that were
+        /// laxer than the real providers would let a contract test pass while describing behaviour
+        /// no shipped analyzer has, which is worse than having no stub.
         srt::Expected<void> validate(const CommonApi::AudioSegment &audio) const {
-            if (audio.sampleRate != SAMPLE_RATE) {
-                return srt::Error(srt::Error::InvalidArgument,
-                                  "this model needs " + std::to_string(SAMPLE_RATE) +
-                                      " Hz and was given " + std::to_string(audio.sampleRate) +
-                                      " Hz");
-            }
-            if (audio.channelCount < 1 || audio.samples.empty()) {
-                return srt::Error(srt::Error::InvalidArgument, "the audio holds no samples");
-            }
-            if (audio.duration() > MAX_SEGMENT) {
-                return srt::Error(srt::Error::InvalidArgument,
-                                  "this model accepts at most " + std::to_string(MAX_SEGMENT) +
-                                      " seconds in one execution");
+            auto prepared = otter::prepareSamples(audio, SAMPLE_RATE, m_settings.channelCount,
+                                                  MAX_SEGMENT);
+            if (!prepared) {
+                return prepared.takeError();
             }
             return srt::Expected<void>();
         }
@@ -159,6 +160,11 @@ namespace {
         srt::Expected<std::unique_ptr<F0Api::F0Result>> run(const F0Api::F0StartInput &input) {
             if (auto checked = validate(input.audio); !checked) {
                 return checked.takeError();
+            }
+            if (auto chosen = otter::chooseKnob(input.voicingThreshold, 0.0, 1.0, 0.03,
+                                                "voicingThreshold");
+                !chosen) {
+                return chosen.takeError();
             }
             if (input.progress) {
                 input.progress(0);
@@ -225,6 +231,20 @@ namespace {
                 return srt::Error(srt::Error::InvalidArgument,
                                   "this model does not know the language " + *input.language);
             }
+            const std::pair<const std::optional<double> &, const char *> knobs[] = {
+                {input.boundaryThreshold, "boundaryThreshold"},
+                {input.boundaryRadius, "boundaryRadius"},
+                {input.noteThreshold, "noteThreshold"},
+                {input.notePresenceCutoff, "notePresenceCutoff"},
+            };
+            for (const auto &[given, what] : knobs) {
+                if (auto chosen = otter::chooseKnob(given, 0.0, 1.0, 0.2, what); !chosen) {
+                    return chosen.takeError();
+                }
+            }
+            if (auto chosen = otter::chooseKnob(input.steps, 1, 64, 8, "steps"); !chosen) {
+                return chosen.takeError();
+            }
             if (input.progress) {
                 input.progress(0);
             }
@@ -234,12 +254,20 @@ namespace {
 
             auto result = std::make_unique<NoteApi::NoteResult>();
             const auto cutoff = input.notePresenceCutoff.value_or(0.0);
+            if (!input.knownNotes.empty() && !m_settings.supportsKnownNotes) {
+                return srt::Error(srt::Error::FeatureNotSupported,
+                                  "this model cannot be conditioned on known notes");
+            }
             if (!input.knownNotes.empty()) {
                 // The alignment path: keep the boundaries the caller gave and fill in pitches.
+                // Known notes are already on the host's timeline, so they are kept as they are.
                 int key = 60;
                 for (const auto &known : input.knownNotes) {
-                    result->notes.push_back({key, input.audio.startTime + known.start,
-                                             known.duration, 1.0});
+                    if (known.start < input.audio.startTime - 1e-9) {
+                        return srt::Error(srt::Error::InvalidArgument,
+                                          "a known note starts before the audio does");
+                    }
+                    result->notes.push_back({key, known.start, known.duration, 1.0});
                     key = key < 71 ? key + 1 : 60;
                 }
             } else {
@@ -303,7 +331,7 @@ namespace {
         }
         const auto object = value.toObject();
         if (auto checked = otter::manifest::rejectUnknownKeys(
-                object, {"delay", "frequency", "beat", "supportsKnownNotes"},
+                object, {"delay", "frequency", "beat", "supportsKnownNotes", "channelCount"},
                 "the stub configuration");
             !checked) {
             return checked.takeError();
@@ -329,6 +357,13 @@ namespace {
             }
             settings.beat = number.take();
         }
+        if (const auto it = object.find("channelCount"); it != object.end()) {
+            auto number = otter::manifest::readPositiveInt(it->second, "channelCount");
+            if (!number) {
+                return number.takeError();
+            }
+            settings.channelCount = number.take();
+        }
         if (const auto it = object.find("supportsKnownNotes"); it != object.end()) {
             if (!it->second.isBool()) {
                 return srt::Error(srt::Error::InvalidFormat,
@@ -353,7 +388,7 @@ namespace {
             const auto values = settings.take();
             auto result = std::make_unique<F0Api::F0Schema>(VARIANT);
             result->sampleRate = SAMPLE_RATE;
-            result->channelCount = 1;
+            result->channelCount = values.channelCount;
             result->interval = INTERVAL;
             result->maxSegmentDuration = MAX_SEGMENT;
             result->voicingThreshold = {true, 0.0, 1.0, 0.03};
@@ -396,7 +431,7 @@ namespace {
             const auto values = settings.take();
             auto result = std::make_unique<NoteApi::NoteSchema>(VARIANT);
             result->sampleRate = SAMPLE_RATE;
-            result->channelCount = 1;
+            result->channelCount = values.channelCount;
             result->maxSegmentDuration = MAX_SEGMENT;
             result->languages = {"zxx"};
             result->supportsKnownNotes = values.supportsKnownNotes;
