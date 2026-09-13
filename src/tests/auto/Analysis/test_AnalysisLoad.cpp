@@ -33,6 +33,9 @@ namespace {
     /// A unit wired the way a host wires one: the stub provider on the analysis plugin path.
     struct Unit {
         Unit() {
+            // What every host does once: name the library, so a linker that drops unreferenced
+            // libraries keeps the one whose static initializer registers the category.
+            otter::linkAnalysisCategory();
             const fs::path paths[] = {fs::path(OTTER_TEST_PLUGIN_DIR)};
             unit.setPluginPaths(otter::ANALYSIS_CATEGORY, paths);
         }
@@ -106,6 +109,38 @@ BOOST_AUTO_TEST_CASE(test_AnalysisLoad_DataOnlyStopsBeforeTheProvider) {
     BOOST_CHECK_EQUAL(f0->interface(), F0Api::API_INTERFACE);
     BOOST_CHECK_EQUAL(f0->variant(), "stub");
     BOOST_CHECK(f0->exports() == nullptr);
+    // The declaration's own words are still there for a host that wants to read them without a
+    // provider, which is what putting the audio format in exports rather than configuration buys.
+    const auto &declared = f0->manifestExports();
+    BOOST_REQUIRE(declared.isObject());
+    BOOST_CHECK_EQUAL(declared.toObject().at("sampleRate").toInt(), 16000);
+}
+
+/// The exports block is read by one reader for every variant, so what it refuses is refused the
+/// same way everywhere: a missing audio format, a key the contract does not define, and a knob
+/// whose default lies outside its own range.
+BOOST_AUTO_TEST_CASE(test_AnalysisLoad_RefusesExportsWithoutTheAudioFormat) {
+    Unit host;
+    auto opened =
+        host.unit.openPackage(packages() / "bad-exports-missing-rate", srt::SynthUnit::Load);
+    BOOST_REQUIRE(!opened);
+    BOOST_CHECK(opened.error().rootCause().message().find("sampleRate") != std::string::npos);
+}
+
+BOOST_AUTO_TEST_CASE(test_AnalysisLoad_RefusesAnUnknownExportsKey) {
+    Unit host;
+    auto opened =
+        host.unit.openPackage(packages() / "bad-exports-unknown-key", srt::SynthUnit::Load);
+    BOOST_REQUIRE(!opened);
+    BOOST_CHECK(opened.error().rootCause().message().find("frameRate") != std::string::npos);
+}
+
+BOOST_AUTO_TEST_CASE(test_AnalysisLoad_RefusesAKnobWhoseDefaultLeavesItsRange) {
+    Unit host;
+    auto opened =
+        host.unit.openPackage(packages() / "bad-exports-knob-range", srt::SynthUnit::Load);
+    BOOST_REQUIRE(!opened);
+    BOOST_CHECK(opened.error().rootCause().message().find("voicingThreshold") != std::string::npos);
 }
 
 BOOST_AUTO_TEST_CASE(test_AnalysisLoad_RejectsAnUnknownConfigurationKey) {

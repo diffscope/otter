@@ -42,6 +42,26 @@ namespace {
     /// The backend whose driver this variant needs.
     constexpr char BACKEND[] = "onnx";
 
+    /// What the model's own front end is built for. The graph computes its mel spectrogram at
+    /// this rate and hop, so a declaration stating anything else would place every frame wrongly.
+    constexpr int MODEL_SAMPLE_RATE = 16000;
+    constexpr double MODEL_INTERVAL = 0.01;
+
+    /// The threshold and interpolation used when the declaration honors no such knob.
+    constexpr double FALLBACK_VOICING_THRESHOLD = 0.03;
+    constexpr bool FALLBACK_INTERPOLATE = true;
+
+    /// What this variant reads from its configuration block: the model, and nothing else. The
+    /// audio format and the knobs are contract facts and live in exports.
+    class RmvpeConfiguration : public srt::ContribConfiguration {
+    public:
+        RmvpeConfiguration()
+            : srt::ContribConfiguration(F0Api::API_INTERFACE, VARIANT, F0Api::API_LEVEL) {
+        }
+
+        std::filesystem::path model;
+    };
+
     /// Interpolates the curve across unvoiced frames, in the log domain.
     ///
     /// \a voiced marks the frames that carry a measurement; the rest are filled from their
@@ -91,8 +111,8 @@ namespace {
                 continue;
             }
             const auto ratio = std::log(f0[next] / f0[prev]);
-            f0[i] = static_cast<float>(f0[prev] * std::exp(ratio * static_cast<double>(i - prev) /
-                                                           (next - prev)));
+            f0[i] = static_cast<float>(
+                f0[prev] * std::exp(ratio * static_cast<double>(i - prev) / (next - prev)));
         }
     }
 
@@ -100,16 +120,15 @@ namespace {
     class RmvpeExecutive : public F0Api::F0Executive {
     public:
         RmvpeExecutive(otter::AnalysisSpec &spec, std::unique_ptr<ds::InferenceSession> session,
-                       const F0Api::F0Configuration &configuration)
-            : F0Executive(spec), m_session(std::move(session)),
-              m_sampleRate(configuration.sampleRate), m_channelCount(configuration.channelCount),
-              m_interval(configuration.interval),
-              m_maxSegmentDuration(configuration.maxSegmentDuration),
-              m_defaultVoicingThreshold(configuration.defaultVoicingThreshold),
-              m_defaultInterpolate(configuration.defaultInterpolateUnvoiced) {
+                       const F0Api::F0Schema &schema)
+            : F0Executive(spec), m_session(std::move(session)), m_sampleRate(schema.sampleRate),
+              m_channelCount(schema.channelCount), m_interval(schema.interval),
+              m_maxSegmentDuration(schema.maxSegmentDuration),
+              m_voicingThreshold(schema.voicingThreshold),
+              m_interpolate(schema.interpolateUnvoiced) {
         }
 
-        ~RmvpeExecutive() override {
+        ~RmvpeExecutive() {
             // The runner's destructor cancels and waits, but it runs after this body, and the
             // session must not be torn down under a forward pass still in flight.
             m_runner.cancel();
@@ -165,24 +184,21 @@ namespace {
                 return srt::Error(srt::Error::InvalidArgument,
                                   "this analyzer is already running an execution");
             }
-            auto spawned = m_runner.spawn([this, input, callback = std::move(callback)]() mutable {
+            // A failure to spawn releases the claim itself; there is no body left to do it.
+            return m_runner.spawn([this, input, callback = std::move(callback)]() mutable {
                 auto result = run(*input);
                 m_runner.end(static_cast<bool>(result));
                 if (callback) {
                     callback(std::move(result));
                 }
             });
-            if (!spawned) {
-                m_runner.end(false);
-            }
-            return spawned;
         }
 
     private:
         srt::Expected<std::unique_ptr<F0Api::F0Result>> run(const F0Api::F0StartInput &input) {
             const auto &audio = input.audio;
-            auto prepared = otter::prepareSamples(audio, m_sampleRate, m_channelCount,
-                                                  m_maxSegmentDuration);
+            auto prepared =
+                otter::prepareSamples(audio, m_sampleRate, m_channelCount, m_maxSegmentDuration);
             if (!prepared) {
                 return prepared.takeError();
             }
@@ -190,8 +206,8 @@ namespace {
 
             // The range is the one the declaration reports, so a value the module said it would
             // not take is refused rather than passed to the model to do something with.
-            auto voicing = otter::chooseKnob(input.voicingThreshold, 0.0, 1.0,
-                                             m_defaultVoicingThreshold, "voicingThreshold");
+            auto voicing = otter::chooseKnob(input.voicingThreshold, m_voicingThreshold,
+                                             FALLBACK_VOICING_THRESHOLD, "voicingThreshold");
             if (!voicing) {
                 return voicing.takeError();
             }
@@ -226,16 +242,14 @@ namespace {
             auto response = m_session->start(request);
             if (!response) {
                 if (m_runner.cancelled()) {
-                    return srt::Error(srt::Error::InvalidArgument,
-                                      "the execution was cancelled");
+                    return srt::Error(srt::Error::InvalidArgument, "the execution was cancelled");
                 }
                 return response.takeError().withContext("the rmvpe model failed");
             }
             auto taskResult = response.take();
-            const auto *outputs = taskResult ? taskResult->as<OnnxApi::SessionResult>() : nullptr;
+            auto outputs = taskResult ? taskResult->as<OnnxApi::SessionResult>() : nullptr;
             if (outputs == nullptr) {
-                return srt::Error(srt::Error::InvalidFormat,
-                                  "the rmvpe model returned no outputs");
+                return srt::Error(srt::Error::InvalidFormat, "the rmvpe model returned no outputs");
             }
 
             auto result = std::make_unique<F0Api::F0Result>();
@@ -244,8 +258,7 @@ namespace {
 
             const auto f0It = outputs->outputs.find("f0");
             if (f0It == outputs->outputs.end() || !f0It->second) {
-                return srt::Error(srt::Error::InvalidFormat,
-                                  "the rmvpe model did not return f0");
+                return srt::Error(srt::Error::InvalidFormat, "the rmvpe model did not return f0");
             }
             if (f0It->second->dataType() != ds::ITensor::Float) {
                 return srt::Error(srt::Error::InvalidFormat, "f0 is not floating point");
@@ -255,8 +268,7 @@ namespace {
 
             const auto uvIt = outputs->outputs.find("uv");
             if (uvIt == outputs->outputs.end() || !uvIt->second) {
-                return srt::Error(srt::Error::InvalidFormat,
-                                  "the rmvpe model did not return uv");
+                return srt::Error(srt::Error::InvalidFormat, "the rmvpe model did not return uv");
             }
             if (uvIt->second->dataType() != ds::ITensor::Bool) {
                 return srt::Error(srt::Error::InvalidFormat, "uv is not boolean");
@@ -275,7 +287,7 @@ namespace {
                 result->voiced[i] = uvRaw[i] == std::byte{0} ? 1 : 0;
             }
 
-            if (input.interpolateUnvoiced.value_or(m_defaultInterpolate)) {
+            if (otter::chooseKnob(input.interpolateUnvoiced, m_interpolate, FALLBACK_INTERPOLATE)) {
                 interpolateUnvoiced(result->f0, result->voiced);
             } else {
                 for (std::size_t i = 0; i < result->f0.size(); ++i) {
@@ -296,8 +308,8 @@ namespace {
         int m_channelCount;
         double m_interval;
         double m_maxSegmentDuration;
-        double m_defaultVoicingThreshold;
-        bool m_defaultInterpolate;
+        CommonApi::Knob m_voicingThreshold;
+        CommonApi::FlagKnob m_interpolate;
 
         otter::AnalysisRunner m_runner;
     };
@@ -307,27 +319,28 @@ namespace {
     public:
         explicit RmvpeExtension(otter::AnalysisSpec &spec)
             : AnalysisExtension(
-                  spec, srt::ContribSpecExtensionTraits<otter::AnalysisSpec,
-                                                        F0Api::F0Executive>::ID) {
+                  spec,
+                  srt::ContribSpecExtensionTraits<otter::AnalysisSpec, F0Api::F0Executive>::ID) {
         }
 
         srt::Expected<std::unique_ptr<otter::AnalysisExecutive>>
             createAnalyzer(const otter::AnalysisRuntimeOptions &runtimeOptions) override {
-            const auto *configuration =
-                spec().configuration() ? spec().configuration()->as<F0Api::F0Configuration>()
-                                       : nullptr;
-            if (configuration == nullptr) {
+            const auto configuration =
+                spec().configuration() ? spec().configuration()->as<RmvpeConfiguration>() : nullptr;
+            const auto schema =
+                spec().exports() ? spec().exports()->as<F0Api::F0Schema>() : nullptr;
+            if (configuration == nullptr || schema == nullptr) {
                 return srt::Error(srt::Error::InvalidFormat,
                                   "this declaration carries no rmvpe configuration");
             }
 
-            auto *service = spec().package().synthUnit().runtimeService(
+            auto service = spec().package().synthUnit().runtimeService(
                 ds::InferenceDriverPlugin::IID, BACKEND);
             if (service == nullptr) {
                 return srt::Error(srt::Error::FeatureNotSupported,
                                   "the onnx inference driver is not registered on this unit");
             }
-            auto *driver = service->as<ds::InferenceDriver>();
+            auto driver = service->as<ds::InferenceDriver>();
             if (driver == nullptr) {
                 return srt::Error(srt::Error::FeatureNotSupported,
                                   "the service registered as the onnx driver is not one");
@@ -335,17 +348,15 @@ namespace {
 
             auto session = driver->createSession();
             if (!session) {
-                return srt::Error(srt::Error::FeatureNotSupported,
-                                  "the driver created no session");
+                return srt::Error(srt::Error::FeatureNotSupported, "the driver created no session");
             }
             OnnxApi::SessionOpenArgs args;
             if (auto opened = session->open(configuration->model, args); !opened) {
-                return opened.takeError().withContext(
-                    "cannot open the rmvpe model " +
-                    stdc::path::to_utf8(configuration->model));
+                return opened.takeError().withContext("cannot open the rmvpe model " +
+                                                      stdc::path::to_utf8(configuration->model));
             }
             return std::unique_ptr<otter::AnalysisExecutive>(
-                new RmvpeExecutive(spec(), std::move(session), *configuration));
+                new RmvpeExecutive(spec(), std::move(session), *schema));
         }
     };
 
@@ -356,33 +367,33 @@ namespace {
 
         srt::Expected<std::unique_ptr<srt::ContribExports>>
             createExports(const srt::ContribSpec &spec) const override {
-            auto result = std::make_unique<F0Api::F0Schema>(VARIANT);
-            auto configuration = readConfiguration(spec);
-            if (!configuration) {
-                return configuration.takeError();
+            auto schema = F0Api::readF0Schema(spec, VARIANT);
+            if (!schema) {
+                return schema.takeError();
             }
-            const auto values = configuration.take();
-            result->sampleRate = values->sampleRate;
-            result->channelCount = values->channelCount;
-            result->interval = values->interval;
-            result->maxSegmentDuration = values->maxSegmentDuration;
-            result->voicingThreshold = {true, 0.0, 1.0, values->defaultVoicingThreshold};
-            result->interpolateUnvoiced = {true, values->defaultInterpolateUnvoiced};
-
-            // exports says what the module can do, and for this variant every one of those facts
-            // is already in configuration. Reading it here rather than asking a declaration to
-            // repeat itself keeps the two from drifting apart, which is the only way a host could
-            // prepare audio in a format the model then refuses.
-            if (!spec.manifestExports().isNull() && !spec.manifestExports().isObject()) {
+            const auto &declared = **schema;
+            // The contract syntax is the library's; what this model can honor is this variant's
+            // to check. Its front end is built for one rate and one hop, and a declaration that
+            // says otherwise would make the host prepare audio the graph then misplaces.
+            if (declared.sampleRate != MODEL_SAMPLE_RATE) {
                 return srt::Error(srt::Error::InvalidFormat,
-                                  "the rmvpe exports must be an object");
+                                  "the rmvpe variant runs at " + std::to_string(MODEL_SAMPLE_RATE) +
+                                      " Hz; the exports declare " +
+                                      std::to_string(declared.sampleRate));
             }
-            if (spec.manifestExports().isObject() && !spec.manifestExports().toObject().empty()) {
+            if (declared.interval != MODEL_INTERVAL) {
                 return srt::Error(srt::Error::InvalidFormat,
-                                  "the rmvpe variant derives its exports from its configuration; "
-                                  "declaring them again would let the two disagree");
+                                  "the rmvpe variant produces a frame every " +
+                                      std::to_string(MODEL_INTERVAL) + " s; the exports declare " +
+                                      std::to_string(declared.interval));
             }
-            return result;
+            if (declared.channelCount != 1) {
+                return srt::Error(srt::Error::FeatureNotSupported,
+                                  "the rmvpe variant feeds its model one channel, and the exports "
+                                  "declare " +
+                                      std::to_string(declared.channelCount));
+            }
+            return std::unique_ptr<srt::ContribExports>(schema.take().release());
         }
 
         srt::Expected<std::unique_ptr<srt::ContribConfiguration>>
@@ -401,75 +412,31 @@ namespace {
         }
 
     private:
-        static srt::Expected<std::unique_ptr<F0Api::F0Configuration>>
+        static srt::Expected<std::unique_ptr<RmvpeConfiguration>>
             readConfiguration(const srt::ContribSpec &spec) {
             const auto &value = spec.manifestConfiguration();
             if (!value.isObject()) {
                 return srt::Error(srt::Error::InvalidFormat,
                                   "the rmvpe configuration must be an object");
             }
-            auto result = std::make_unique<F0Api::F0Configuration>(VARIANT);
-            result->sampleRate = 16000;
-            result->channelCount = 1;
-            result->interval = 0.01;
-            result->defaultVoicingThreshold = 0.03;
-            result->defaultInterpolateUnvoiced = true;
-
-            const auto directory = spec.declarationPath().parent_path();
-            bool sawModel = false;
-            for (const auto &[key, item] : value.toObject()) {
-                if (key == "model") {
-                    auto path = otter::manifest::readPath(item, directory, key);
-                    if (!path) {
-                        return path.takeError();
-                    }
-                    result->model = path.take();
-                    sawModel = true;
-                } else if (key == "sampleRate") {
-                    auto number = otter::manifest::readPositiveInt(item, key);
-                    if (!number) {
-                        return number.takeError();
-                    }
-                    result->sampleRate = number.take();
-                } else if (key == "channelCount") {
-                    auto number = otter::manifest::readPositiveInt(item, key);
-                    if (!number) {
-                        return number.takeError();
-                    }
-                    result->channelCount = number.take();
-                } else if (key == "interval") {
-                    auto number = otter::manifest::readPositiveDouble(item, key);
-                    if (!number) {
-                        return number.takeError();
-                    }
-                    result->interval = number.take();
-                } else if (key == "maxSegmentDuration") {
-                    auto number = otter::manifest::readPositiveDouble(item, key);
-                    if (!number) {
-                        return number.takeError();
-                    }
-                    result->maxSegmentDuration = number.take();
-                } else if (key == "voicingThreshold") {
-                    auto number = otter::manifest::readUnitDouble(item, key);
-                    if (!number) {
-                        return number.takeError();
-                    }
-                    result->defaultVoicingThreshold = number.take();
-                } else if (key == "interpolateUnvoiced") {
-                    if (!item.isBool()) {
-                        return srt::Error(srt::Error::InvalidFormat,
-                                          "interpolateUnvoiced must be a boolean");
-                    }
-                    result->defaultInterpolateUnvoiced = item.toBool();
-                } else {
-                    return srt::Error(srt::Error::InvalidFormat,
-                                      "unknown rmvpe configuration key: " + key);
-                }
+            const auto object = value.toObject();
+            if (auto checked = otter::manifest::rejectUnknownKeys(object, {"model"},
+                                                                  "the rmvpe configuration");
+                !checked) {
+                return checked.takeError();
             }
-            if (!sawModel) {
+            const auto model = object.find("model");
+            if (model == object.end()) {
                 return srt::Error(srt::Error::InvalidFormat,
                                   "the rmvpe configuration needs a model");
             }
+            auto path = otter::manifest::readPath(model->second,
+                                                  spec.declarationPath().parent_path(), "model");
+            if (!path) {
+                return path.takeError();
+            }
+            auto result = std::make_unique<RmvpeConfiguration>();
+            result->model = path.take();
             return result;
         }
     };

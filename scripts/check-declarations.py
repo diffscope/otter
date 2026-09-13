@@ -4,7 +4,9 @@
 The loader already refuses a declaration it cannot read, so this deliberately does not repeat it.
 What it checks is what the loader cannot: whether the files a declaration points at are actually
 there, whether the version discipline a package needs in order to be upgradable is in place, and
-whether a declaration says something twice in two places that can then disagree.
+whether the two blocks of a declaration agree with each other. The exports block is the contract's
+and is checked against docs/schemas; the configuration block is the variant's and is checked
+against what the shipped variants read.
 
     python3 scripts/check-declarations.py <package directory>...
 
@@ -18,10 +20,13 @@ from pathlib import Path
 
 CATEGORY = "analysis"
 
+F0 = "org.openvpi.otter.analysis.F0"
+NOTE = "org.openvpi.otter.analysis.Note"
+
 # Which configuration keys of each variant name a file, and which of those may be absent.
 MODEL_KEYS = {
-    ("org.openvpi.analysis.F0", "rmvpe"): {"required": ["model"], "optional": []},
-    ("org.openvpi.analysis.Note", "game"): {
+    (F0, "rmvpe"): {"required": ["model"], "optional": []},
+    (NOTE, "game"): {
         "required": ["encoder", "segmenter", "estimator", "boundaryToDuration"],
         # The alignment model. A package without it is usable, and its declaration says so
         # through exports, so its absence is a fact rather than a fault.
@@ -29,16 +34,42 @@ MODEL_KEYS = {
     },
 }
 
-KNOWN_INTERFACES = {
-    "org.openvpi.analysis.F0",
-    "org.openvpi.analysis.Note",
-    # Reserved. A package declaring one of these is ahead of any implementation, which is worth
-    # saying out loud rather than reporting as an unknown contract.
-    "org.openvpi.analysis.Align",
-    "org.openvpi.analysis.Transcribe",
+# Every key a variant's configuration may carry. A key outside this set is refused by the provider
+# at load, so it is refused here too, before the package ships.
+CONFIGURATION_KEYS = {
+    (F0, "rmvpe"): {"model"},
+    (NOTE, "game"): {
+        "encoder", "segmenter", "estimator", "boundaryToDuration", "durationToBoundary",
+        "timestep", "languages", "defaultLanguage", "scheduleStart",
+    },
 }
 
-IMPLEMENTED_INTERFACES = {"org.openvpi.analysis.F0", "org.openvpi.analysis.Note"}
+# The exports keys each contract defines, mirroring docs/schemas/<contract>-1-exports.schema.json.
+EXPORTS_KEYS = {
+    F0: {
+        "required": {"sampleRate", "interval"},
+        "optional": {"channelCount", "maxSegmentDuration", "knobs"},
+        "knobs": {"voicingThreshold": "knob", "interpolateUnvoiced": "flag"},
+    },
+    NOTE: {
+        "required": {"sampleRate"},
+        "optional": {"channelCount", "maxSegmentDuration", "languages", "supportsKnownNotes",
+                     "knobs"},
+        "knobs": {"boundaryThreshold": "knob", "boundaryRadius": "knob", "noteThreshold": "knob",
+                  "notePresenceCutoff": "knob", "steps": "intKnob"},
+    },
+}
+
+KNOWN_INTERFACES = {
+    F0,
+    NOTE,
+    # Reserved. A package declaring one of these is ahead of any implementation, which is worth
+    # saying out loud rather than reporting as an unknown contract.
+    "org.openvpi.otter.analysis.Align",
+    "org.openvpi.otter.analysis.Transcribe",
+}
+
+IMPLEMENTED_INTERFACES = {F0, NOTE}
 
 
 class Report:
@@ -65,6 +96,68 @@ def order(left: str, right: str) -> int:
     a = [int(part) for part in left.split(".")]
     b = [int(part) for part in right.split(".")]
     return (a > b) - (a < b)
+
+
+def check_knob(where: str, name: str, kind: str, value, report: Report) -> None:
+    if not isinstance(value, dict):
+        report.error(where, f"the knob {name} must be an object")
+        return
+    if kind == "flag":
+        if set(value) != {"default"} or not isinstance(value["default"], bool):
+            report.error(where, f"the knob {name} takes exactly one boolean default")
+        return
+    if set(value) != {"minimum", "maximum", "default"}:
+        report.error(where, f"the knob {name} needs minimum, maximum and default, nothing else")
+        return
+    numeric = int if kind == "intKnob" else (int, float)
+    for key, item in value.items():
+        if isinstance(item, bool) or not isinstance(item, numeric):
+            report.error(where, f"the knob {name}.{key} must be a{'n integer' if kind == 'intKnob' else ' number'}")
+            return
+    if not value["minimum"] <= value["default"] <= value["maximum"]:
+        report.error(where, f"the knob {name} must have minimum <= default <= maximum")
+
+
+def check_exports(where: str, interface: str, exports, report: Report) -> dict:
+    """Checks the exports block against the contract and returns it, or an empty dict."""
+    if not isinstance(exports, dict):
+        report.error(where, "needs an exports object; the audio format and the knobs live there")
+        return {}
+    keys = EXPORTS_KEYS[interface]
+    for key in keys["required"]:
+        if key not in exports:
+            report.error(where, f"the exports need a {key}")
+    for key in exports:
+        if key not in keys["required"] | keys["optional"]:
+            report.error(where, f"{key} is not a key the {interface} exports define")
+    for key in ("sampleRate", "channelCount"):
+        value = exports.get(key)
+        if value is not None and (isinstance(value, bool) or not isinstance(value, int) or value < 1):
+            report.error(where, f"{key} must be a positive integer")
+    for key in ("interval", "maxSegmentDuration"):
+        value = exports.get(key)
+        if value is not None and (isinstance(value, bool) or not isinstance(value, (int, float)) or value <= 0):
+            report.error(where, f"{key} must be a number greater than zero")
+    if "supportsKnownNotes" in exports and not isinstance(exports["supportsKnownNotes"], bool):
+        report.error(where, "supportsKnownNotes must be a boolean")
+    languages = exports.get("languages")
+    if languages is not None:
+        if not isinstance(languages, list) or not all(isinstance(x, str) and x for x in languages):
+            report.error(where, "languages must be a list of non-empty identifiers")
+        elif len(set(languages)) != len(languages):
+            report.error(where, "languages must not repeat")
+    knobs = exports.get("knobs")
+    if knobs is not None:
+        if not isinstance(knobs, dict):
+            report.error(where, "knobs must be an object")
+        else:
+            for name, value in knobs.items():
+                kind = keys["knobs"].get(name)
+                if kind is None:
+                    report.error(where, f"{name} is not a knob the {interface} contract defines")
+                    continue
+                check_knob(where, name, kind, value, report)
+    return exports
 
 
 def check_declaration(path: Path, report: Report) -> None:
@@ -97,17 +190,16 @@ def check_declaration(path: Path, report: Report) -> None:
         report.warn(where, f"no variant named {variant} implements {interface} here")
         return
 
-    # Both shipped variants derive exports from configuration, so a declaration stating exports of
-    # its own has two sources for one fact, and a host that reads the wrong one prepares audio the
-    # model refuses.
-    exports = declaration.get("exports")
-    if exports not in (None, {}):
-        report.error(where, "these variants derive exports from configuration; remove the exports")
+    exports = check_exports(where, interface, declaration.get("exports"), report)
 
     configuration = declaration.get("configuration")
     if not isinstance(configuration, dict):
         report.error(where, "needs a configuration object")
         return
+    for key in configuration:
+        if key not in CONFIGURATION_KEYS[(interface, variant)]:
+            report.error(where, f"{key} is not a key the {variant} configuration reads; "
+                                f"the audio format and the knobs belong in exports")
 
     for key in keys["required"]:
         if key not in configuration:
@@ -125,13 +217,24 @@ def check_declaration(path: Path, report: Report) -> None:
         elif target.stat().st_size == 0:
             report.error(where, f"{key} points at an empty file: {value}")
 
-    if interface == "org.openvpi.analysis.Note":
-        languages = configuration.get("languages")
-        if languages is not None and not isinstance(languages, dict):
+    if interface == NOTE:
+        numbering = configuration.get("languages")
+        if numbering is not None and not isinstance(numbering, dict):
             report.error(where, "languages must map identifiers to the model's numbering")
+            numbering = {}
         default = configuration.get("defaultLanguage")
-        if default is not None and isinstance(languages, dict) and default not in languages:
-            report.error(where, f"the default language {default} is not one this model declares")
+        if default is not None and isinstance(numbering, dict) and default not in numbering:
+            report.error(where, f"the default language {default} is not one this model numbers")
+        # The two blocks must agree: every language the exports promise needs a number, and an
+        # alignment path promised needs the model that performs it. The provider refuses the same
+        # two things at load; catching them here is what lets a package be fixed before it ships.
+        for language in exports.get("languages", []) if isinstance(exports.get("languages"), list) else []:
+            if isinstance(numbering, dict) and language not in numbering:
+                report.error(where, f"the exports list {language} but the configuration gives it no numbering")
+        if exports.get("supportsKnownNotes") and "durationToBoundary" not in configuration:
+            report.error(where, "the exports declare supportsKnownNotes but there is no durationToBoundary model")
+        if "durationToBoundary" in configuration and not exports.get("supportsKnownNotes"):
+            report.warn(where, "an alignment model is shipped but the exports do not declare supportsKnownNotes, so no host will use it")
         if "durationToBoundary" not in configuration:
             report.warn(where, "no alignment model; transcription cannot be conditioned on a score")
 

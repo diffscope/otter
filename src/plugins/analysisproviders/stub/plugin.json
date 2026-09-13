@@ -2,12 +2,12 @@
     "name": "otteranalysisstub",
     "interpreters": [
         {
-            "interface": "org.openvpi.analysis.F0",
+            "interface": "org.openvpi.otter.analysis.F0",
             "level": 1,
             "variant": "stub"
         },
         {
-            "interface": "org.openvpi.analysis.Note",
+            "interface": "org.openvpi.otter.analysis.Note",
             "level": 1,
             "variant": "stub"
         }

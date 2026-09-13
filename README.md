@@ -24,7 +24,7 @@ Each entry is a path to an analysis manifest:
 
 ```json
 {
-  "interface": "org.openvpi.analysis.F0",
+  "interface": "org.openvpi.otter.analysis.F0",
   "level": 1,
   "variant": "rmvpe",
   "name": "RMVPE",
@@ -43,14 +43,16 @@ Each entry is a path to an analysis manifest:
 }
 ```
 
+The two blocks follow the split spec 2.4 draws. `exports` is the contract's: the audio format a host must prepare and the knobs the module honors, read the same way for every variant of the interface, and published as JSON Schema under [docs/schemas](docs/schemas). `configuration` is the variant's: where its models are and how they are wired, which no host reads. A variant checks the two against each other at load, so a package promising a rate its model cannot run at, or an alignment path without the model that performs it, is refused before anything is analyzed.
+
 Level 1 defines two contracts:
 
 | `interface` | Produces |
 | :-- | :-- |
-| `org.openvpi.analysis.F0` | A fundamental frequency curve and a voiced flag per frame |
-| `org.openvpi.analysis.Note` | Note intervals, optionally conditioned on notes already known |
+| `org.openvpi.otter.analysis.F0` | A fundamental frequency curve and a voiced flag per frame |
+| `org.openvpi.otter.analysis.Note` | Note intervals, optionally conditioned on notes already known |
 
-Two more names are reserved for contracts that are not written yet: `org.openvpi.analysis.Align` for phoneme and word timings, and `org.openvpi.analysis.Transcribe` for text.
+Two more names are reserved for contracts that are not written yet: `org.openvpi.otter.analysis.Align` for phoneme and word timings, and `org.openvpi.otter.analysis.Transcribe` for text.
 
 ## What otter leaves to the host
 
@@ -65,6 +67,8 @@ That leaves three things for the host:
 ## Why otter must be linked, not loaded
 
 A `SynthUnit` reads the list of registered categories once, when it is constructed. otter registers `analysis` before `main`, so any unit built afterwards has it. A plugin could not do the same: plugins load lazily *through* a unit, so by the time one runs its static initializers, that unit has already built its categories. Contributing a category is something a linked library does.
+
+Linking is not quite enough on its own. A linker that drops libraries nothing references, which ELF linkers do under `--as-needed` and the MSVC linker does for every import library, would drop otter from a host that only wants the category and names no otter symbol. Such a host calls `otter::linkAnalysisCategory()` once before it constructs a unit. The function does nothing; being named is its whole job.
 
 ## Versioning and ABI
 
@@ -93,7 +97,8 @@ in order: `scripts/vcpkg-ports` in this repository, then the shared `scripts/vcp
 Boost.Test is needed only to build the tests.
 
 Both shipped providers run ONNX models and are built only where dsinfer is present. Add the `onnx`
-feature (`--x-feature=onnx`) to bring in `synthrt-main[onnx]`. Without it the library still builds,
+feature (`--x-feature=onnx`) to bring in `synthrt-main[onnx]`, which installs dsinfer's own CMake
+package beside synthrt's so that `find_package(dsinfer)` finds it. Without it the library still builds,
 the category still registers, and packages still load — the same graceful degradation synthrt gives
 its own driver.
 
@@ -114,7 +119,10 @@ cmake --build build/cmake
 ctest --test-dir build/cmake
 ```
 
-The model-backed cases need fixtures, which are generated rather than committed:
+The model-backed cases need fixtures, which are generated rather than committed. When the build
+finds a Python with the `onnx` module it generates them into the build tree itself, as a
+dependency of those tests; without one the two tests are registered disabled and ctest says so.
+The script can also be run by hand:
 
 ```sh
 python3 scripts/make-model-fixtures.py --output build/fixtures
@@ -122,7 +130,8 @@ python3 scripts/make-model-fixtures.py --output build/fixtures
 
 They are real ONNX graphs with the real signatures and arithmetic for weights. They prove the
 providers hold up the contract; they say nothing about whether the numbers are right, which needs
-the trained models. Without them those cases skip.
+the trained models. A test that finds no fixture, no driver plugin or no ONNX Runtime at run time
+exits with the status ctest reads as a skip, never as a pass.
 
 Before publishing a package, lint it:
 

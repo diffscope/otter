@@ -8,9 +8,10 @@ file(GLOB_RECURSE _src *.h *.cpp)
 otter_add_plugin(${PROJECT_NAME} CATEGORY ${CURRENT_PLUGIN_CATEGORY}/rmvpe NO_EXPORT
     SOURCES ${_src}
     FEATURES cxx_std_17
-    LINKS otter otter::dsinfer
+    LINKS otter dsinfer::dsinfer
     INCLUDE_PRIVATE *
 )
+otter_drop_plugin_postfix(${PROJECT_NAME})
 
 stdc_add_plugin_metadata(TARGET ${PROJECT_NAME} IID ${CURRENT_PLUGIN_IID})
 

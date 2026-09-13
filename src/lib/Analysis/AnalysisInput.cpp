@@ -4,9 +4,9 @@
 
 namespace otter {
 
-    srt::Expected<std::vector<float>>
-        prepareSamples(const Api::Common::L1::AudioSegment &audio, int sampleRate,
-                       int channelCount, double maxSegmentDuration) {
+    srt::Expected<std::vector<float>> prepareSamples(const Api::Common::L1::AudioSegment &audio,
+                                                     int sampleRate, int channelCount,
+                                                     double maxSegmentDuration) {
         if (channelCount != 1) {
             // Nothing here can widen a span, so a model wanting more than one channel would have
             // to be fed something this cannot produce. Refusing at the first execution beats
@@ -37,9 +37,9 @@ namespace otter {
                                   std::to_string(audio.channelCount) + " channel frames");
         }
         if (maxSegmentDuration > 0 && audio.duration() > maxSegmentDuration) {
-            return srt::Error(srt::Error::InvalidArgument,
-                              "this model accepts at most " + std::to_string(maxSegmentDuration) +
-                                  " seconds in one execution");
+            return srt::Error(srt::Error::InvalidArgument, "this model accepts at most " +
+                                                               std::to_string(maxSegmentDuration) +
+                                                               " seconds in one execution");
         }
 
         if (audio.channelCount == 1) {
@@ -57,30 +57,48 @@ namespace otter {
         return mono;
     }
 
-    srt::Expected<double> chooseKnob(const std::optional<double> &given, double minimum,
-                                     double maximum, double fallback, std::string_view what) {
-        if (!given) {
+    srt::Expected<double> chooseKnob(const std::optional<double> &given,
+                                     const Api::Common::L1::Knob &knob, double fallback,
+                                     std::string_view what) {
+        if (!knob.honored) {
             return fallback;
         }
-        if (*given < minimum || *given > maximum) {
-            return srt::Error(srt::Error::InvalidArgument,
-                              std::string(what) + " must be between " + std::to_string(minimum) +
-                                  " and " + std::to_string(maximum));
+        if (!given) {
+            return knob.defaultValue;
+        }
+        if (*given < knob.minimum || *given > knob.maximum) {
+            return srt::Error(srt::Error::InvalidArgument, std::string(what) + " must be between " +
+                                                               std::to_string(knob.minimum) +
+                                                               " and " +
+                                                               std::to_string(knob.maximum));
         }
         return *given;
     }
 
-    srt::Expected<int> chooseKnob(const std::optional<int> &given, int minimum, int maximum,
-                                 int fallback, std::string_view what) {
-        if (!given) {
+    srt::Expected<int> chooseKnob(const std::optional<int> &given,
+                                  const Api::Common::L1::IntKnob &knob, int fallback,
+                                  std::string_view what) {
+        if (!knob.honored) {
             return fallback;
         }
-        if (*given < minimum || *given > maximum) {
-            return srt::Error(srt::Error::InvalidArgument,
-                              std::string(what) + " must be between " + std::to_string(minimum) +
-                                  " and " + std::to_string(maximum));
+        if (!given) {
+            return knob.defaultValue;
+        }
+        if (*given < knob.minimum || *given > knob.maximum) {
+            return srt::Error(srt::Error::InvalidArgument, std::string(what) + " must be between " +
+                                                               std::to_string(knob.minimum) +
+                                                               " and " +
+                                                               std::to_string(knob.maximum));
         }
         return *given;
+    }
+
+    bool chooseKnob(const std::optional<bool> &given, const Api::Common::L1::FlagKnob &knob,
+                    bool fallback) {
+        if (!knob.honored) {
+            return fallback;
+        }
+        return given.value_or(knob.defaultValue);
     }
 
 }

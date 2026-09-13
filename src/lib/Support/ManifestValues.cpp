@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <set>
+#include <utility>
 
 #include <stdcorelib/path.h>
 
@@ -16,8 +17,7 @@ namespace otter::manifest {
         }
         const auto text = value.toString();
         if (text.empty()) {
-            return srt::Error(srt::Error::InvalidFormat,
-                              std::string(what) + " must not be empty");
+            return srt::Error(srt::Error::InvalidFormat, std::string(what) + " must not be empty");
         }
         auto path = stdc::path::from_utf8(text);
         if (path.is_absolute()) {
@@ -28,8 +28,7 @@ namespace otter::manifest {
 
     srt::Expected<int> readPositiveInt(const srt::JsonValue &value, std::string_view what) {
         if (!value.isInt()) {
-            return srt::Error(srt::Error::InvalidFormat,
-                              std::string(what) + " must be an integer");
+            return srt::Error(srt::Error::InvalidFormat, std::string(what) + " must be an integer");
         }
         const auto number = value.toInt();
         if (number < 1) {
@@ -39,8 +38,7 @@ namespace otter::manifest {
         // Everything this reads is a rate, a count or a step budget, none of which is meaningfully
         // larger than an int, and narrowing without a check would turn a typo into a negative.
         if (number > 0x7fffffff) {
-            return srt::Error(srt::Error::InvalidFormat,
-                              std::string(what) + " is out of range");
+            return srt::Error(srt::Error::InvalidFormat, std::string(what) + " is out of range");
         }
         return static_cast<int>(number);
     }
@@ -75,8 +73,7 @@ namespace otter::manifest {
         }
         auto text = value.toString();
         if (text.empty()) {
-            return srt::Error(srt::Error::InvalidFormat,
-                              std::string(what) + " must not be empty");
+            return srt::Error(srt::Error::InvalidFormat, std::string(what) + " must not be empty");
         }
         return text;
     }
@@ -103,13 +100,115 @@ namespace otter::manifest {
         return result;
     }
 
+    namespace {
+
+        /// The three keys a knob declaration may carry, checked once for both numeric shapes.
+        srt::Expected<srt::JsonObject> knobObject(const srt::JsonValue &value,
+                                                  std::string_view what) {
+            if (!value.isObject()) {
+                return srt::Error(srt::Error::InvalidFormat,
+                                  std::string(what) + " must be an object");
+            }
+            auto object = value.toObject();
+            if (auto checked = rejectUnknownKeys(object, {"minimum", "maximum", "default"}, what);
+                !checked) {
+                return checked.takeError();
+            }
+            for (const char *key : {"minimum", "maximum", "default"}) {
+                if (object.find(key) == object.end()) {
+                    return srt::Error(srt::Error::InvalidFormat,
+                                      std::string(what) + " needs a " + key);
+                }
+            }
+            return object;
+        }
+
+    }
+
+    srt::Expected<Api::Common::L1::Knob> readKnob(const srt::JsonValue &value,
+                                                  std::string_view what) {
+        auto object = knobObject(value, what);
+        if (!object) {
+            return object.takeError();
+        }
+        Api::Common::L1::Knob knob;
+        knob.honored = true;
+        const std::pair<const char *, double *> fields[] = {
+            {"minimum", &knob.minimum     },
+            {"maximum", &knob.maximum     },
+            {"default", &knob.defaultValue},
+        };
+        for (const auto &[key, target] : fields) {
+            const auto &item = object->find(key)->second;
+            if (!item.isNumber()) {
+                return srt::Error(srt::Error::InvalidFormat,
+                                  std::string(what) + "." + key + " must be a number");
+            }
+            *target = item.toDouble();
+        }
+        if (knob.minimum > knob.maximum || knob.defaultValue < knob.minimum ||
+            knob.defaultValue > knob.maximum) {
+            return srt::Error(srt::Error::InvalidFormat,
+                              std::string(what) + " must have minimum <= default <= maximum");
+        }
+        return knob;
+    }
+
+    srt::Expected<Api::Common::L1::IntKnob> readIntKnob(const srt::JsonValue &value,
+                                                        std::string_view what) {
+        auto object = knobObject(value, what);
+        if (!object) {
+            return object.takeError();
+        }
+        Api::Common::L1::IntKnob knob;
+        knob.honored = true;
+        const std::pair<const char *, int *> fields[] = {
+            {"minimum", &knob.minimum     },
+            {"maximum", &knob.maximum     },
+            {"default", &knob.defaultValue},
+        };
+        for (const auto &[key, target] : fields) {
+            const auto &item = object->find(key)->second;
+            if (!item.isInt() || item.toInt() < -0x7fffffff || item.toInt() > 0x7fffffff) {
+                return srt::Error(srt::Error::InvalidFormat,
+                                  std::string(what) + "." + key + " must be an integer");
+            }
+            *target = static_cast<int>(item.toInt());
+        }
+        if (knob.minimum > knob.maximum || knob.defaultValue < knob.minimum ||
+            knob.defaultValue > knob.maximum) {
+            return srt::Error(srt::Error::InvalidFormat,
+                              std::string(what) + " must have minimum <= default <= maximum");
+        }
+        return knob;
+    }
+
+    srt::Expected<Api::Common::L1::FlagKnob> readFlagKnob(const srt::JsonValue &value,
+                                                          std::string_view what) {
+        if (!value.isObject()) {
+            return srt::Error(srt::Error::InvalidFormat, std::string(what) + " must be an object");
+        }
+        const auto object = value.toObject();
+        if (auto checked = rejectUnknownKeys(object, {"default"}, what); !checked) {
+            return checked.takeError();
+        }
+        const auto it = object.find("default");
+        if (it == object.end() || !it->second.isBool()) {
+            return srt::Error(srt::Error::InvalidFormat,
+                              std::string(what) + " needs a boolean default");
+        }
+        Api::Common::L1::FlagKnob knob;
+        knob.honored = true;
+        knob.defaultValue = it->second.toBool();
+        return knob;
+    }
+
     srt::Expected<void> rejectUnknownKeys(const srt::JsonObject &object,
                                           std::initializer_list<const char *> allowed,
                                           std::string_view what) {
         for (const auto &[key, item] : object) {
-            const bool known = std::any_of(allowed.begin(), allowed.end(), [&key](const char *one) {
-                return key == one;
-            });
+            const bool known = std::any_of(allowed.begin(), allowed.end(),
+                                           [&key](const char *one) { return key == one; });
             if (!known) {
                 return srt::Error(srt::Error::InvalidFormat,
                                   std::string(what) + " carries an unknown key: " + key);

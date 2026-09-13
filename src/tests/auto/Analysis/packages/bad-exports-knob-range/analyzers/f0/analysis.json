@@ -1,0 +1,22 @@
+{
+    "interface": "org.openvpi.otter.analysis.F0",
+    "level": 1,
+    "variant": "stub",
+    "name": "Knob range",
+    "exports": {
+        "sampleRate": 16000,
+        "channelCount": 1,
+        "interval": 0.01,
+        "maxSegmentDuration": 60,
+        "knobs": {
+            "voicingThreshold": {
+                "minimum": 0.5,
+                "maximum": 1.0,
+                "default": 0.03
+            },
+            "interpolateUnvoiced": {
+                "default": true
+            }
+        }
+    }
+}

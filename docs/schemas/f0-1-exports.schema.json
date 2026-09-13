@@ -1,0 +1,62 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://github.com/diffscope/otter/docs/schemas/f0-1-exports.schema.json",
+    "title": "org.openvpi.otter.analysis.F0 Level 1 exports",
+    "description": "What an F0 analysis contribution declares about itself: the audio format a host must prepare and the knobs the module honors. Read by the host before any provider runs; the syntax belongs to the interface and level, not to a variant.",
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["sampleRate", "interval"],
+    "properties": {
+        "sampleRate": {
+            "description": "Input sample rate in hertz. The host resamples to this; the module never does.",
+            "type": "integer",
+            "minimum": 1
+        },
+        "channelCount": {
+            "description": "Input channel count. More channels than this are averaged down by the module, fewer are refused.",
+            "type": "integer",
+            "minimum": 1,
+            "default": 1
+        },
+        "interval": {
+            "description": "Time between adjacent output frames, in seconds.",
+            "type": "number",
+            "exclusiveMinimum": 0
+        },
+        "maxSegmentDuration": {
+            "description": "Longest span accepted in one execution, in seconds. Absent means no limit. The host slices to stay under it.",
+            "type": "number",
+            "exclusiveMinimum": 0
+        },
+        "knobs": {
+            "description": "The knobs this module honors. A knob that is absent is ignored when a caller supplies it.",
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "voicingThreshold": { "$ref": "#/$defs/knob" },
+                "interpolateUnvoiced": { "$ref": "#/$defs/flagKnob" }
+            }
+        }
+    },
+    "$defs": {
+        "knob": {
+            "description": "A continuous knob: the range a caller may ask for and the value used when it asks for nothing.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["minimum", "maximum", "default"],
+            "properties": {
+                "minimum": { "type": "number" },
+                "maximum": { "type": "number" },
+                "default": { "type": "number" }
+            }
+        },
+        "flagKnob": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["default"],
+            "properties": {
+                "default": { "type": "boolean" }
+            }
+        }
+    }
+}

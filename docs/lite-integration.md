@@ -187,7 +187,7 @@ struct AnalyzerEntry {
     std::string packageId;          // "openvpi/game"
     stdc::VersionNumber packageVersion;
     std::string contributionId;     // "note"
-    std::string interfaceName;      // org.openvpi.analysis.F0 / .Note
+    std::string interfaceName;      // org.openvpi.otter.analysis.F0 / .Note
     std::string variant;
     srt::DisplayText name;          // 声明里的 name，多语言
 
@@ -315,12 +315,21 @@ otter 的进度是每次执行 0→1。lite 把它折算进「第几片 / 共几
 宿主仍按静音切段）：
 
 ```json
-{ "interface": "org.openvpi.analysis.Note", "level": 1, "variant": "game",
+{ "interface": "org.openvpi.otter.analysis.Note", "level": 1, "variant": "game",
+  "exports": {
+    "sampleRate": 44100, "channelCount": 1,
+    "languages": [ "cmn", "zh", "eng", "en", "jpn", "ja", "yue" ],
+    "supportsKnownNotes": true,
+    "knobs": { "boundaryThreshold": { "minimum": 0, "maximum": 1, "default": 0.2 },
+               "boundaryRadius": { "minimum": 0, "maximum": 1, "default": 0.02 },
+               "noteThreshold": { "minimum": 0, "maximum": 1, "default": 0.2 },
+               "notePresenceCutoff": { "minimum": 0, "maximum": 1, "default": 0.5 },
+               "steps": { "minimum": 1, "maximum": 1000, "default": 8 } } },
   "configuration": {
     "encoder": "./encoder.onnx", "segmenter": "./segmenter.onnx",
     "estimator": "./estimator.onnx",
     "boundaryToDuration": "./bd2dur.onnx", "durationToBoundary": "./dur2bd.onnx",
-    "sampleRate": 44100, "timestep": 0.01,
+    "timestep": 0.01,
     "languages": { "cmn": 4, "zh": 4, "eng": 1, "en": 1, "jpn": 2, "ja": 2, "yue": 3 } } }
 ```
 

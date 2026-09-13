@@ -1,0 +1,72 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://github.com/diffscope/otter/docs/schemas/note-1-exports.schema.json",
+    "title": "org.openvpi.otter.analysis.Note Level 1 exports",
+    "description": "What a note transcription contribution declares about itself: the audio format a host must prepare, the languages it distinguishes, whether it can be conditioned on known notes, and the knobs it honors. The syntax belongs to the interface and level, not to a variant.",
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["sampleRate"],
+    "properties": {
+        "sampleRate": {
+            "description": "Input sample rate in hertz. The host resamples to this; the module never does.",
+            "type": "integer",
+            "minimum": 1
+        },
+        "channelCount": {
+            "description": "Input channel count. More channels than this are averaged down by the module, fewer are refused.",
+            "type": "integer",
+            "minimum": 1,
+            "default": 1
+        },
+        "maxSegmentDuration": {
+            "description": "Longest span accepted in one execution, in seconds. Absent means no limit. A hard constraint: the host slices to stay under it.",
+            "type": "number",
+            "exclusiveMinimum": 0
+        },
+        "languages": {
+            "description": "Language identifiers this module distinguishes. Absent or empty means it does not distinguish.",
+            "type": "array",
+            "uniqueItems": true,
+            "items": { "type": "string", "minLength": 1 }
+        },
+        "supportsKnownNotes": {
+            "description": "Whether the module reads knownNotes and keeps their boundaries.",
+            "type": "boolean",
+            "default": false
+        },
+        "knobs": {
+            "description": "The knobs this module honors. A knob that is absent is ignored when a caller supplies it.",
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "boundaryThreshold": { "$ref": "#/$defs/knob" },
+                "boundaryRadius": { "$ref": "#/$defs/knob" },
+                "noteThreshold": { "$ref": "#/$defs/knob" },
+                "notePresenceCutoff": { "$ref": "#/$defs/knob" },
+                "steps": { "$ref": "#/$defs/intKnob" }
+            }
+        }
+    },
+    "$defs": {
+        "knob": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["minimum", "maximum", "default"],
+            "properties": {
+                "minimum": { "type": "number" },
+                "maximum": { "type": "number" },
+                "default": { "type": "number" }
+            }
+        },
+        "intKnob": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["minimum", "maximum", "default"],
+            "properties": {
+                "minimum": { "type": "integer" },
+                "maximum": { "type": "integer" },
+                "default": { "type": "integer" }
+            }
+        }
+    }
+}

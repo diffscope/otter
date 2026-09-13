@@ -1,0 +1,9 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://github.com/diffscope/otter/docs/schemas/note-1-import-options.schema.json",
+    "title": "org.openvpi.otter.analysis.Note Level 1 import options",
+    "description": "Options a module may attach when it imports an analysis contribution. Level 1 defines none: an analyzer is driven by the host, not by an importing module, so the only valid options object is an empty one.",
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+}

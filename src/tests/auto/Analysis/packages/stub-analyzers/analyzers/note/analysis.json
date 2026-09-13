@@ -1,8 +1,44 @@
 {
-    "interface": "org.openvpi.analysis.Note",
+    "interface": "org.openvpi.otter.analysis.Note",
     "level": 1,
     "variant": "stub",
     "name": "Stub Note",
+    "exports": {
+        "sampleRate": 16000,
+        "channelCount": 1,
+        "maxSegmentDuration": 60,
+        "languages": [
+            "zxx"
+        ],
+        "supportsKnownNotes": true,
+        "knobs": {
+            "boundaryThreshold": {
+                "minimum": 0.0,
+                "maximum": 1.0,
+                "default": 0.2
+            },
+            "boundaryRadius": {
+                "minimum": 0.0,
+                "maximum": 1.0,
+                "default": 0.02
+            },
+            "noteThreshold": {
+                "minimum": 0.0,
+                "maximum": 1.0,
+                "default": 0.2
+            },
+            "notePresenceCutoff": {
+                "minimum": 0.0,
+                "maximum": 1.0,
+                "default": 0.0
+            },
+            "steps": {
+                "minimum": 1,
+                "maximum": 64,
+                "default": 8
+            }
+        }
+    },
     "configuration": {
         "beat": 0.25
     }

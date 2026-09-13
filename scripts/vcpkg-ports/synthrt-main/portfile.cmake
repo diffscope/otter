@@ -43,11 +43,28 @@ vcpkg_cmake_configure(
 
 vcpkg_cmake_install()
 
-vcpkg_cmake_config_fixup(PACKAGE_NAME synthrt CONFIG_PATH lib/cmake/synthrt)
+# synthrt installs two CMake packages side by side under lib/cmake: synthrt itself and, with the
+# onnx feature, dsinfer. The fixup for one must not delete the parent directory, or the other
+# package is silently lost and consumers are left locating the dsinfer library by hand.
+vcpkg_cmake_config_fixup(
+    PACKAGE_NAME synthrt
+    CONFIG_PATH lib/cmake/synthrt
+    DO_NOT_DELETE_PARENT_CONFIG_PATH
+)
+if(WITH_ONNX)
+    vcpkg_cmake_config_fixup(
+        PACKAGE_NAME dsinfer
+        CONFIG_PATH lib/cmake/dsinfer
+        DO_NOT_DELETE_PARENT_CONFIG_PATH
+    )
+endif()
+file(REMOVE_RECURSE
+    "${CURRENT_PACKAGES_DIR}/lib/cmake"
+    "${CURRENT_PACKAGES_DIR}/debug/lib/cmake"
+)
 
-# dsinfer installs its library, its headers and the driver plugin tree, but this line of synthrt
-# exports no CMake package for it, so there is nothing further to fix up. The ONNX driver is
-# reached the way every driver is: as a plugin found on a search path at run time.
+# The ONNX driver is not a link target. It is reached the way every driver is: as a plugin found
+# on a search path at run time, under lib/plugins/dsinfer/inferencedrivers.
 
 file(REMOVE_RECURSE
     "${CURRENT_PACKAGES_DIR}/debug/include"

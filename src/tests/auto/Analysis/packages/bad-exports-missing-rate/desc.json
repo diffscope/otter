@@ -1,0 +1,15 @@
+{
+    "$version": "1.0",
+    "id": "otter/bad-exports-missing-rate",
+    "version": "1.0.0.0",
+    "compatVersion": "1.0.0.0",
+    "runtimeLevel": 1,
+    "contributions": {
+        "analysis": [
+            {
+                "id": "f0",
+                "path": "./analyzers/f0/analysis.json"
+            }
+        ]
+    }
+}

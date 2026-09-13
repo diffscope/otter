@@ -69,41 +69,39 @@ find_package(synthrt CONFIG REQUIRED)
 # Optional inference backend
 # ----------------------------------
 # The analysis providers run their models through dsinfer's driver framework. dsinfer is built by
-# synthrt-main[onnx] and, on that line, installs a library and headers but exports no CMake
-# package, so it is located by hand rather than with find_package.
-#
-# The library itself needs none of this: the category, the contract headers and the executive
-# abstraction are pure synthrt. Only the providers are gated.
+# synthrt[onnx] and installs its own CMake package beside synthrt's, so it is found the ordinary
+# way. The library itself needs none of this: the category, the contract headers and the executive
+# abstraction are pure synthrt. Only the providers are gated, and they can be refused even when
+# dsinfer is installed, which is how the minimal build is asked for.
 option(OTTER_DISABLE_DSINFER "Build without dsinfer even if it is installed" OFF)
 
-find_path(OTTER_DSINFER_INCLUDE_DIR
-    NAMES dsinfer/Inference/InferenceDriver.h
-)
-find_library(OTTER_DSINFER_LIBRARY
-    NAMES synthrt-dsinfer
-)
+if(NOT OTTER_DISABLE_DSINFER)
+    find_package(dsinfer CONFIG QUIET)
+endif()
 
-if(OTTER_DSINFER_INCLUDE_DIR AND OTTER_DSINFER_LIBRARY AND NOT OTTER_DISABLE_DSINFER)
+if(TARGET dsinfer::dsinfer)
     set(OTTER_HAS_DSINFER ON)
-    if(NOT TARGET otter::dsinfer)
-        add_library(otter::dsinfer UNKNOWN IMPORTED)
-        set_target_properties(otter::dsinfer PROPERTIES
-            IMPORTED_LOCATION "${OTTER_DSINFER_LIBRARY}"
-            INTERFACE_INCLUDE_DIRECTORIES "${OTTER_DSINFER_INCLUDE_DIR}"
-        )
+    # The ONNX driver ships as a plugin under lib/plugins beside the library, not as a link
+    # target. dsinfer_DIR is where dsinferConfig.cmake was found, share/dsinfer in a vcpkg tree and
+    # lib/cmake/dsinfer in a plain install, so two levels up is the prefix either way. The plugin
+    # tree sits under lib on every platform, unlike the library itself, which Windows puts under
+    # bin, which is why this is not derived from the imported target's location. A plugin search
+    # path holds one subdirectory per plugin, so this is the parent of the onnx directory. Tests
+    # hand it to the driver factory at run time.
+    get_filename_component(_otter_dsinfer_prefix "${dsinfer_DIR}/../.." ABSOLUTE)
+    set(OTTER_DSINFER_DRIVER_DIR "${_otter_dsinfer_prefix}/lib/plugins/dsinfer/inferencedrivers")
+    if(CMAKE_BUILD_TYPE STREQUAL "Debug" AND IS_DIRECTORY "${_otter_dsinfer_prefix}/debug/lib/plugins")
+        set(OTTER_DSINFER_DRIVER_DIR
+            "${_otter_dsinfer_prefix}/debug/lib/plugins/dsinfer/inferencedrivers")
     endif()
-    # The ONNX driver ships as a plugin beside the library. A plugin search path holds one
-    # subdirectory per plugin, so this is the parent of the onnx directory.
-    get_filename_component(_otter_dsinfer_libdir "${OTTER_DSINFER_LIBRARY}" DIRECTORY)
-    set(OTTER_DSINFER_DRIVER_DIR "${_otter_dsinfer_libdir}/plugins/dsinfer/inferencedrivers")
-    message(STATUS "dsinfer: ${OTTER_DSINFER_LIBRARY}")
+    message(STATUS "dsinfer: ${dsinfer_DIR}")
 else()
     set(OTTER_HAS_DSINFER OFF)
     if(OTTER_DISABLE_DSINFER)
         message(STATUS "dsinfer: disabled; no analysis provider will be built")
     else()
         message(STATUS "dsinfer: not found; no analysis provider will be built "
-                       "(install with the onnx feature to enable them)")
+                       "(install synthrt with the onnx feature to enable them)")
     endif()
 endif()
 

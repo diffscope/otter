@@ -1,9 +1,7 @@
 #ifndef OTTER_API_NOTEAPIL1_H
 #define OTTER_API_NOTEAPIL1_H
 
-#include <filesystem>
 #include <functional>
-#include <map>
 #include <memory>
 #include <optional>
 #include <string>
@@ -11,15 +9,17 @@
 
 #include <synthrt/Core/ContribSpec.h>
 #include <synthrt/Core/ContribSpecExtension.h>
+#include <synthrt/Support/Expected.h>
 #include <synthrt/Task/ITask.h>
 
 #include <otter/Analysis/AnalysisExecutive.h>
 #include <otter/Api/Common/1/CommonApiL1.h>
+#include <otter/otter_global.h>
 
 namespace otter::Api::Note::L1 {
 
     /// Identifies the note transcription contract.
-    inline constexpr char API_INTERFACE[] = "org.openvpi.analysis.Note";
+    inline constexpr char API_INTERFACE[] = "org.openvpi.otter.analysis.Note";
 
     /// Identifies Level 1 of the contract.
     inline constexpr int API_LEVEL = 1;
@@ -58,6 +58,10 @@ namespace otter::Api::Note::L1 {
     };
 
     /// Describes the capabilities exported by a note transcription contribution.
+    ///
+    /// This is the contract's \c exports block, read by the host before it prepares any audio.
+    /// Its syntax belongs to the interface and level, not to a variant. The machine readable
+    /// schema is docs/schemas/note-1-exports.schema.json.
     class NoteSchema : public srt::ContribExports {
     public:
         inline explicit NoteSchema(std::string variant)
@@ -98,60 +102,17 @@ namespace otter::Api::Note::L1 {
         Common::L1::IntKnob steps;
     };
 
-    /// Contains the interpreted configuration of a note transcription model.
-    class NoteConfiguration : public srt::ContribConfiguration {
-    public:
-        inline explicit NoteConfiguration(std::string variant)
-            : srt::ContribConfiguration(API_INTERFACE, std::move(variant), API_LEVEL) {
-        }
-
-        /// Path of the audio encoder model.
-        std::filesystem::path encoder;
-
-        /// Path of the boundary segmenter model.
-        std::filesystem::path segmenter;
-
-        /// Path of the pitch estimator model.
-        std::filesystem::path estimator;
-
-        /// Path of the model converting boundaries to durations.
-        std::filesystem::path boundaryToDuration;
-
-        /// Path of the model converting known durations to boundaries. Empty when this module
-        /// cannot be conditioned on known notes.
-        std::filesystem::path durationToBoundary;
-
-        /// Input sample rate in hertz.
-        int sampleRate = 0;
-
-        /// Input channel count.
-        int channelCount = 1;
-
-        /// Longest span accepted in one execution, in seconds. 0 means no limit.
-        double maxSegmentDuration = 0;
-
-        /// Model frame rate in seconds. Used only to convert boundaryRadius into frames.
-        double timestep = 0;
-
-        /// Maps language identifiers to the model's own numbering.
-        ///
-        /// The contract speaks identifiers because a model's internal numbering is its own: two
-        /// models need not agree that 1 is the same language.
-        std::map<std::string, int> languages;
-
-        /// Language used when the caller supplies none.
-        std::string defaultLanguage;
-
-        /// Start of the sampling schedule.
-        double scheduleStart = 0;
-
-        /// Knob values used when the caller supplies none.
-        int defaultSteps = 8;
-        double defaultBoundaryThreshold = 0;
-        double defaultBoundaryRadius = 0;
-        double defaultNoteThreshold = 0;
-        double defaultNotePresenceCutoff = 0;
-    };
+    /// Reads the \c exports block of \a spec as a Note Level 1 schema.
+    ///
+    /// Every provider of this contract reads its declaration through this one function, so two
+    /// variants cannot disagree about what a key means or how a bad value is reported. A variant
+    /// then checks the result against what its own models can honor.
+    ///
+    /// \c sampleRate is required. \c channelCount defaults to 1, \c maxSegmentDuration to no
+    /// limit, \c languages to none, \c supportsKnownNotes to false, and a knob that is not
+    /// declared is not honored.
+    OTTER_EXPORT srt::Expected<std::unique_ptr<NoteSchema>>
+        readNoteSchema(const srt::ContribSpec &spec, std::string variant);
 
     /// Contains runtime options used when creating a note analyzer.
     class NoteRuntimeOptions : public otter::AnalysisRuntimeOptions {
@@ -230,7 +191,7 @@ namespace srt {
 
     template <>
     struct ContribSpecExtensionTraits<otter::AnalysisSpec, otter::Api::Note::L1::NoteExecutive> {
-        inline static constexpr char ID[] = "org.openvpi.analysis.extension.Note";
+        inline static constexpr char ID[] = "org.openvpi.otter.extension.Note";
     };
 
 }

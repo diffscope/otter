@@ -55,6 +55,46 @@ namespace {
     constexpr char VARIANT[] = "game";
     constexpr char BACKEND[] = "onnx";
 
+    /// Knob values used when the declaration honors no such knob.
+    constexpr int FALLBACK_STEPS = 8;
+    constexpr double FALLBACK_BOUNDARY_THRESHOLD = 0.2;
+    constexpr double FALLBACK_BOUNDARY_RADIUS = 0.02;
+    constexpr double FALLBACK_NOTE_THRESHOLD = 0.2;
+    constexpr double FALLBACK_NOTE_PRESENCE_CUTOFF = 0.5;
+
+    /// What this variant reads from its configuration block: where its models are and how they
+    /// are wired, which is what the host never needs to know. The audio format, the language
+    /// identifiers and the knobs are contract facts and live in exports.
+    class GameConfiguration : public srt::ContribConfiguration {
+    public:
+        GameConfiguration()
+            : srt::ContribConfiguration(NoteApi::API_INTERFACE, VARIANT, NoteApi::API_LEVEL) {
+        }
+
+        std::filesystem::path encoder;
+        std::filesystem::path segmenter;
+        std::filesystem::path estimator;
+        std::filesystem::path boundaryToDuration;
+
+        /// Empty when this package ships no alignment model.
+        std::filesystem::path durationToBoundary;
+
+        /// Model frame rate in seconds. Used only to convert boundaryRadius into frames.
+        double timestep = 0.01;
+
+        /// Maps the language identifiers the exports list to the model's own numbering.
+        ///
+        /// The contract speaks identifiers because a model's internal numbering is its own: two
+        /// models need not agree that 1 is the same language.
+        std::map<std::string, int> languages;
+
+        /// Language used when the caller supplies none.
+        std::string defaultLanguage;
+
+        /// Start of the sampling schedule.
+        double scheduleStart = 0;
+    };
+
     using TensorPtr = std::shared_ptr<ds::ITensor>;
 
     /// The sampling schedule: \a steps evenly spaced points from \a start up to one.
@@ -83,8 +123,8 @@ namespace {
     srt::Expected<TensorPtr> flags(const std::vector<std::int64_t> &shape,
                                    const std::vector<std::uint8_t> &values) {
         // Bool tensors are one byte an element, which is what the raw view expects.
-        const stdc::array_view<std::byte> raw(
-            reinterpret_cast<const std::byte *>(values.data()), values.size());
+        const stdc::array_view<std::byte> raw(reinterpret_cast<const std::byte *>(values.data()),
+                                              values.size());
         auto tensor = ds::Tensor::createFromRawView(ds::ITensor::Bool, shape, raw);
         if (!tensor) {
             return tensor.takeError();
@@ -135,20 +175,20 @@ namespace {
     }
 
     /// Runs one session and hands back the outputs it was asked for.
-    srt::Expected<std::map<std::string, TensorPtr>>
-        invoke(ds::InferenceSession &session, std::map<std::string, TensorPtr> inputs,
-               const std::set<std::string> &wanted, const char *what) {
+    srt::Expected<std::map<std::string, TensorPtr>> invoke(ds::InferenceSession &session,
+                                                           std::map<std::string, TensorPtr> inputs,
+                                                           const std::set<std::string> &wanted,
+                                                           const char *what) {
         OnnxApi::SessionStartInput request;
         request.inputs = std::move(inputs);
         request.outputs = wanted;
 
         auto response = session.start(request);
         if (!response) {
-            return response.takeError().withContext(std::string("the ") + what +
-                                                    " model failed");
+            return response.takeError().withContext(std::string("the ") + what + " model failed");
         }
         auto produced = response.take();
-        const auto *outputs = produced ? produced->as<OnnxApi::SessionResult>() : nullptr;
+        auto outputs = produced ? produced->as<OnnxApi::SessionResult>() : nullptr;
         if (outputs == nullptr) {
             return srt::Error(srt::Error::InvalidFormat,
                               std::string("the ") + what + " model returned no outputs");
@@ -172,8 +212,8 @@ namespace {
         std::unique_ptr<ds::InferenceSession> durationToBoundary;
 
         void forEach(const std::function<void(ds::InferenceSession &)> &body) {
-            for (auto *session : {&encoder, &segmenter, &estimator, &boundaryToDuration,
-                                  &durationToBoundary}) {
+            for (auto session :
+                 {&encoder, &segmenter, &estimator, &boundaryToDuration, &durationToBoundary}) {
                 if (*session) {
                     body(**session);
                 }
@@ -183,22 +223,20 @@ namespace {
 
     class GameExecutive : public NoteApi::NoteExecutive {
     public:
-        GameExecutive(otter::AnalysisSpec &spec, Models models,
-                      const NoteApi::NoteConfiguration &configuration)
-            : NoteExecutive(spec), m_models(std::move(models)),
-              m_sampleRate(configuration.sampleRate),
-              m_channelCount(configuration.channelCount),
-              m_maxSegmentDuration(configuration.maxSegmentDuration),
+        GameExecutive(otter::AnalysisSpec &spec, Models models, const NoteApi::NoteSchema &schema,
+                      const GameConfiguration &configuration)
+            : NoteExecutive(spec), m_models(std::move(models)), m_sampleRate(schema.sampleRate),
+              m_channelCount(schema.channelCount), m_maxSegmentDuration(schema.maxSegmentDuration),
+              m_supportsKnownNotes(schema.supportsKnownNotes),
+              m_boundaryThreshold(schema.boundaryThreshold),
+              m_boundaryRadius(schema.boundaryRadius), m_noteThreshold(schema.noteThreshold),
+              m_notePresenceCutoff(schema.notePresenceCutoff), m_steps(schema.steps),
               m_timestep(configuration.timestep), m_languages(configuration.languages),
               m_defaultLanguage(configuration.defaultLanguage),
-              m_scheduleStart(configuration.scheduleStart), m_defaultSteps(configuration.defaultSteps),
-              m_defaultBoundaryThreshold(configuration.defaultBoundaryThreshold),
-              m_defaultBoundaryRadius(configuration.defaultBoundaryRadius),
-              m_defaultNoteThreshold(configuration.defaultNoteThreshold),
-              m_defaultNotePresenceCutoff(configuration.defaultNotePresenceCutoff) {
+              m_scheduleStart(configuration.scheduleStart) {
         }
 
-        ~GameExecutive() override {
+        ~GameExecutive() {
             m_runner.cancel();
             m_runner.wait();
             m_models.forEach([](ds::InferenceSession &session) {
@@ -254,17 +292,14 @@ namespace {
                 return srt::Error(srt::Error::InvalidArgument,
                                   "this analyzer is already running an execution");
             }
-            auto spawned = m_runner.spawn([this, input, callback = std::move(callback)]() mutable {
+            // A failure to spawn releases the claim itself; there is no body left to do it.
+            return m_runner.spawn([this, input, callback = std::move(callback)]() mutable {
                 auto result = run(*input);
                 m_runner.end(static_cast<bool>(result));
                 if (callback) {
                     callback(std::move(result));
                 }
             });
-            if (!spawned) {
-                m_runner.end(false);
-            }
-            return spawned;
         }
 
     private:
@@ -278,8 +313,8 @@ namespace {
         srt::Expected<std::unique_ptr<NoteApi::NoteResult>>
             run(const NoteApi::NoteStartInput &input) {
             const auto &audio = input.audio;
-            auto prepared = otter::prepareSamples(audio, m_sampleRate, m_channelCount,
-                                                  m_maxSegmentDuration);
+            auto prepared =
+                otter::prepareSamples(audio, m_sampleRate, m_channelCount, m_maxSegmentDuration);
             if (!prepared) {
                 return prepared.takeError();
             }
@@ -308,26 +343,27 @@ namespace {
             double cutoff = 0;
             double radiusSeconds = 0;
             int steps = 0;
-            const std::tuple<const std::optional<double> &, double, double *, const char *>
+            const std::tuple<const std::optional<double> &, const CommonApi::Knob &, double,
+                             double *, const char *>
                 knobs[] = {
-                    {input.boundaryThreshold, m_defaultBoundaryThreshold, &boundaryThresholdValue,
-                     "boundaryThreshold"},
-                    {input.noteThreshold, m_defaultNoteThreshold, &noteThresholdValue,
-                     "noteThreshold"},
-                    {input.notePresenceCutoff, m_defaultNotePresenceCutoff, &cutoff,
-                     "notePresenceCutoff"},
-                    {input.boundaryRadius, m_defaultBoundaryRadius, &radiusSeconds,
-                     "boundaryRadius"},
-                };
-            for (const auto &[given, fallback, target, what] : knobs) {
-                auto chosen = otter::chooseKnob(given, 0.0, 1.0, fallback, what);
+                    {input.boundaryThreshold,  m_boundaryThreshold,  FALLBACK_BOUNDARY_THRESHOLD,
+                     &boundaryThresholdValue, "boundaryThreshold" },
+                    {input.noteThreshold,      m_noteThreshold,      FALLBACK_NOTE_THRESHOLD,
+                     &noteThresholdValue,     "noteThreshold"     },
+                    {input.notePresenceCutoff, m_notePresenceCutoff, FALLBACK_NOTE_PRESENCE_CUTOFF,
+                     &cutoff,                 "notePresenceCutoff"},
+                    {input.boundaryRadius,     m_boundaryRadius,     FALLBACK_BOUNDARY_RADIUS,
+                     &radiusSeconds,          "boundaryRadius"    },
+            };
+            for (const auto &[given, knob, fallback, target, what] : knobs) {
+                auto chosen = otter::chooseKnob(given, knob, fallback, what);
                 if (!chosen) {
                     return chosen.takeError();
                 }
                 *target = chosen.take();
             }
             {
-                auto chosen = otter::chooseKnob(input.steps, 1, 1000, m_defaultSteps, "steps");
+                auto chosen = otter::chooseKnob(input.steps, m_steps, FALLBACK_STEPS, "steps");
                 if (!chosen) {
                     return chosen.takeError();
                 }
@@ -388,7 +424,7 @@ namespace {
             // 2. Known boundaries, when the caller supplied a score to align against.
             std::vector<std::uint8_t> known(frames.size(), 0);
             if (!input.knownNotes.empty()) {
-                if (!m_models.durationToBoundary) {
+                if (!m_supportsKnownNotes || !m_models.durationToBoundary) {
                     return srt::Error(srt::Error::FeatureNotSupported,
                                       "this model cannot be conditioned on known notes");
                 }
@@ -480,8 +516,8 @@ namespace {
                     return segmented.takeError();
                 }
                 boundaries = segmented.take().at("boundaries");
-                report(0.4 + 0.2 * static_cast<double>(step + 1) /
-                                 static_cast<double>(steps_.size()));
+                report(0.4 +
+                       0.2 * static_cast<double>(step + 1) / static_cast<double>(steps_.size()));
             }
             if (!boundaries) {
                 return srt::Error(srt::Error::InvalidArgument,
@@ -493,10 +529,12 @@ namespace {
             if (auto stopped = cancelled(); !stopped) {
                 return stopped.takeError();
             }
-            auto measured =
-                invoke(*m_models.boundaryToDuration,
-                       {{"boundaries", boundaries}, {"maskT", features.at("maskT")}},
-                       {"durations", "maskN"}, "bd2dur");
+            auto measured = invoke(*m_models.boundaryToDuration,
+                                   {
+                                       {"boundaries", boundaries          },
+                                       {"maskT",      features.at("maskT")}
+            },
+                                   {"durations", "maskN"}, "bd2dur");
             if (!measured) {
                 return measured.takeError();
             }
@@ -513,10 +551,10 @@ namespace {
                 return stopped.takeError();
             }
             std::map<std::string, TensorPtr> estimatorInputs = {
-                {"x_est", features.at("x_est")},
-                {"boundaries", boundaries},
-                {"maskT", features.at("maskT")},
-                {"maskN", lengths.at("maskN")},
+                {"x_est",      features.at("x_est")},
+                {"boundaries", boundaries          },
+                {"maskT",      features.at("maskT")},
+                {"maskN",      lengths.at("maskN") },
             };
             {
                 // A scalar, as the model declares it -- the same rank the segmenter's two knobs
@@ -580,8 +618,7 @@ namespace {
             for (const auto &note : notes) {
                 const auto begin = note.start - startTime;
                 if (note.duration <= 0) {
-                    return srt::Error(srt::Error::InvalidArgument,
-                                      "a known note has no duration");
+                    return srt::Error(srt::Error::InvalidArgument, "a known note has no duration");
                 }
                 if (begin < -1e-9) {
                     return srt::Error(srt::Error::InvalidArgument,
@@ -615,8 +652,8 @@ namespace {
                 }
                 inputs["maskT"] = tensor.take();
             }
-            auto converted = invoke(*m_models.durationToBoundary, std::move(inputs),
-                                    {"boundaries"}, "dur2bd");
+            auto converted =
+                invoke(*m_models.durationToBoundary, std::move(inputs), {"boundaries"}, "dur2bd");
             if (!converted) {
                 return converted.takeError();
             }
@@ -627,39 +664,40 @@ namespace {
         int m_sampleRate;
         int m_channelCount;
         double m_maxSegmentDuration;
+        bool m_supportsKnownNotes;
+        CommonApi::Knob m_boundaryThreshold;
+        CommonApi::Knob m_boundaryRadius;
+        CommonApi::Knob m_noteThreshold;
+        CommonApi::Knob m_notePresenceCutoff;
+        CommonApi::IntKnob m_steps;
         double m_timestep;
         std::map<std::string, int> m_languages;
         std::string m_defaultLanguage;
         double m_scheduleStart;
-        int m_defaultSteps;
-        double m_defaultBoundaryThreshold;
-        double m_defaultBoundaryRadius;
-        double m_defaultNoteThreshold;
-        double m_defaultNotePresenceCutoff;
         otter::AnalysisRunner m_runner;
     };
 
     class GameExtension : public otter::AnalysisExtension {
     public:
         explicit GameExtension(otter::AnalysisSpec &spec)
-            : AnalysisExtension(
-                  spec, srt::ContribSpecExtensionTraits<otter::AnalysisSpec,
-                                                        NoteApi::NoteExecutive>::ID) {
+            : AnalysisExtension(spec, srt::ContribSpecExtensionTraits<otter::AnalysisSpec,
+                                                                      NoteApi::NoteExecutive>::ID) {
         }
 
         srt::Expected<std::unique_ptr<otter::AnalysisExecutive>>
             createAnalyzer(const otter::AnalysisRuntimeOptions &runtimeOptions) override {
-            const auto *configuration =
-                spec().configuration() ? spec().configuration()->as<NoteApi::NoteConfiguration>()
-                                       : nullptr;
-            if (configuration == nullptr) {
+            const auto configuration =
+                spec().configuration() ? spec().configuration()->as<GameConfiguration>() : nullptr;
+            const auto schema =
+                spec().exports() ? spec().exports()->as<NoteApi::NoteSchema>() : nullptr;
+            if (configuration == nullptr || schema == nullptr) {
                 return srt::Error(srt::Error::InvalidFormat,
                                   "this declaration carries no game configuration");
             }
 
-            auto *service = spec().package().synthUnit().runtimeService(
+            auto service = spec().package().synthUnit().runtimeService(
                 ds::InferenceDriverPlugin::IID, BACKEND);
-            auto *driver = service ? service->as<ds::InferenceDriver>() : nullptr;
+            auto driver = service ? service->as<ds::InferenceDriver>() : nullptr;
             if (driver == nullptr) {
                 return srt::Error(srt::Error::FeatureNotSupported,
                                   "the onnx inference driver is not registered on this unit");
@@ -669,12 +707,12 @@ namespace {
             const std::pair<const std::filesystem::path *,
                             std::unique_ptr<ds::InferenceSession> Models::*>
                 wanted[] = {
-                    {&configuration->encoder, &Models::encoder},
-                    {&configuration->segmenter, &Models::segmenter},
-                    {&configuration->estimator, &Models::estimator},
+                    {&configuration->encoder,            &Models::encoder           },
+                    {&configuration->segmenter,          &Models::segmenter         },
+                    {&configuration->estimator,          &Models::estimator         },
                     {&configuration->boundaryToDuration, &Models::boundaryToDuration},
                     {&configuration->durationToBoundary, &Models::durationToBoundary},
-                };
+            };
             for (const auto &[path, member] : wanted) {
                 if (path->empty()) {
                     // Only the alignment model is allowed to be absent; the reader has already
@@ -694,7 +732,7 @@ namespace {
                 models.*member = std::move(session);
             }
             return std::unique_ptr<otter::AnalysisExecutive>(
-                new GameExecutive(spec(), std::move(models), *configuration));
+                new GameExecutive(spec(), std::move(models), *schema, *configuration));
         }
     };
 
@@ -705,37 +743,40 @@ namespace {
 
         srt::Expected<std::unique_ptr<srt::ContribExports>>
             createExports(const srt::ContribSpec &spec) const override {
+            auto schema = NoteApi::readNoteSchema(spec, VARIANT);
+            if (!schema) {
+                return schema.takeError();
+            }
             auto configuration = readConfiguration(spec);
             if (!configuration) {
                 return configuration.takeError();
             }
-            const auto values = configuration.take();
-
-            // Everything a host needs to know is already in the configuration, so it is derived
-            // rather than declared twice. A declaration that stated its own exports could disagree
-            // with the model it ships, and the host would then prepare audio the model refuses.
-            if (!spec.manifestExports().isNull() &&
-                !(spec.manifestExports().isObject() &&
-                  spec.manifestExports().toObject().empty())) {
+            const auto &declared = **schema;
+            const auto &wiring = **configuration;
+            // The contract syntax is the library's; whether this package can honor what it
+            // declares is checked here, where both blocks are in hand. A language the exports
+            // promise but the model cannot number, or an alignment path promised without the
+            // model that performs it, would otherwise surface as a failed execution long after
+            // the package loaded.
+            if (declared.channelCount != 1) {
+                return srt::Error(srt::Error::FeatureNotSupported,
+                                  "the game variant feeds its models one channel, and the exports "
+                                  "declare " +
+                                      std::to_string(declared.channelCount));
+            }
+            for (const auto &language : declared.languages) {
+                if (wiring.languages.find(language) == wiring.languages.end()) {
+                    return srt::Error(srt::Error::InvalidFormat,
+                                      "the exports list the language " + language +
+                                          " but the configuration gives it no numbering");
+                }
+            }
+            if (declared.supportsKnownNotes && wiring.durationToBoundary.empty()) {
                 return srt::Error(srt::Error::InvalidFormat,
-                                  "the game variant derives its exports from its configuration; "
-                                  "declaring them again would let the two disagree");
+                                  "the exports declare supportsKnownNotes but the configuration "
+                                  "names no durationToBoundary model");
             }
-
-            auto result = std::make_unique<NoteApi::NoteSchema>(VARIANT);
-            result->sampleRate = values->sampleRate;
-            result->channelCount = values->channelCount;
-            result->maxSegmentDuration = values->maxSegmentDuration;
-            result->supportsKnownNotes = !values->durationToBoundary.empty();
-            for (const auto &[name, id] : values->languages) {
-                result->languages.push_back(name);
-            }
-            result->boundaryThreshold = {true, 0.0, 1.0, values->defaultBoundaryThreshold};
-            result->boundaryRadius = {true, 0.0, 1.0, values->defaultBoundaryRadius};
-            result->noteThreshold = {true, 0.0, 1.0, values->defaultNoteThreshold};
-            result->notePresenceCutoff = {true, 0.0, 1.0, values->defaultNotePresenceCutoff};
-            result->steps = {true, 1, 1000, values->defaultSteps};
-            return result;
+            return std::unique_ptr<srt::ContribExports>(schema.take().release());
         }
 
         srt::Expected<std::unique_ptr<srt::ContribConfiguration>>
@@ -754,7 +795,7 @@ namespace {
         }
 
     private:
-        static srt::Expected<std::unique_ptr<NoteApi::NoteConfiguration>>
+        static srt::Expected<std::unique_ptr<GameConfiguration>>
             readConfiguration(const srt::ContribSpec &spec) {
             const auto &value = spec.manifestConfiguration();
             if (!value.isObject()) {
@@ -765,34 +806,23 @@ namespace {
             if (auto checked = otter::manifest::rejectUnknownKeys(
                     object,
                     {"encoder", "segmenter", "estimator", "boundaryToDuration",
-                     "durationToBoundary", "sampleRate", "channelCount", "maxSegmentDuration",
-                     "timestep", "languages", "defaultLanguage", "scheduleStart", "steps",
-                     "boundaryThreshold", "boundaryRadius", "noteThreshold",
-                     "notePresenceCutoff"},
+                     "durationToBoundary", "timestep", "languages", "defaultLanguage",
+                     "scheduleStart"},
                     "the game configuration");
                 !checked) {
                 return checked.takeError();
             }
 
-            auto result = std::make_unique<NoteApi::NoteConfiguration>(VARIANT);
-            result->sampleRate = 44100;
-            result->channelCount = 1;
-            result->timestep = 0.01;
-            result->defaultSteps = 8;
-            result->defaultBoundaryThreshold = 0.2;
-            result->defaultBoundaryRadius = 0.02;
-            result->defaultNoteThreshold = 0.2;
-            result->defaultNotePresenceCutoff = 0.5;
+            auto result = std::make_unique<GameConfiguration>();
 
             const auto directory = spec.declarationPath().parent_path();
-            const std::pair<const char *, std::filesystem::path NoteApi::NoteConfiguration::*>
-                models[] = {
-                    {"encoder", &NoteApi::NoteConfiguration::encoder},
-                    {"segmenter", &NoteApi::NoteConfiguration::segmenter},
-                    {"estimator", &NoteApi::NoteConfiguration::estimator},
-                    {"boundaryToDuration", &NoteApi::NoteConfiguration::boundaryToDuration},
-                    {"durationToBoundary", &NoteApi::NoteConfiguration::durationToBoundary},
-                };
+            const std::pair<const char *, std::filesystem::path GameConfiguration::*> models[] = {
+                {"encoder",            &GameConfiguration::encoder           },
+                {"segmenter",          &GameConfiguration::segmenter         },
+                {"estimator",          &GameConfiguration::estimator         },
+                {"boundaryToDuration", &GameConfiguration::boundaryToDuration},
+                {"durationToBoundary", &GameConfiguration::durationToBoundary},
+            };
             for (const auto &[key, member] : models) {
                 const auto it = object.find(key);
                 if (it == object.end()) {
@@ -812,56 +842,19 @@ namespace {
                 }
             }
 
-            const std::pair<const char *, int NoteApi::NoteConfiguration::*> counts[] = {
-                {"sampleRate", &NoteApi::NoteConfiguration::sampleRate},
-                {"channelCount", &NoteApi::NoteConfiguration::channelCount},
-                {"steps", &NoteApi::NoteConfiguration::defaultSteps},
-            };
-            for (const auto &[key, member] : counts) {
-                const auto it = object.find(key);
-                if (it == object.end()) {
-                    continue;
-                }
-                auto number = otter::manifest::readPositiveInt(it->second, key);
+            if (const auto it = object.find("timestep"); it != object.end()) {
+                auto number = otter::manifest::readPositiveDouble(it->second, "timestep");
                 if (!number) {
                     return number.takeError();
                 }
-                result.get()->*member = number.take();
+                result->timestep = number.take();
             }
-
-            const std::pair<const char *, double NoteApi::NoteConfiguration::*> spans[] = {
-                {"maxSegmentDuration", &NoteApi::NoteConfiguration::maxSegmentDuration},
-                {"timestep", &NoteApi::NoteConfiguration::timestep},
-            };
-            for (const auto &[key, member] : spans) {
-                const auto it = object.find(key);
-                if (it == object.end()) {
-                    continue;
-                }
-                auto number = otter::manifest::readPositiveDouble(it->second, key);
+            if (const auto it = object.find("scheduleStart"); it != object.end()) {
+                auto number = otter::manifest::readUnitDouble(it->second, "scheduleStart");
                 if (!number) {
                     return number.takeError();
                 }
-                result.get()->*member = number.take();
-            }
-
-            const std::pair<const char *, double NoteApi::NoteConfiguration::*> unit[] = {
-                {"scheduleStart", &NoteApi::NoteConfiguration::scheduleStart},
-                {"boundaryThreshold", &NoteApi::NoteConfiguration::defaultBoundaryThreshold},
-                {"boundaryRadius", &NoteApi::NoteConfiguration::defaultBoundaryRadius},
-                {"noteThreshold", &NoteApi::NoteConfiguration::defaultNoteThreshold},
-                {"notePresenceCutoff", &NoteApi::NoteConfiguration::defaultNotePresenceCutoff},
-            };
-            for (const auto &[key, member] : unit) {
-                const auto it = object.find(key);
-                if (it == object.end()) {
-                    continue;
-                }
-                auto number = otter::manifest::readUnitDouble(it->second, key);
-                if (!number) {
-                    return number.takeError();
-                }
-                result.get()->*member = number.take();
+                result->scheduleStart = number.take();
             }
 
             if (const auto it = object.find("languages"); it != object.end()) {
@@ -891,9 +884,9 @@ namespace {
             }
             if (!result->defaultLanguage.empty() &&
                 result->languages.find(result->defaultLanguage) == result->languages.end()) {
-                return srt::Error(srt::Error::InvalidFormat,
-                                  "the default language " + result->defaultLanguage +
-                                      " is not one this model declares");
+                return srt::Error(srt::Error::InvalidFormat, "the default language " +
+                                                                 result->defaultLanguage +
+                                                                 " is not one this model declares");
             }
             return result;
         }
@@ -906,9 +899,8 @@ namespace {
             if (interfaceName != NoteApi::API_INTERFACE || level != NoteApi::API_LEVEL ||
                 variant != VARIANT) {
                 return srt::Error(srt::Error::FeatureNotSupported,
-                                  "this plugin serves only " +
-                                      std::string(NoteApi::API_INTERFACE) + " level 1 variant " +
-                                      VARIANT);
+                                  "this plugin serves only " + std::string(NoteApi::API_INTERFACE) +
+                                      " level 1 variant " + VARIANT);
             }
             return std::unique_ptr<srt::ContribInterpreter>(new GameProvider());
         }

@@ -394,16 +394,25 @@ def main() -> int:
         "otter/fixture-rmvpe",
         {
             "f0": {
-                "interface": "org.openvpi.analysis.F0",
+                "interface": "org.openvpi.otter.analysis.F0",
                 "level": 1,
                 "variant": "rmvpe",
                 "name": "Fixture RMVPE",
-                "configuration": {
-                    "model": "./rmvpe.onnx",
+                # The contract facts a host reads: the audio format and the knobs. The syntax
+                # belongs to the interface, so a declaration of any variant reads the same way.
+                "exports": {
                     "sampleRate": RMVPE_RATE,
+                    "channelCount": 1,
                     "interval": 0.01,
                     "maxSegmentDuration": 60.0,
-                    "voicingThreshold": 0.03,
+                    "knobs": {
+                        "voicingThreshold": {"minimum": 0.0, "maximum": 1.0, "default": 0.03},
+                        "interpolateUnvoiced": {"default": True},
+                    },
+                },
+                # What only the rmvpe variant reads: where its model is.
+                "configuration": {
+                    "model": "./rmvpe.onnx",
                 },
             }
         },
@@ -421,33 +430,108 @@ def main() -> int:
         "otter/fixture-note",
         {
             "note": {
-                "interface": "org.openvpi.analysis.Note",
+                "interface": "org.openvpi.otter.analysis.Note",
                 "level": 1,
                 "variant": "game",
                 "name": "Fixture Note",
+                "exports": {
+                    "sampleRate": NOTE_RATE,
+                    "channelCount": 1,
+                    "maxSegmentDuration": 60.0,
+                    "languages": ["zxx", "zh"],
+                    "supportsKnownNotes": True,
+                    "knobs": {
+                        "boundaryThreshold": {"minimum": 0.0, "maximum": 1.0, "default": 0.2},
+                        "boundaryRadius": {"minimum": 0.0, "maximum": 1.0, "default": 0.2},
+                        "noteThreshold": {"minimum": 0.0, "maximum": 1.0, "default": 0.2},
+                        "notePresenceCutoff": {"minimum": 0.0, "maximum": 1.0, "default": 0.5},
+                        "steps": {"minimum": 1, "maximum": 1000, "default": 8},
+                    },
+                },
+                # What only the game variant reads: its five models and how they are wired.
                 "configuration": {
                     "encoder": "./encoder.onnx",
                     "segmenter": "./segmenter.onnx",
                     "estimator": "./estimator.onnx",
                     "boundaryToDuration": "./bd2dur.onnx",
                     "durationToBoundary": "./dur2bd.onnx",
-                    "sampleRate": NOTE_RATE,
                     "timestep": NOTE_TIMESTEP,
-                    "maxSegmentDuration": 60.0,
                     "languages": {"zxx": 0, "zh": 1},
                     "defaultLanguage": "zxx",
-                    "boundaryThreshold": 0.2,
-                    "boundaryRadius": 0.2,
-                    "noteThreshold": 0.2,
-                    "notePresenceCutoff": 0.5,
-                    "steps": 8,
                 },
+            }
+        },
+    )
+
+    # Declarations the variants must refuse at load: the contract syntax is fine, but the package
+    # promises what its models cannot honor. Each gets graphs of its own so that the refusal is
+    # about the declaration and not about a missing file.
+    wrong_rate = output / "fixture-rmvpe-wrong-rate"
+    build_rmvpe(wrong_rate / "analyzers" / "f0" / "rmvpe.onnx")
+    write_package(
+        wrong_rate,
+        "otter/fixture-rmvpe-wrong-rate",
+        {
+            "f0": {
+                "interface": "org.openvpi.otter.analysis.F0",
+                "level": 1,
+                "variant": "rmvpe",
+                "name": "Fixture RMVPE at the wrong rate",
+                "exports": {"sampleRate": 44100, "interval": 0.01},
+                "configuration": {"model": "./rmvpe.onnx"},
+            }
+        },
+    )
+
+    def note_models(directory: Path) -> dict:
+        build_note_encoder(directory / "encoder.onnx")
+        build_note_segmenter(directory / "segmenter.onnx")
+        build_note_estimator(directory / "estimator.onnx")
+        build_note_bd2dur(directory / "bd2dur.onnx")
+        return {
+            "encoder": "./encoder.onnx",
+            "segmenter": "./segmenter.onnx",
+            "estimator": "./estimator.onnx",
+            "boundaryToDuration": "./bd2dur.onnx",
+            "timestep": NOTE_TIMESTEP,
+            "languages": {"zxx": 0},
+        }
+
+    unnumbered = output / "fixture-note-unnumbered"
+    write_package(
+        unnumbered,
+        "otter/fixture-note-unnumbered",
+        {
+            "note": {
+                "interface": "org.openvpi.otter.analysis.Note",
+                "level": 1,
+                "variant": "game",
+                "name": "Fixture Note promising a language it cannot number",
+                "exports": {"sampleRate": NOTE_RATE, "languages": ["zxx", "eng"]},
+                "configuration": note_models(unnumbered / "analyzers" / "note"),
+            }
+        },
+    )
+
+    no_alignment = output / "fixture-note-no-alignment"
+    write_package(
+        no_alignment,
+        "otter/fixture-note-no-alignment",
+        {
+            "note": {
+                "interface": "org.openvpi.otter.analysis.Note",
+                "level": 1,
+                "variant": "game",
+                "name": "Fixture Note promising alignment without the model",
+                "exports": {"sampleRate": NOTE_RATE, "supportsKnownNotes": True},
+                "configuration": note_models(no_alignment / "analyzers" / "note"),
             }
         },
     )
 
     print(f"wrote {rmvpe}")
     print(f"wrote {note}")
+    print(f"wrote {wrong_rate}, {unnumbered} and {no_alignment}, which must not load")
     return 0
 
 

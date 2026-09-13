@@ -10,6 +10,7 @@
 #include <synthrt/Support/Expected.h>
 #include <synthrt/Support/JSON.h>
 
+#include <otter/Api/Common/1/CommonApiL1.h>
 #include <otter/otter_global.h>
 
 /// Readers shared by the analysis providers, so that two variants reading the same shape out of a
@@ -20,9 +21,9 @@ namespace otter::manifest {
     ///
     /// \a base is the directory of the declaration file the value came from, which is where spec
     /// 2.4 says a relative path resolves.
-    OTTER_EXPORT srt::Expected<std::filesystem::path>
-        readPath(const srt::JsonValue &value, const std::filesystem::path &base,
-                 std::string_view what);
+    OTTER_EXPORT srt::Expected<std::filesystem::path> readPath(const srt::JsonValue &value,
+                                                               const std::filesystem::path &base,
+                                                               std::string_view what);
 
     /// Reads an integer greater than zero.
     OTTER_EXPORT srt::Expected<int> readPositiveInt(const srt::JsonValue &value,
@@ -43,6 +44,20 @@ namespace otter::manifest {
     /// Reads an array of non-empty strings that must not repeat.
     OTTER_EXPORT srt::Expected<std::vector<std::string>> readStringList(const srt::JsonValue &value,
                                                                         std::string_view what);
+
+    /// Reads one continuous knob declaration: an object with \c minimum, \c maximum and
+    /// \c default, the default lying inside the range. The knob comes back honored, since a
+    /// module that does not honor a knob leaves it out rather than declaring it.
+    OTTER_EXPORT srt::Expected<Api::Common::L1::Knob> readKnob(const srt::JsonValue &value,
+                                                               std::string_view what);
+
+    /// Reads one integral knob declaration, with the same shape as readKnob().
+    OTTER_EXPORT srt::Expected<Api::Common::L1::IntKnob> readIntKnob(const srt::JsonValue &value,
+                                                                     std::string_view what);
+
+    /// Reads one boolean knob declaration: an object with \c default.
+    OTTER_EXPORT srt::Expected<Api::Common::L1::FlagKnob> readFlagKnob(const srt::JsonValue &value,
+                                                                       std::string_view what);
 
     /// Rejects an object carrying a key the contract does not define.
     ///

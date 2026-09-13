@@ -2,7 +2,6 @@
 #define OTTER_API_F0APIL1_H
 
 #include <cstdint>
-#include <filesystem>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -11,20 +10,27 @@
 
 #include <synthrt/Core/ContribSpec.h>
 #include <synthrt/Core/ContribSpecExtension.h>
+#include <synthrt/Support/Expected.h>
 #include <synthrt/Task/ITask.h>
 
 #include <otter/Analysis/AnalysisExecutive.h>
 #include <otter/Api/Common/1/CommonApiL1.h>
+#include <otter/otter_global.h>
 
 namespace otter::Api::F0::L1 {
 
     /// Identifies the fundamental frequency analysis contract.
-    inline constexpr char API_INTERFACE[] = "org.openvpi.analysis.F0";
+    inline constexpr char API_INTERFACE[] = "org.openvpi.otter.analysis.F0";
 
     /// Identifies Level 1 of the contract.
     inline constexpr int API_LEVEL = 1;
 
     /// Describes the capabilities exported by an F0 analysis contribution.
+    ///
+    /// This is the contract's \c exports block, read by the host before it prepares any audio.
+    /// Its syntax belongs to the interface and level, not to a variant, so every variant of this
+    /// contract declares the same keys and a host reads them the same way. The machine readable
+    /// schema is docs/schemas/f0-1-exports.schema.json.
     class F0Schema : public srt::ContribExports {
     public:
         inline explicit F0Schema(std::string variant)
@@ -50,34 +56,17 @@ namespace otter::Api::F0::L1 {
         Common::L1::FlagKnob interpolateUnvoiced;
     };
 
-    /// Contains the interpreted configuration of an F0 analysis model.
-    class F0Configuration : public srt::ContribConfiguration {
-    public:
-        inline explicit F0Configuration(std::string variant)
-            : srt::ContribConfiguration(API_INTERFACE, std::move(variant), API_LEVEL) {
-        }
-
-        /// Path of the model.
-        std::filesystem::path model;
-
-        /// Input sample rate in hertz.
-        int sampleRate = 0;
-
-        /// Input channel count.
-        int channelCount = 1;
-
-        /// Time between adjacent output frames in seconds.
-        double interval = 0;
-
-        /// Longest span accepted in one execution, in seconds. 0 means no limit.
-        double maxSegmentDuration = 0;
-
-        /// Voicing threshold used when the caller supplies none.
-        double defaultVoicingThreshold = 0;
-
-        /// Interpolation setting used when the caller supplies none.
-        bool defaultInterpolateUnvoiced = true;
-    };
+    /// Reads the \c exports block of \a spec as an F0 Level 1 schema.
+    ///
+    /// Every provider of this contract reads its declaration through this one function, so two
+    /// variants cannot disagree about what a key means or how a bad value is reported. A variant
+    /// then checks the result against what its own models can honor. \a variant is recorded in
+    /// the schema so a host can tell which implementation answers.
+    ///
+    /// \c sampleRate and \c interval are required. \c channelCount defaults to 1,
+    /// \c maxSegmentDuration to no limit, and a knob that is not declared is not honored.
+    OTTER_EXPORT srt::Expected<std::unique_ptr<F0Schema>> readF0Schema(const srt::ContribSpec &spec,
+                                                                       std::string variant);
 
     /// Contains runtime options used when creating an F0 analyzer.
     class F0RuntimeOptions : public otter::AnalysisRuntimeOptions {
@@ -157,7 +146,7 @@ namespace srt {
 
     template <>
     struct ContribSpecExtensionTraits<otter::AnalysisSpec, otter::Api::F0::L1::F0Executive> {
-        inline static constexpr char ID[] = "org.openvpi.analysis.extension.F0";
+        inline static constexpr char ID[] = "org.openvpi.otter.extension.F0";
     };
 
 }

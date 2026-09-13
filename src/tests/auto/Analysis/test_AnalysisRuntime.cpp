@@ -47,6 +47,9 @@ namespace {
     /// A loaded package plus the unit behind it, torn down in the right order.
     struct Loaded {
         explicit Loaded(const char *name) {
+            // What every host does once: name the library, so a linker that drops unreferenced
+            // libraries keeps the one whose static initializer registers the category.
+            otter::linkAnalysisCategory();
             const fs::path paths[] = {fs::path(OTTER_TEST_PLUGIN_DIR)};
             unit.setPluginPaths(otter::ANALYSIS_CATEGORY, paths);
             auto opened =
@@ -186,7 +189,11 @@ BOOST_AUTO_TEST_CASE(test_AnalysisRuntime_KeepsTheBoundariesTheCallerAlreadyKnow
     // every one of these four seconds early, and nothing in the answer would say so.
     NoteApi::NoteStartInput input;
     input.audio = silence(2.0, 4.0);
-    input.knownNotes = {{4.0, 0.3}, {4.5, 0.7}, {5.5, 0.25}};
+    input.knownNotes = {
+        {4.0, 0.3 },
+        {4.5, 0.7 },
+        {5.5, 0.25}
+    };
 
     auto produced = analyzer->start(input);
     BOOST_REQUIRE_MESSAGE(static_cast<bool>(produced), otter::test::why(produced));
@@ -201,7 +208,9 @@ BOOST_AUTO_TEST_CASE(test_AnalysisRuntime_KeepsTheBoundariesTheCallerAlreadyKnow
     // A note before the span is a caller mistake rather than something to clamp.
     NoteApi::NoteStartInput early;
     early.audio = silence(2.0, 4.0);
-    early.knownNotes = {{0.0, 0.3}};
+    early.knownNotes = {
+        {0.0, 0.3}
+    };
     BOOST_CHECK(!analyzer->start(early));
 }
 
@@ -259,6 +268,20 @@ BOOST_AUTO_TEST_CASE(test_AnalysisRuntime_RefusesAKnobOutsideTheRangeItDeclares)
     BOOST_CHECK_MESSAGE(static_cast<bool>(analyzer->start(fine)), "an in range knob should work");
 }
 
+/// A knob the declaration does not honor has no range to check against, and the declaration said
+/// the caller has no say, so whatever the caller supplies is ignored rather than refused.
+BOOST_AUTO_TEST_CASE(test_AnalysisRuntime_IgnoresAKnobTheDeclarationDoesNotHonor) {
+    Loaded loaded("unknobbed");
+    auto analyzer = loaded.create<F0Api::F0Executive>("f0");
+
+    F0Api::F0StartInput input;
+    input.audio = silence(1.0);
+    input.voicingThreshold = 5.0;
+    auto produced = analyzer->start(input);
+    BOOST_REQUIRE_MESSAGE(static_cast<bool>(produced), otter::test::why(produced));
+    BOOST_CHECK_EQUAL(produced.take()->f0.size(), 100u);
+}
+
 BOOST_AUTO_TEST_CASE(test_AnalysisRuntime_RefusesAModelItCannotFeed) {
     // The declaration asks for two channels and nothing here can widen a span, so the model would
     // be fed averaged audio while believing it had stereo. It used to be, silently: the count was
@@ -299,13 +322,13 @@ BOOST_AUTO_TEST_CASE(test_AnalysisRuntime_RunsAsynchronouslyAndCanBeCancelled) {
     bool finished = false;
     bool succeeded = true;
 
-    auto started = analyzer->startAsync(input, [&](srt::Expected<std::unique_ptr<F0Api::F0Result>>
-                                                      result) {
-        std::lock_guard guard(mutex);
-        succeeded = static_cast<bool>(result);
-        finished = true;
-        done.notify_all();
-    });
+    auto started =
+        analyzer->startAsync(input, [&](srt::Expected<std::unique_ptr<F0Api::F0Result>> result) {
+            std::lock_guard guard(mutex);
+            succeeded = static_cast<bool>(result);
+            finished = true;
+            done.notify_all();
+        });
     BOOST_REQUIRE_MESSAGE(static_cast<bool>(started), otter::test::why(started));
 
     BOOST_CHECK(analyzer->stop());

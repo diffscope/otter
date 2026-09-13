@@ -6,7 +6,10 @@
 // seconds, and the alignment path actually runs the fifth model rather than passing zeros.
 
 #include <cmath>
+#include <cstdlib>
 #include <filesystem>
+#include <string_view>
+#include <iostream>
 #include <memory>
 #include <string>
 #include <vector>
@@ -40,32 +43,41 @@ namespace {
     /// 0.19999998. BOOST_CHECK_CLOSE takes a percentage, and this one is a float's worth of it.
     constexpr double TOLERANCE = 1e-4;
 
-    bool fixturePresent() {
-        return fs::is_directory(fs::path(OTTER_TEST_FIXTURE_DIR) / "fixture-note");
-    }
+    /// Exit status ctest reads as a skip, so a run without the generated graphs, the driver or
+    /// the runtime is reported as not run rather than passed off as success.
+    constexpr int SKIP_EXIT_CODE = 77;
+
+    struct DataOrSkip {
+        DataOrSkip() {
+            if (!fs::is_directory(fs::path(OTTER_TEST_FIXTURE_DIR) / "fixture-note")) {
+                std::cerr << "SKIP: no model fixture under " OTTER_TEST_FIXTURE_DIR "\n";
+                std::exit(SKIP_EXIT_CODE);
+            }
+            if (!fs::is_directory(fs::path(OTTER_TEST_DRIVER_PLUGIN_DIR)) ||
+                std::string_view(OTTER_TEST_ONNXRUNTIME_DIR).empty()) {
+                std::cerr << "SKIP: no ONNX driver plugin or ONNX Runtime in this tree\n";
+                std::exit(SKIP_EXIT_CODE);
+            }
+        }
+    };
 
     struct Host {
         Host() {
+            // What every host does once: name the library, so a linker that drops unreferenced
+            // libraries keeps the one whose static initializer registers the category.
+            otter::linkAnalysisCategory();
             std::vector<fs::path> driverPaths = {fs::path(OTTER_TEST_DRIVER_PLUGIN_DIR)};
             factory.setPluginPaths(driverPaths);
             auto *loader = factory.find(OnnxApi::API_NAME);
-            if (loader == nullptr) {
-                BOOST_TEST_MESSAGE("no ONNX driver plugin present");
-                return;
-            }
+            BOOST_REQUIRE_MESSAGE(loader != nullptr, "the ONNX driver plugin should be present");
             auto created = factory.create(loader);
-            if (!created) {
-                BOOST_TEST_MESSAGE("the driver could not be created");
-                return;
-            }
+            BOOST_REQUIRE_MESSAGE(static_cast<bool>(created), otter::test::why(created));
             auto driver = created.take();
             OnnxApi::DriverInitArgs args;
             args.ep = OnnxApi::ExecutionProvider::CPU;
             args.runtimePath = fs::path(OTTER_TEST_ONNXRUNTIME_DIR);
-            if (auto initialized = driver->initialize(args); !initialized) {
-                BOOST_TEST_MESSAGE("the driver could not be initialized");
-                return;
-            }
+            auto initialized = driver->initialize(args);
+            BOOST_REQUIRE_MESSAGE(static_cast<bool>(initialized), otter::test::why(initialized));
             auto added = unit.addRuntimeService(std::move(driver));
             BOOST_REQUIRE_MESSAGE(added, "the driver should have been registered");
 
@@ -120,23 +132,18 @@ namespace {
 
 }
 
+BOOST_TEST_GLOBAL_FIXTURE(DataOrSkip);
+
 BOOST_AUTO_TEST_SUITE(test_Game)
 
-BOOST_AUTO_TEST_CASE(test_Game_ReportsWhatTheConfigurationSays) {
-    if (!fixturePresent()) {
-        BOOST_TEST_MESSAGE("no model fixture; run scripts/make-model-fixtures.py");
-        return;
-    }
+BOOST_AUTO_TEST_CASE(test_Game_ReportsWhatTheDeclarationExports) {
     Host host;
-    if (!host.ready) {
-        return;
-    }
     auto *spec = host.load();
     const auto *schema = spec->exports()->as<NoteApi::NoteSchema>();
     BOOST_REQUIRE(schema != nullptr);
 
-    // The exports are derived from the configuration rather than declared beside it, so what the
-    // host prepares and what the model opens cannot drift apart.
+    // The exports are the declaration's own words, read through the contract's reader, and the
+    // provider has checked them against the models it opened before the package could load.
     BOOST_CHECK_EQUAL(schema->sampleRate, RATE);
     BOOST_CHECK_CLOSE(schema->maxSegmentDuration, 60.0, 1e-9);
     BOOST_CHECK(schema->supportsKnownNotes);
@@ -147,13 +154,7 @@ BOOST_AUTO_TEST_CASE(test_Game_ReportsWhatTheConfigurationSays) {
 }
 
 BOOST_AUTO_TEST_CASE(test_Game_ChainsTheStagesAndPlacesNotesInSeconds) {
-    if (!fixturePresent()) {
-        return;
-    }
     Host host;
-    if (!host.ready) {
-        return;
-    }
     auto analyzer = host.open();
 
     NoteApi::NoteStartInput input;
@@ -190,13 +191,7 @@ BOOST_AUTO_TEST_CASE(test_Game_ChainsTheStagesAndPlacesNotesInSeconds) {
 }
 
 BOOST_AUTO_TEST_CASE(test_Game_SendsTheKnobsToTheModels) {
-    if (!fixturePresent()) {
-        return;
-    }
     Host host;
-    if (!host.ready) {
-        return;
-    }
     auto analyzer = host.open();
 
     const auto count = [&analyzer](double radius, double cutoff) {
@@ -217,13 +212,7 @@ BOOST_AUTO_TEST_CASE(test_Game_SendsTheKnobsToTheModels) {
 }
 
 BOOST_AUTO_TEST_CASE(test_Game_AlignsAgainstTheNotesTheCallerKnows) {
-    if (!fixturePresent()) {
-        return;
-    }
     Host host;
-    if (!host.ready) {
-        return;
-    }
     auto analyzer = host.open();
 
     // A span that does not begin at zero, because that is the case the time base actually
@@ -246,9 +235,13 @@ BOOST_AUTO_TEST_CASE(test_Game_AlignsAgainstTheNotesTheCallerKnows) {
     aligned.audio = tone(2.0, SPAN_START);
     aligned.boundaryRadius = 0.4;
     aligned.notePresenceCutoff = 0.0;
-    aligned.knownNotes = {{SPAN_START + 0.0, 0.1}, {SPAN_START + 0.1, 0.1},
-                          {SPAN_START + 0.2, 0.1}, {SPAN_START + 0.3, 0.1},
-                          {SPAN_START + 0.4, 0.1}};
+    aligned.knownNotes = {
+        {SPAN_START + 0.0, 0.1},
+        {SPAN_START + 0.1, 0.1},
+        {SPAN_START + 0.2, 0.1},
+        {SPAN_START + 0.3, 0.1},
+        {SPAN_START + 0.4, 0.1}
+    };
     auto with = analyzer->start(aligned);
     BOOST_REQUIRE_MESSAGE(static_cast<bool>(with), otter::test::why(with));
     auto conditionedResult = with.take();
@@ -262,13 +255,7 @@ BOOST_AUTO_TEST_CASE(test_Game_AlignsAgainstTheNotesTheCallerKnows) {
 }
 
 BOOST_AUTO_TEST_CASE(test_Game_RefusesWhatItCannotHonor) {
-    if (!fixturePresent()) {
-        return;
-    }
     Host host;
-    if (!host.ready) {
-        return;
-    }
     auto analyzer = host.open();
 
     NoteApi::NoteStartInput wrongRate;
@@ -287,13 +274,18 @@ BOOST_AUTO_TEST_CASE(test_Game_RefusesWhatItCannotHonor) {
     // refused instead.
     NoteApi::NoteStartInput crossed;
     crossed.audio = tone(1.0);
-    crossed.knownNotes = {{0.5, 0.2}, {0.1, 0.2}};
+    crossed.knownNotes = {
+        {0.5, 0.2},
+        {0.1, 0.2}
+    };
     BOOST_CHECK(!analyzer->start(crossed));
 
     // Known notes are on the host's timeline, so one before the span begins is a mistake.
     NoteApi::NoteStartInput early;
     early.audio = tone(1.0, 5.0);
-    early.knownNotes = {{0.0, 0.2}};
+    early.knownNotes = {
+        {0.0, 0.2}
+    };
     BOOST_CHECK(!analyzer->start(early));
 
     // And a knob outside the range the declaration reports.
@@ -301,6 +293,26 @@ BOOST_AUTO_TEST_CASE(test_Game_RefusesWhatItCannotHonor) {
     wrongKnob.audio = tone(1.0);
     wrongKnob.steps = 0;
     BOOST_CHECK(!analyzer->start(wrongKnob));
+}
+
+/// The two blocks of a declaration must agree. A language the exports promise but the model
+/// cannot number, or an alignment path promised without the model that performs it, is refused
+/// at load, where both blocks are in hand, rather than discovered by a failing execution.
+BOOST_AUTO_TEST_CASE(test_Game_RefusesALanguageTheModelCannotNumber) {
+    Host host;
+    auto opened = host.unit.openPackage(
+        fs::path(OTTER_TEST_FIXTURE_DIR) / "fixture-note-unnumbered", srt::SynthUnit::Load);
+    BOOST_REQUIRE(!opened);
+    BOOST_CHECK(opened.error().rootCause().message().find("numbering") != std::string::npos);
+}
+
+BOOST_AUTO_TEST_CASE(test_Game_RefusesAnAlignmentPromiseWithoutTheModel) {
+    Host host;
+    auto opened = host.unit.openPackage(
+        fs::path(OTTER_TEST_FIXTURE_DIR) / "fixture-note-no-alignment", srt::SynthUnit::Load);
+    BOOST_REQUIRE(!opened);
+    BOOST_CHECK(opened.error().rootCause().message().find("durationToBoundary") !=
+                std::string::npos);
 }
 
 BOOST_AUTO_TEST_SUITE_END()

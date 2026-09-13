@@ -1,0 +1,21 @@
+{
+    "interface": "org.openvpi.otter.analysis.F0",
+    "level": 1,
+    "variant": "stub",
+    "name": "Missing rate",
+    "exports": {
+        "channelCount": 1,
+        "interval": 0.01,
+        "maxSegmentDuration": 60,
+        "knobs": {
+            "voicingThreshold": {
+                "minimum": 0.0,
+                "maximum": 1.0,
+                "default": 0.03
+            },
+            "interpolateUnvoiced": {
+                "default": true
+            }
+        }
+    }
+}

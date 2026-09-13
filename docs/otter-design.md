@@ -35,15 +35,15 @@ Level 1 立两份契约：
 
 | interface | 产出 | 本轮变体 |
 | :-- | :-- | :-- |
-| `org.openvpi.analysis.F0` | 基频曲线 + 清浊标志 | `rmvpe` |
-| `org.openvpi.analysis.Note` | 音符区间（可条件于已知音符） | `game` |
+| `org.openvpi.otter.analysis.F0` | 基频曲线 + 清浊标志 | `rmvpe` |
+| `org.openvpi.otter.analysis.Note` | 音符区间（可条件于已知音符） | `game` |
 
 预留两份，本轮不实现、不占用词汇：
 
 | interface | 产出 |
 | :-- | :-- |
-| `org.openvpi.analysis.Align` | 音素 / 词的时间区间（强制对齐） |
-| `org.openvpi.analysis.Transcribe` | 文本（ASR） |
+| `org.openvpi.otter.analysis.Align` | 音素 / 词的时间区间（强制对齐） |
+| `org.openvpi.otter.analysis.Transcribe` | 文本（ASR） |
 
 ## 2. otter 不是什么
 
@@ -117,8 +117,8 @@ otter (库，链接进宿主)
 ├── Support/ManifestValues.h        声明读取器，两个提供者共用
 └── Api/
     ├── Common/1/CommonApiL1.h      AudioSegment、Knob、ProgressCallback
-    ├── F0/1/F0ApiL1.h              org.openvpi.analysis.F0 契约面
-    └── Note/1/NoteApiL1.h          org.openvpi.analysis.Note 契约面
+    ├── F0/1/F0ApiL1.h              org.openvpi.otter.analysis.F0 契约面
+    └── Note/1/NoteApiL1.h          org.openvpi.otter.analysis.Note 契约面
 
 otter 插件（独立动态库，嵌 AnalysisProviderPlugin::IID）
 ├── analysisproviders/rmvpe        (F0, 1, "rmvpe")
@@ -193,12 +193,12 @@ namespace otter::Api::Common::L1 {
 }
 ```
 
-### 5.2 `org.openvpi.analysis.F0` Level 1
+### 5.2 `org.openvpi.otter.analysis.F0` Level 1
 
 ```cpp
 namespace otter::Api::F0::L1 {
 
-    inline constexpr char API_INTERFACE[] = "org.openvpi.analysis.F0";
+    inline constexpr char API_INTERFACE[] = "org.openvpi.otter.analysis.F0";
     inline constexpr int API_LEVEL = 1;
 
     /// 本模块公开的能力。宿主据此准备音频、生成设置界面。
@@ -219,16 +219,10 @@ namespace otter::Api::F0::L1 {
         Common::L1::FlagKnob interpolateUnvoiced;
     };
 
-    /// 解释器私有的模型参数。宿主不读。
-    class F0Configuration : public srt::ContribConfiguration {
-    public:
-        std::filesystem::path model;
-        int sampleRate = 0;
-        int channelCount = 1;
-        double interval = 0;
-        double defaultVoicingThreshold = 0;
-        bool defaultInterpolateUnvoiced = true;
-    };
+    /// 读取声明的 exports 块。契约语法归接口所有，每个 variant 都经此一处读取，再各自核对
+    /// 自己的模型能否兑现。configuration 块归 variant 所有，其类型定义在各自的 provider 里。
+    OTTER_EXPORT srt::Expected<std::unique_ptr<F0Schema>>
+        readF0Schema(const srt::ContribSpec &spec, std::string variant);
 
     class F0RuntimeOptions : public otter::AnalysisRuntimeOptions { /* 空 */ };
 
@@ -268,12 +262,12 @@ namespace otter::Api::F0::L1 {
 }
 ```
 
-### 5.3 `org.openvpi.analysis.Note` Level 1
+### 5.3 `org.openvpi.otter.analysis.Note` Level 1
 
 ```cpp
 namespace otter::Api::Note::L1 {
 
-    inline constexpr char API_INTERFACE[] = "org.openvpi.analysis.Note";
+    inline constexpr char API_INTERFACE[] = "org.openvpi.otter.analysis.Note";
     inline constexpr int API_LEVEL = 1;
 
     /// 转写出的一个音符。
@@ -318,26 +312,10 @@ namespace otter::Api::Note::L1 {
         Common::L1::IntKnob steps;
     };
 
-    class NoteConfiguration : public srt::ContribConfiguration {
-    public:
-        std::filesystem::path encoder;
-        std::filesystem::path segmenter;
-        std::filesystem::path estimator;
-        std::filesystem::path boundaryToDuration;  // bd2dur
-        std::filesystem::path durationToBoundary;  // dur2bd，对齐模式用
-        int sampleRate = 0;
-        /// 模型帧率（秒）。只用于把 boundaryRadius 从秒换算成帧。
-        double timestep = 0;
-        /// 语言标识到模型内部编号的映射。
-        std::map<std::string, int> languages;
-        /// 扩散采样起点。
-        double scheduleStart = 0;
-        int defaultSteps = 8;
-        double defaultBoundaryThreshold = 0;
-        double defaultBoundaryRadius = 0;
-        double defaultNoteThreshold = 0;
-        double defaultNotePresenceCutoff = 0;
-    };
+    /// 读取声明的 exports 块，同 F0。game variant 的 configuration（五个模型路径、timestep、
+    /// 语言编号映射、扩散起点）是它自己的类型，宿主不读。
+    OTTER_EXPORT srt::Expected<std::unique_ptr<NoteSchema>>
+        readNoteSchema(const srt::ContribSpec &spec, std::string variant);
 
     class NoteRuntimeOptions : public otter::AnalysisRuntimeOptions { /* 空 */ };
 
@@ -410,7 +388,7 @@ spec 2.4 把声明文件分三层，三个字段各就各位：
 
 ```json
 {
-  "$version": "2.4",
+  "$version": "1.0",
   "id": "openvpi/rmvpe",
   "version": "1.0.0.0",
   "compatVersion": "1.0.0.0",
@@ -426,7 +404,7 @@ spec 2.4 把声明文件分三层，三个字段各就各位：
 
 ```json
 {
-  "interface": "org.openvpi.analysis.F0",
+  "interface": "org.openvpi.otter.analysis.F0",
   "level": 1,
   "variant": "rmvpe",
   "name": { "_": "RMVPE", "zh-CN": "RMVPE 音高提取" },
@@ -445,9 +423,10 @@ spec 2.4 把声明文件分三层，三个字段各就各位：
 }
 ```
 
-GAME 同理，`contributions.analysis` 一项，`interface` 为 `org.openvpi.analysis.Note`，
-`exports` 多出 `maxSegmentDuration: 60`、`languages`、`supportsKnownNotes`，`configuration` 列四到
-五个 session 的路径与 `timestep`、语言映射。
+GAME 同理，`contributions.analysis` 一项，`interface` 为 `org.openvpi.otter.analysis.Note`，
+`exports` 多出 `languages`（标识列表）、`supportsKnownNotes` 与五个旋钮，`configuration` 列四到
+五个 session 的路径、`timestep` 与语言标识到模型编号的映射。两个契约的 `exports` 与
+`imports[].options` 各有一份 JSON Schema，在 `docs/schemas/`。
 
 ## 7. 插件形状
 
@@ -457,7 +436,7 @@ GAME 同理，`contributions.analysis` 一项，`interface` 为 `org.openvpi.ana
 {
   "name": "rmvpe",
   "interpreters": [
-    { "interface": "org.openvpi.analysis.F0", "level": 1, "variant": "rmvpe" }
+    { "interface": "org.openvpi.otter.analysis.F0", "level": 1, "variant": "rmvpe" }
   ]
 }
 ```
@@ -673,6 +652,25 @@ refactor 的 `GameExtractor` 迁移时丢了这个 session，`inferSlice` 里 `k
 
 **依据**：进度是一次执行的属性，不是执行体的属性——同一个执行体被复用于多段音频时，每段的进度
 接收方可能不同。main 线没有进度回调先例，此处属新增；放在 per-call 的位置代价最小。
+
+### A17 — `exports` 归契约，`configuration` 归变体，接口名带项目段
+
+**决策**：采样率、声道数、帧间隔、段上限、语言标识、`supportsKnownNotes` 与全部旋钮域写在声明的
+`exports` 里，由库中每契约一个的读取函数（`readF0Schema` / `readNoteSchema`）解析，并发布
+JSON Schema（`docs/schemas/`）。`configuration` 只剩变体私有内容：rmvpe 的模型路径；game 的五个模型
+路径、`timestep`、语言编号映射、`scheduleStart`。变体在加载期把两块互相核对：模型跑不了的采样率、
+声明了却没有模型的对齐路径，都在加载期拒绝。接口名改为 `org.openvpi.otter.analysis.F0` /
+`.Note`，扩展 ID 改为 `org.openvpi.otter.extension.*`。
+
+**依据**：spec 2.4 §「三个语法块的归属」——`exports` 语法归 `interface + level`、由导入方读，
+`configuration` 全部归 `variant`；「需要参与跨模块契约的内容应由 `exports` 公开，而不是作为
+`configuration` 中的契约字段」。此前两个变体把契约事实放进各自的 `configuration` 再派生 `exports`，
+第三个变体就得为同一批事实另起一套键，DataOnly 读不到能力，README 与本文的示例又与 lint 相反。
+接口名对齐 `org.openvpi.dsinfer.inference.*` 与 `org.openvpi.wolf.inference.*` 的项目段写法，
+趁尚无已发布包时改掉。
+
+**取代**：`F0Configuration` / `NoteConfiguration` 两个接口头里的配置类型（变体各自定义），
+以及「声明不得写 exports」的 lint 规则。
 
 ## 9.5 联合审计（实施后）
 

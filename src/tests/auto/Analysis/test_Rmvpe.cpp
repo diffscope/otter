@@ -8,6 +8,8 @@
 
 #include <cstdlib>
 #include <filesystem>
+#include <string_view>
+#include <iostream>
 #include <memory>
 #include <string>
 #include <vector>
@@ -37,36 +39,43 @@ namespace {
 
     constexpr int RATE = 16000;
 
-    bool fixturePresent() {
-        return fs::is_directory(fs::path(OTTER_TEST_FIXTURE_DIR) / "fixture-rmvpe");
-    }
+    /// Exit status ctest reads as a skip, so a run without the generated graphs, the driver or
+    /// the runtime is reported as not run rather than passed off as success.
+    constexpr int SKIP_EXIT_CODE = 77;
+
+    struct DataOrSkip {
+        DataOrSkip() {
+            if (!fs::is_directory(fs::path(OTTER_TEST_FIXTURE_DIR) / "fixture-rmvpe")) {
+                std::cerr << "SKIP: no model fixture under " OTTER_TEST_FIXTURE_DIR "\n";
+                std::exit(SKIP_EXIT_CODE);
+            }
+            if (!fs::is_directory(fs::path(OTTER_TEST_DRIVER_PLUGIN_DIR)) ||
+                std::string_view(OTTER_TEST_ONNXRUNTIME_DIR).empty()) {
+                std::cerr << "SKIP: no ONNX driver plugin or ONNX Runtime in this tree\n";
+                std::exit(SKIP_EXIT_CODE);
+            }
+        }
+    };
 
     /// Does what a host does: finds the ONNX driver, initializes it against a runtime directory
     /// the host names, and registers it as the backend the whole unit shares.
     struct Host {
         Host() {
+            // What every host does once: name the library, so a linker that drops unreferenced
+            // libraries keeps the one whose static initializer registers the category.
+            otter::linkAnalysisCategory();
             std::vector<fs::path> driverPaths = {fs::path(OTTER_TEST_DRIVER_PLUGIN_DIR)};
             factory.setPluginPaths(driverPaths);
             auto *loader = factory.find(OnnxApi::API_NAME);
-            if (loader == nullptr) {
-                BOOST_TEST_MESSAGE("no ONNX driver plugin present");
-                return;
-            }
+            BOOST_REQUIRE_MESSAGE(loader != nullptr, "the ONNX driver plugin should be present");
             auto created = factory.create(loader);
-            if (!created) {
-                BOOST_TEST_MESSAGE("the driver could not be created: " +
-                                   created.error().toString());
-                return;
-            }
+            BOOST_REQUIRE_MESSAGE(static_cast<bool>(created), otter::test::why(created));
             auto driver = created.take();
             OnnxApi::DriverInitArgs args;
             args.ep = OnnxApi::ExecutionProvider::CPU;
             args.runtimePath = fs::path(OTTER_TEST_ONNXRUNTIME_DIR);
-            if (auto initialized = driver->initialize(args); !initialized) {
-                BOOST_TEST_MESSAGE("the driver could not be initialized: " +
-                                   initialized.error().toString());
-                return;
-            }
+            auto initialized = driver->initialize(args);
+            BOOST_REQUIRE_MESSAGE(static_cast<bool>(initialized), otter::test::why(initialized));
             auto added = unit.addRuntimeService(std::move(driver));
             BOOST_REQUIRE_MESSAGE(added, "the driver should have been registered");
 
@@ -118,17 +127,12 @@ namespace {
 
 }
 
+BOOST_TEST_GLOBAL_FIXTURE(DataOrSkip);
+
 BOOST_AUTO_TEST_SUITE(test_Rmvpe)
 
 BOOST_AUTO_TEST_CASE(test_Rmvpe_RunsTheModelAndAnchorsTheCurve) {
-    if (!fixturePresent()) {
-        BOOST_TEST_MESSAGE("no model fixture; run scripts/make-model-fixtures.py");
-        return;
-    }
     Host host;
-    if (!host.ready) {
-        return;
-    }
     auto analyzer = host.open();
 
     F0Api::F0StartInput input;
@@ -160,13 +164,7 @@ BOOST_AUTO_TEST_CASE(test_Rmvpe_RunsTheModelAndAnchorsTheCurve) {
 }
 
 BOOST_AUTO_TEST_CASE(test_Rmvpe_SendsTheThresholdToTheModel) {
-    if (!fixturePresent()) {
-        return;
-    }
     Host host;
-    if (!host.ready) {
-        return;
-    }
     auto analyzer = host.open();
 
     const auto voicedCount = [&analyzer](double threshold) {
@@ -189,13 +187,7 @@ BOOST_AUTO_TEST_CASE(test_Rmvpe_SendsTheThresholdToTheModel) {
 }
 
 BOOST_AUTO_TEST_CASE(test_Rmvpe_InterpolationFillsWhatTheFlagLeavesOut) {
-    if (!fixturePresent()) {
-        return;
-    }
     Host host;
-    if (!host.ready) {
-        return;
-    }
     auto analyzer = host.open();
 
     F0Api::F0StartInput raw;
@@ -230,13 +222,7 @@ BOOST_AUTO_TEST_CASE(test_Rmvpe_InterpolationFillsWhatTheFlagLeavesOut) {
 }
 
 BOOST_AUTO_TEST_CASE(test_Rmvpe_DownmixesButRefusesToResample) {
-    if (!fixturePresent()) {
-        return;
-    }
     Host host;
-    if (!host.ready) {
-        return;
-    }
     auto analyzer = host.open();
 
     // Averaging channels is arithmetic the caller would otherwise be asked to do for no reason.
@@ -254,6 +240,16 @@ BOOST_AUTO_TEST_CASE(test_Rmvpe_DownmixesButRefusesToResample) {
     auto refused = analyzer->start(wrongRate);
     BOOST_REQUIRE(!refused);
     BOOST_CHECK(refused.error().message().find("16000") != std::string::npos);
+}
+
+/// The graph is built for one rate and one hop. A declaration that promises another would make the
+/// host prepare audio the model then misplaces, so it is refused at load rather than trusted.
+BOOST_AUTO_TEST_CASE(test_Rmvpe_RefusesADeclarationTheModelCannotHonor) {
+    Host host;
+    auto opened = host.unit.openPackage(
+        fs::path(OTTER_TEST_FIXTURE_DIR) / "fixture-rmvpe-wrong-rate", srt::SynthUnit::Load);
+    BOOST_REQUIRE(!opened);
+    BOOST_CHECK(opened.error().rootCause().message().find("16000") != std::string::npos);
 }
 
 BOOST_AUTO_TEST_SUITE_END()

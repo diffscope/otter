@@ -2,7 +2,7 @@
     "name": "ottergame",
     "interpreters": [
         {
-            "interface": "org.openvpi.analysis.Note",
+            "interface": "org.openvpi.otter.analysis.Note",
             "level": 1,
             "variant": "game"
         }

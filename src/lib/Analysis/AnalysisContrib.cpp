@@ -65,5 +65,12 @@ namespace otter {
 
 }
 
+namespace otter {
+
+    void linkAnalysisCategory() noexcept {
+    }
+
+}
+
 static srt::ContribCategoryRegistry::Add<otter::AnalysisCategory>
     analysisCategoryRegistration(otter::ANALYSIS_CATEGORY, "");

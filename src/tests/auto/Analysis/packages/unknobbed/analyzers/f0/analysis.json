@@ -1,0 +1,12 @@
+{
+    "interface": "org.openvpi.otter.analysis.F0",
+    "level": 1,
+    "variant": "stub",
+    "name": "Unknobbed",
+    "exports": {
+        "sampleRate": 16000,
+        "channelCount": 1,
+        "interval": 0.01,
+        "maxSegmentDuration": 60
+    }
+}

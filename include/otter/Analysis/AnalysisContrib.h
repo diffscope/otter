@@ -13,6 +13,16 @@ namespace otter {
 
     inline constexpr char ANALYSIS_CATEGORY[] = "analysis";
 
+    /// Makes sure the analysis category is registered with synthrt.
+    ///
+    /// Registration is a static initializer in this library, so it runs whenever the library is
+    /// loaded, and this function does nothing. It exists to be named: a host that links otter only
+    /// for the category, without referencing any other symbol, would otherwise have the
+    /// dependency dropped by a linker that discards unreferenced libraries, which ELF linkers do
+    /// under --as-needed and the MSVC linker does for every import library. Call it once, anywhere
+    /// before the first SynthUnit is constructed.
+    OTTER_EXPORT void linkAnalysisCategory() noexcept;
+
     /// The immutable declaration of one analysis contribution.
     ///
     /// The category adds no fields of its own. Everything a host needs before it picks an
