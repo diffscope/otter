@@ -81,18 +81,40 @@ endif()
 
 if(TARGET dsinfer::dsinfer)
     set(OTTER_HAS_DSINFER ON)
-    # The ONNX driver ships as a plugin under lib/plugins beside the library, not as a link
-    # target. dsinfer_DIR is where dsinferConfig.cmake was found, share/dsinfer in a vcpkg tree and
-    # lib/cmake/dsinfer in a plain install, so two levels up is the prefix either way. The plugin
-    # tree sits under lib on every platform, unlike the library itself, which Windows puts under
-    # bin, which is why this is not derived from the imported target's location. A plugin search
-    # path holds one subdirectory per plugin, so this is the parent of the onnx directory. Tests
-    # hand it to the driver factory at run time.
-    get_filename_component(_otter_dsinfer_prefix "${dsinfer_DIR}/../.." ABSOLUTE)
-    set(OTTER_DSINFER_DRIVER_DIR "${_otter_dsinfer_prefix}/lib/plugins/dsinfer/inferencedrivers")
-    if(CMAKE_BUILD_TYPE STREQUAL "Debug" AND IS_DIRECTORY "${_otter_dsinfer_prefix}/debug/lib/plugins")
-        set(OTTER_DSINFER_DRIVER_DIR
-            "${_otter_dsinfer_prefix}/debug/lib/plugins/dsinfer/inferencedrivers")
+    # The ONNX driver ships as a plugin under lib/plugins/dsinfer beside the library, not as a
+    # link target. The dsinfer package says where that tree is through DSINFER_PLUGINS_DIR; an
+    # older package that does not is searched for the tree above its config file, which is
+    # share/dsinfer in a vcpkg tree and lib/cmake/dsinfer in a plain install. It is not derived
+    # from the library's own location, which Windows puts under bin while the plugin tree stays
+    # under lib. A vcpkg tree keeps its Debug build under debug/, which a multi configuration
+    # generator picks per build, so that part of the path is a generator expression. A plugin
+    # search path holds one subdirectory per plugin, so this is the parent of the onnx directory.
+    # Tests hand it to the driver factory at run time.
+    set(_otter_dsinfer_plugins "")
+    if(DEFINED DSINFER_PLUGINS_DIR AND IS_DIRECTORY "${DSINFER_PLUGINS_DIR}")
+        set(_otter_dsinfer_plugins "${DSINFER_PLUGINS_DIR}")
+    else()
+        set(_otter_dsinfer_prefix "${dsinfer_DIR}")
+        foreach(_step RANGE 3)
+            get_filename_component(_otter_dsinfer_prefix "${_otter_dsinfer_prefix}" DIRECTORY)
+            if(IS_DIRECTORY "${_otter_dsinfer_prefix}/lib/plugins/dsinfer")
+                set(_otter_dsinfer_plugins "${_otter_dsinfer_prefix}/lib/plugins/dsinfer")
+                break()
+            endif()
+        endforeach()
+    endif()
+    set(OTTER_DSINFER_DRIVER_DIR "")
+    if(_otter_dsinfer_plugins)
+        get_filename_component(_otter_dsinfer_prefix "${_otter_dsinfer_plugins}/../.." ABSOLUTE)
+        if(IS_DIRECTORY "${_otter_dsinfer_prefix}/debug/lib/plugins/dsinfer")
+            set(OTTER_DSINFER_DRIVER_DIR
+                "${_otter_dsinfer_prefix}/$<$<CONFIG:Debug>:debug/>lib/plugins/dsinfer/inferencedrivers")
+        else()
+            set(OTTER_DSINFER_DRIVER_DIR "${_otter_dsinfer_plugins}/inferencedrivers")
+        endif()
+    else()
+        message(WARNING "dsinfer was found but its plugin tree was not; the model tests will "
+                        "skip for want of a driver")
     endif()
     message(STATUS "dsinfer: ${dsinfer_DIR}")
 else()

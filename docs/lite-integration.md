@@ -176,7 +176,7 @@ namespace Extractors {
 
 ```cpp
 // analysis 类别的解释器插件在哪
-unit.setPluginPaths(otter::ANALYSIS_CATEGORY, {pluginRoot / "otter/plugins/analysisproviders"});
+unit.setPluginPaths(otter::ANALYSIS_CATEGORY, {pluginRoot / "plugins/otter/analysisproviders"});
 // 包路径与声库共用，已有
 ```
 
@@ -294,7 +294,7 @@ otter 的进度是每次执行 0→1。lite 把它折算进「第几片 / 共几
 | 阶段 | 内容 | 结果 |
 | :-- | :-- | :-- |
 | **L1** | `AudioSlicer` 与 `AnalysisAudio`，加 `TestAudioSlicer` | 完成，先于迁移落地（见下） |
-| **L2** | `SynthrtEngine` 托管 analysis 类别，列举与创建 | 完成。`analyzers(interface)` / `createAnalyzer(reference)` / `analyzerSpec(reference)` |
+| **L2** | `SynthrtEngine` 托管 analysis 类别，列举与创建 | 完成。`analyzers(interface)` / `createAnalyzer(reference)`，后者返回 `AnalyzerLease`（PackageHandle + 声明指针 + executive，析构顺序保证 executive 先于包释放），抽参任务从租约上读 `exports` |
 | **L3** | `ExtractPitchTask` 改写 | 完成 |
 | **L4** | `ExtractMidiTask` 改写 | 完成 |
 | **L5** | 设置界面 | 完成，两个下拉框；旧设置不迁移，理由见 §6 |

@@ -111,9 +111,10 @@ lite 当前经 `srt-audio` + `srt-extract` + `plugins/Extract/{rmvpe,game}` 抽�
 otter (库，链接进宿主)
 ├── Analysis/AnalysisContrib.h      类别与声明：AnalysisCategory / AnalysisSpec
 ├── Analysis/AnalysisExecutive.h    顶层入口：AnalysisExtension / AnalysisExecutive
-├── Analysis/AnalysisProvider.h     提供者抽象（自带契约守卫，见 A15）
+├── Analysis/AnalysisProvider.h     提供者抽象（自带契约守卫，见 A14）
 ├── Analysis/AnalysisProviderPlugin.h  插件 IID
-├── Analysis/AnalysisRunner.h       执行生命周期：一次一个、状态、取消归属（A16）
+├── Analysis/AnalysisTask.h         执行生命周期：建于 srt::ITask 之上的任务面（A15 及补记）
+├── Analysis/AnalysisError.h        取消与工作线程失败的错误类别（A18）
 ├── Support/ManifestValues.h        声明读取器，两个提供者共用
 └── Api/
     ├── Common/1/CommonApiL1.h      AudioSegment、Knob、ProgressCallback
@@ -159,7 +160,7 @@ namespace otter::Api::Common::L1 {
     struct AudioSegment {
         /// 采样率（Hz）。必须等于模块 exports 报出的 sampleRate，否则执行失败。
         int sampleRate = 0;
-        /// 声道数。必须等于模块 exports 报出的 channelCount。
+        /// 声道数。多于模块 exports 报出的 channelCount 时降混，少于则拒绝。
         int channelCount = 0;
         /// 交错排列的样本。宿主移入，执行期间由 StartInput 持有。
         std::vector<float> samples;
@@ -271,7 +272,7 @@ namespace otter::Api::Note::L1 {
     inline constexpr int API_LEVEL = 1;
 
     /// 转写出的一个音符。
-    struct Note {
+    struct NoteInfo {
         /// MIDI 音高编号。
         int key = 0;
         /// 绝对起点（秒）。
@@ -332,14 +333,14 @@ namespace otter::Api::Note::L1 {
         std::optional<double> notePresenceCutoff;
         std::optional<int> steps;
 
-        /// 已知音符，时间相对 audio.startTime。空表示自由转写。
+        /// 已知音符，时间为宿主时间轴上的绝对秒（与 audio.startTime 同一基准，X3）。空表示自由转写。
         std::vector<KnownNote> knownNotes;
     };
 
     class NoteResult : public srt::TaskResult {
     public:
         /// 按起点升序，时间为绝对秒。
-        std::vector<Note> notes;
+        std::vector<NoteInfo> notes;
     };
 
     class NoteExecutive : public otter::AnalysisExecutive {
@@ -434,7 +435,7 @@ GAME 同理，`contributions.analysis` 一项，`interface` 为 `org.openvpi.ott
 
 ```json
 {
-  "name": "rmvpe",
+  "name": "otterrmvpe",
   "interpreters": [
     { "interface": "org.openvpi.otter.analysis.F0", "level": 1, "variant": "rmvpe" }
   ]
@@ -550,8 +551,9 @@ otter 因此完全不需要音频侧代码。
 
 ### A9 — 旋钮一律 `std::optional`，缺省即模块默认
 
-**决策**：`StartInput` 里每个旋钮是 `std::optional<T>`；不填时解释器用 `configuration` 里的默认
-值。`Schema` 同时报出该旋钮本模块认不认、域是多少、默认多少。
+**决策**：`StartInput` 里每个旋钮是 `std::optional<T>`；不填时解释器用声明 `exports.knobs` 里的默认
+值（A17 之后默认值随旋钮域一起归契约）。`Schema` 同时报出该旋钮本模块认不认、域是多少、默认多少；
+未声明的旋钮忽略调用方的取值。
 
 **依据**：与 dsinfer 的 `AcousticStartInput::depth` + `AcousticConfiguration::useVariableDepth`
 同一做法。宿主可据 `Schema` 自动生成设置界面；新算法多一个旋钮，不填它的宿主行为不变。
@@ -589,8 +591,8 @@ otter 因此完全不需要音频侧代码。
 拒绝而不是广播。estimator 的 `presence` 输出是**布尔**，按张量自带的类型读成 1 / 0 的置信度，所以
 `notePresenceCutoff` 的 0.5 仍然分得开。
 
-**留在 `configuration` 的**：`timestep`、`sampleRate`、`scheduleStart`、语言编号映射、各 session
-路径——改了模型就跑不对，属「模型是什么」。
+**留在 `configuration` 的**：`timestep`、`scheduleStart`、语言编号映射、各 session 路径——改了模型
+就跑不对，属「模型是什么」。`sampleRate` 与旋钮默认值按 A17 归 `exports`。
 
 ### A11 — `language` 用字符串标识，映射写在 `configuration`
 
@@ -646,6 +648,16 @@ refactor 的 `GameExtractor` 迁移时丢了这个 session，`inferSlice` 里 `k
 
 **代价（已接受）**：多一个类。但三个执行体否则要各写一遍同一段并发代码，而这段代码的错法是静默的。
 
+**补记（2026-09-13）**：`AnalysisRunner` 与 `srt::ITask` 重复了状态、取消标志、工作线程与等待四样东西，
+第四轮审计记为冗余。现以 `otter::AnalysisTask<Input, Result>` 取代：它派生自 `srt::ITask`，状态与等待
+直接用框架的 `m_state` / `m_asyncState`，只覆写 `startAsync()` 以保住本条决策的两个规则——认领与清
+标志在调用方线程上进行；回调结束后才释放执行，且回调内启动的下一次执行按代数接管 running 状态而不是
+被当成并发拒绝。同步入口 `start()` 用同一份 running 状态认领，`waitForFinished()` 因此对同步与异步一并
+等待。任务由契约类（`F0Executive` / `NoteExecutive`）持有并实现 `start` / `startAsync` / `state` /
+`stop` / `waitForFinished`；提供者只写受保护的 `run()`，需要连带停止模型会话的提供者覆写 `stop()` /
+`waitForFinished()` 并先调基类。X5 所述「建线程失败后永久拒绝」在新实现里同样由 `startAsync()` 自行释放
+认领。
+
 ### A16 — 进度回调放在 `StartInput`
 
 **决策**：`ProgressCallback` 是 `StartInput` 的字段，不是 `RuntimeOptions` 的。
@@ -672,6 +684,18 @@ JSON Schema（`docs/schemas/`）。`configuration` 只剩变体私有内容：rm
 **取代**：`F0Configuration` / `NoteConfiguration` 两个接口头里的配置类型（变体各自定义），
 以及「声明不得写 exports」的 lint 规则。
 
+### A18 — 取消与工作线程失败走 otter 自己的错误类别
+
+**决策**：新增 `otter::AnalysisError`（`Cancelled` / `NoWorker`）与其 `std::error_category`
+（`otter/Analysis/AnalysisError.h`）。被 `stop()` 中止的执行以 `AnalysisError::Cancelled` 返回错误、
+`state()` 报 `Canceled`；`startAsync()` 建不出工作线程以 `NoWorker` 返回。
+
+**依据**：synthrt 的 `Error.h` 明言框架的错误码枚举不由上层库扩展，上层库注册自己的类别；此前三个
+提供者用 `InvalidArgument` 表示取消，宿主只能靠 `state()` 区分取消与失败，且 spec 2.4:602 要求契约
+公布其错误条件。现在契约的错误条件即本类别的两个值加框架的 `InvalidFormat` / `FeatureNotSupported`。
+
+**代价（已接受）**：多一个头与一个 `.cpp`；宿主比较 `code()` 时多认一个类别。
+
 ## 9.5 联合审计（实施后）
 
 实施完成后对 otter / synthrt / wolf 三层做了一轮联合审计，维度为稳定性、向后兼容、规范符合度、
@@ -688,7 +712,7 @@ JSON Schema（`docs/schemas/`）。`configuration` 只剩变体私有内容：rm
 | **X6** | 契约 | Schema 声明了旋钮取值域但无人校验，`steps = -1` 会生成空张量喂给模型 | `otter::chooseKnob()` 按声明的域校验，越界拒绝而不是钳位 |
 | **X7** | 测试有效性 | 桩提供者不做任何校验，与真实提供者行为不同 —— 针对桩写的契约用例因此说明不了契约 | 桩改为调用同一套库函数；X1/X2/X6 的用例正是先在桩上红掉才暴露的 |
 
-X1、X2、X6 的共性是同一件事：两个提供者各写一遍校验，写法必然分叉。和 `AnalysisRunner` 同理，
+X1、X2、X6 的共性是同一件事：两个提供者各写一遍校验，写法必然分叉。和 `AnalysisTask` 同理，
 校验也下沉进库（`otter/Analysis/AnalysisInput.h`），三个实现从此不可能不一致。
 
 ## 10. 实施里程碑

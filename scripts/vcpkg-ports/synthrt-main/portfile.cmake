@@ -1,13 +1,13 @@
-# synthrt, main line: the contribution framework wolf builds on (ContribCategory, PackageLoader,
-# SingerCategory). The shared overlay's synthrt port pins the refactor line instead; see vcpkg.json
+# synthrt, main line: the contribution framework otter builds on (ContribCategory, PackageLoader,
+# and dsinfer's inference sessions). The shared overlay's synthrt port pins the refactor line instead; see vcpkg.json
 # for why this one carries a different name rather than shadowing it.
 
-# The onnxruntime-builds-uptake branch takes ONNX Runtime from the onnxruntime-builds package. A
-# fetch by commit needs no archive hash.
+# The onnxruntime-builds-uptake branch takes ONNX Runtime from the onnxruntime-builds package, which
+# the analysis providers' ONNX sessions need. A fetch by commit needs no archive hash.
 vcpkg_from_git(
     OUT_SOURCE_PATH SOURCE_PATH
     URL https://github.com/diffscope/synthrt.git
-    REF 5e51b4355e7bff17d95d8b4b6432f89d7b38ee3b
+    REF ba5f1779ad05a4c63e3ade36aeb8c57636a67ac6
     HEAD_REF onnxruntime-builds-uptake
 )
 
@@ -16,14 +16,12 @@ vcpkg_check_features(OUT_FEATURE_OPTIONS FEATURE_OPTIONS
         onnx WITH_ONNX
 )
 
-# dsinfer is off unless asked for: wolf needs neither it nor the ONNX driver for the linguist
-# domain, since the inference and singer categories both live in synthrt itself. The onnx feature
-# turns it on for the model backed G2P variant.
+# dsinfer is off unless asked for: the analysis category itself needs neither it nor the ONNX
+# driver. The onnx feature turns it on for the providers, which run ONNX models.
 #
-# Nothing is staged for ONNX Runtime any more. synthrt finds the onnxruntime-builds package itself,
-# and the feature's dependency has already installed it into this same tree, so the headers are
-# where find_package looks. An earlier version copied them into third-party/onnxruntime/default,
-# which is the layout synthrt used to probe; that probe is gone.
+# Nothing is staged for ONNX Runtime. synthrt finds the onnxruntime-builds package itself, and the
+# feature's dependency has already installed it into this same tree, so the headers are where
+# find_package looks.
 set(_synthrt_dsinfer OFF)
 
 if(WITH_ONNX)
@@ -64,7 +62,9 @@ file(REMOVE_RECURSE
 )
 
 # The ONNX driver is not a link target. It is reached the way every driver is: as a plugin found
-# on a search path at run time, under lib/plugins/dsinfer/inferencedrivers.
+# on a search path at run time, under lib/plugins/dsinfer/inferencedrivers. The plugins install
+# their DLLs there on Windows, which vcpkg's layout check would otherwise refuse.
+set(VCPKG_POLICY_ALLOW_DLLS_IN_LIB enabled)
 
 file(REMOVE_RECURSE
     "${CURRENT_PACKAGES_DIR}/debug/include"

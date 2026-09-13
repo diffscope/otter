@@ -17,9 +17,9 @@
 #include <filesystem>
 #include <functional>
 #include <map>
-#include <set>
 #include <memory>
 #include <optional>
+#include <set>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -39,10 +39,10 @@
 #include <dsinfer/Inference/InferenceDriverPlugin.h>
 #include <dsinfer/Inference/InferenceSession.h>
 
+#include <otter/Analysis/AnalysisError.h>
 #include <otter/Analysis/AnalysisInput.h>
 #include <otter/Analysis/AnalysisProvider.h>
 #include <otter/Analysis/AnalysisProviderPlugin.h>
-#include <otter/Analysis/AnalysisRunner.h>
 #include <otter/Api/Note/1/NoteApiL1.h>
 #include <otter/Support/ManifestValues.h>
 
@@ -237,26 +237,22 @@ namespace {
         }
 
         ~GameExecutive() {
-            m_runner.cancel();
-            m_runner.wait();
+            (void) stop();
+            (void) waitForFinished();
             m_models.forEach([](ds::InferenceSession &session) {
                 session.stop();
                 session.close();
             });
         }
 
-        srt::ITask::State state() const noexcept override {
-            return m_runner.state();
-        }
-
         srt::Expected<void> stop() override {
-            m_runner.cancel();
+            (void) NoteExecutive::stop();
             m_models.forEach([](ds::InferenceSession &session) { session.stop(); });
             return srt::Expected<void>();
         }
 
         srt::Expected<void> waitForFinished() override {
-            m_runner.wait();
+            (void) NoteExecutive::waitForFinished();
             // Every session is waited on even after one reports a failure, because leaving a
             // session running is what this call exists to prevent. The first failure is the one
             // reported.
@@ -272,40 +268,10 @@ namespace {
             return srt::Expected<void>();
         }
 
-        srt::Expected<std::unique_ptr<NoteApi::NoteResult>>
-            start(const NoteApi::NoteStartInput &input) override {
-            if (!m_runner.begin()) {
-                return srt::Error(srt::Error::InvalidArgument,
-                                  "this analyzer is already running an execution");
-            }
-            auto result = run(input);
-            m_runner.end(static_cast<bool>(result));
-            return result;
-        }
-
-        srt::Expected<void> startAsync(std::shared_ptr<const NoteApi::NoteStartInput> input,
-                                       AsyncCallback callback) override {
-            if (!input) {
-                return srt::Error(srt::Error::InvalidArgument, "no input was supplied");
-            }
-            if (!m_runner.begin()) {
-                return srt::Error(srt::Error::InvalidArgument,
-                                  "this analyzer is already running an execution");
-            }
-            // A failure to spawn releases the claim itself; there is no body left to do it.
-            return m_runner.spawn([this, input, callback = std::move(callback)]() mutable {
-                auto result = run(*input);
-                m_runner.end(static_cast<bool>(result));
-                if (callback) {
-                    callback(std::move(result));
-                }
-            });
-        }
-
     private:
-        srt::Expected<void> cancelled() const {
-            if (m_runner.cancelled()) {
-                return srt::Error(srt::Error::InvalidArgument, "the execution was cancelled");
+        srt::Expected<void> checkCancelled() const {
+            if (cancelled()) {
+                return srt::Error(otter::AnalysisError::Cancelled, "the execution was cancelled");
             }
             return srt::Expected<void>();
         }
@@ -384,7 +350,7 @@ namespace {
             report(0);
 
             // 1. Encode.
-            if (auto stopped = cancelled(); !stopped) {
+            if (auto stopped = checkCancelled(); !stopped) {
                 return stopped.takeError();
             }
             std::map<std::string, TensorPtr> encoderInputs;
@@ -436,7 +402,7 @@ namespace {
             }
 
             // 3. Segment.
-            if (auto stopped = cancelled(); !stopped) {
+            if (auto stopped = checkCancelled(); !stopped) {
                 return stopped.takeError();
             }
             std::map<std::string, TensorPtr> segmenterInputs;
@@ -492,15 +458,15 @@ namespace {
             // exactly one timestep. Handing it the whole schedule makes the batch look like the
             // number of steps to that one input and one to every other, which the model rejects
             // by shape. So the steps are walked here, each refining what the last produced.
-            const auto steps_ = schedule(m_scheduleStart, steps);
+            const auto schedulePoints = schedule(m_scheduleStart, steps);
             TensorPtr boundaries;
-            for (std::size_t step = 0; step < steps_.size(); ++step) {
-                if (auto stopped = cancelled(); !stopped) {
+            for (std::size_t step = 0; step < schedulePoints.size(); ++step) {
+                if (auto stopped = checkCancelled(); !stopped) {
                     return stopped.takeError();
                 }
                 auto inputs = segmenterInputs;
                 {
-                    const std::vector<float> value = {steps_[step]};
+                    const std::vector<float> value = {schedulePoints[step]};
                     auto tensor = floats({1}, value);
                     if (!tensor) {
                         return tensor.takeError();
@@ -516,8 +482,8 @@ namespace {
                     return segmented.takeError();
                 }
                 boundaries = segmented.take().at("boundaries");
-                report(0.4 +
-                       0.2 * static_cast<double>(step + 1) / static_cast<double>(steps_.size()));
+                report(0.4 + 0.2 * static_cast<double>(step + 1) /
+                                 static_cast<double>(schedulePoints.size()));
             }
             if (!boundaries) {
                 return srt::Error(srt::Error::InvalidArgument,
@@ -526,7 +492,7 @@ namespace {
             report(0.6);
 
             // 4. Boundaries to durations.
-            if (auto stopped = cancelled(); !stopped) {
+            if (auto stopped = checkCancelled(); !stopped) {
                 return stopped.takeError();
             }
             auto measured = invoke(*m_models.boundaryToDuration,
@@ -547,7 +513,7 @@ namespace {
             report(0.8);
 
             // 5. Estimate pitch.
-            if (auto stopped = cancelled(); !stopped) {
+            if (auto stopped = checkCancelled(); !stopped) {
                 return stopped.takeError();
             }
             std::map<std::string, TensorPtr> estimatorInputs = {
@@ -599,6 +565,11 @@ namespace {
                                              audio.startTime + at, length, confidence});
                 }
                 at += length;
+            }
+            // A stop that arrived during the last model call may not have reached it in time. The
+            // contract says a cancelled execution reports Canceled and no result.
+            if (auto stopped = checkCancelled(); !stopped) {
+                return stopped.takeError();
             }
             report(1);
             return result;
@@ -674,7 +645,6 @@ namespace {
         std::map<std::string, int> m_languages;
         std::string m_defaultLanguage;
         double m_scheduleStart;
-        otter::AnalysisRunner m_runner;
     };
 
     class GameExtension : public otter::AnalysisExtension {
@@ -686,6 +656,9 @@ namespace {
 
         srt::Expected<std::unique_ptr<otter::AnalysisExecutive>>
             createAnalyzer(const otter::AnalysisRuntimeOptions &runtimeOptions) override {
+            if (auto checked = otter::checkRuntimeOptions(runtimeOptions, spec()); !checked) {
+                return checked.takeError();
+            }
             const auto configuration =
                 spec().configuration() ? spec().configuration()->as<GameConfiguration>() : nullptr;
             const auto schema =

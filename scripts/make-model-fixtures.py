@@ -88,7 +88,7 @@ def build_rmvpe(path: Path) -> None:
     provider inverts on the way out.
     """
     waveform = helper.make_tensor_value_info("waveform", TensorProto.FLOAT, [1, "samples"])
-    threshold = helper.make_tensor_value_info("threshold", TensorProto.FLOAT, [1])
+    threshold = helper.make_tensor_value_info("threshold", TensorProto.FLOAT, [])
     f0 = helper.make_tensor_value_info("f0", TensorProto.FLOAT, ["frames"])
     uv = helper.make_tensor_value_info("uv", TensorProto.BOOL, ["frames"])
 

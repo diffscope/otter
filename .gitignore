@@ -49,3 +49,4 @@ CMakeSettings.json
 /*.natvis
 # Generated model fixtures. Artifacts are built on demand, never committed.
 /build/fixtures/
+__pycache__/

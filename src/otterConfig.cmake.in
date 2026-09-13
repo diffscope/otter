@@ -5,3 +5,9 @@ include(CMakeFindDependencyMacro)
 find_dependency(synthrt CONFIG REQUIRED)
 
 include("${CMAKE_CURRENT_LIST_DIR}/otterTargets.cmake")
+
+# Where the plugin bundles were installed, one subdirectory per category (analysisproviders). A
+# host hands the category directory to SynthUnit::setPluginPaths; it is a path and not a link
+# target because plugins are loaded by name at run time. A vcpkg tree keeps its Debug build under
+# a separate debug/ prefix.
+set(OTTER_PLUGINS_DIR "${PACKAGE_PREFIX_DIR}/lib/plugins/otter")

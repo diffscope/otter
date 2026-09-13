@@ -15,8 +15,51 @@ Exits non-zero when anything is reported as an error. Warnings do not fail the r
 
 import argparse
 import json
+import re
+import pathlib
 import sys
 from pathlib import Path
+
+
+def load_json(path):
+    """Reads a JSON file the way the loader does (spec 2.4 JSON profile).
+
+    A UTF-8 BOM is allowed, `//` and `/* */` comments are allowed outside strings, and a
+    repeated key makes the whole document invalid, since which value wins would otherwise depend
+    on the parser.
+    """
+    text = pathlib.Path(path).read_text(encoding="utf-8-sig")
+    out = []
+    i, n = 0, len(text)
+    while i < n:
+        c = text[i]
+        if c == '"':
+            j = i + 1
+            while j < n and text[j] != '"':
+                j += 2 if text[j] == "\\" else 1
+            out.append(text[i:j + 1])
+            i = j + 1
+        elif text.startswith("//", i):
+            j = text.find("\n", i)
+            i = n if j < 0 else j
+        elif text.startswith("/*", i):
+            j = text.find("*/", i + 2)
+            if j < 0:
+                raise ValueError(f"{path}: unterminated comment")
+            i = j + 2
+        else:
+            out.append(c)
+            i += 1
+
+    def no_duplicates(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError(f"{path}: key {key!r} appears twice")
+            result[key] = value
+        return result
+
+    return json.loads("".join(out), object_pairs_hook=no_duplicates)
 
 CATEGORY = "analysis"
 
@@ -86,15 +129,20 @@ class Report:
         self.warnings += 1
 
 
+VERSION = re.compile(r"(0|[1-9][0-9]*)(\.(0|[1-9][0-9]*)){0,3}")
+
+
 def four_part(version: str) -> bool:
-    parts = version.split(".")
-    return len(parts) == 4 and all(part.isdigit() for part in parts)
+    """The version grammar the specification gives: one to four decimal components, no leading
+    zeros. Kept under its old name because the callers read as "is this a well formed version"."""
+    return isinstance(version, str) and VERSION.fullmatch(version) is not None
 
 
 def order(left: str, right: str) -> int:
-    """Compares two four part versions. Negative when left is older."""
-    a = [int(part) for part in left.split(".")]
-    b = [int(part) for part in right.split(".")]
+    """Compares two versions. Negative when left is older; missing components count as zero."""
+    a = [int(part) for part in left.split(".")] + [0] * 4
+    b = [int(part) for part in right.split(".")] + [0] * 4
+    a, b = a[:4], b[:4]
     return (a > b) - (a < b)
 
 
@@ -163,7 +211,7 @@ def check_exports(where: str, interface: str, exports, report: Report) -> dict:
 def check_declaration(path: Path, report: Report) -> None:
     where = str(path)
     try:
-        declaration = json.loads(path.read_text(encoding="utf-8"))
+        declaration = load_json(path)
     except (OSError, json.JSONDecodeError) as problem:
         report.error(where, f"cannot be read: {problem}")
         return
@@ -246,7 +294,7 @@ def check_package(root: Path, report: Report) -> None:
         report.error(where, "has no desc.json")
         return
     try:
-        manifest = json.loads(desc.read_text(encoding="utf-8"))
+        manifest = load_json(desc)
     except (OSError, json.JSONDecodeError) as problem:
         report.error(str(desc), f"cannot be read: {problem}")
         return

@@ -1,10 +1,10 @@
 {
   "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
   "name": "synthrt-main",
-  "version-string": "3c7549d",
+  "version-string": "onnxruntime-builds-uptake",
   "description": [
     "SVS Synthesis Runtime Library, main line.",
-    "Deliberately not named synthrt: the shared overlay carries a port of that name pinned to the refactor line, which ds-editor-lite consumes, and a same-named port here would silently shadow it because this overlay is searched first."
+    "Deliberately not named synthrt: the shared overlay carries a port of that name pinned to the refactor line, and a same-named port here would silently shadow it because this overlay is searched first."
   ],
   "homepage": "https://github.com/diffscope/synthrt",
   "license": "Apache-2.0",

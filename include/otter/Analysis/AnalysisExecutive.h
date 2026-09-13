@@ -24,6 +24,15 @@ namespace otter {
         using ContribRuntimeOptions::ContribRuntimeOptions;
     };
 
+    /// Checks that \a options were written for the contract \a spec declares.
+    ///
+    /// An extension is keyed on its contract, but the options object a caller hands it is a
+    /// separate value with a contract of its own, and a caller that reaches an F0 extension with
+    /// Note options has crossed its wires somewhere. Every provider asks this before it reads the
+    /// options, so the mismatch is reported the same way everywhere.
+    OTTER_EXPORT srt::Expected<void> checkRuntimeOptions(const AnalysisRuntimeOptions &options,
+                                                         const AnalysisSpec &spec);
+
     /// Adds one analyzer implementation to a loaded AnalysisSpec.
     ///
     /// This is the only way an analysis contribution becomes an executive. The framework's other
@@ -71,7 +80,9 @@ namespace otter {
         /// Requests cancellation of the current execution.
         ///
         /// Cancelling asks the analyzer to stop; it is not a promise about how much of the input
-        /// was consumed. A cancelled execution reports \c Canceled rather than a partial result.
+        /// was consumed. A cancelled execution reports \c Canceled rather than a partial result:
+        /// its start() returns an error, and state() is what tells a cancellation apart from a
+        /// failure, since synthrt's error codes have no value for it.
         virtual srt::Expected<void> stop() = 0;
 
         /// Waits for the current execution to finish without ending this analyzer's lifetime.

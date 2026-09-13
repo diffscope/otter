@@ -8,10 +8,10 @@
 #include <cmath>
 #include <cstdlib>
 #include <filesystem>
-#include <string_view>
 #include <iostream>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include <dsinfer/Api/Drivers/Onnx/OnnxDriverApi.h>
@@ -68,7 +68,7 @@ namespace {
             otter::linkAnalysisCategory();
             std::vector<fs::path> driverPaths = {fs::path(OTTER_TEST_DRIVER_PLUGIN_DIR)};
             factory.setPluginPaths(driverPaths);
-            auto *loader = factory.find(OnnxApi::API_NAME);
+            auto loader = factory.find(OnnxApi::API_NAME);
             BOOST_REQUIRE_MESSAGE(loader != nullptr, "the ONNX driver plugin should be present");
             auto created = factory.create(loader);
             BOOST_REQUIRE_MESSAGE(static_cast<bool>(created), otter::test::why(created));
@@ -95,21 +95,21 @@ namespace {
                                            srt::SynthUnit::Load);
             BOOST_REQUIRE_MESSAGE(static_cast<bool>(opened), otter::test::why(opened));
             package = opened.take();
-            auto *spec = package.contribution(otter::ANALYSIS_CATEGORY, "note");
+            auto spec = package.contribution(otter::ANALYSIS_CATEGORY, "note");
             BOOST_REQUIRE(spec != nullptr);
             return spec;
         }
 
         std::unique_ptr<NoteApi::NoteExecutive> open() {
-            auto *spec = load();
-            auto *extension = srt::ContribSpecExtension::findFromSpec<NoteApi::NoteExecutive>(
+            auto spec = load();
+            auto extension = srt::ContribSpecExtension::findFromSpec<NoteApi::NoteExecutive>(
                 *spec->as<otter::AnalysisSpec>());
             BOOST_REQUIRE(extension != nullptr);
             NoteApi::NoteRuntimeOptions options("game");
             auto made = extension->as<otter::AnalysisExtension>()->createAnalyzer(options);
             BOOST_REQUIRE_MESSAGE(static_cast<bool>(made), otter::test::why(made));
             auto executive = made.take();
-            auto *typed = executive->as<NoteApi::NoteExecutive>();
+            auto typed = executive->as<NoteApi::NoteExecutive>();
             BOOST_REQUIRE(typed != nullptr);
             executive.release();
             return std::unique_ptr<NoteApi::NoteExecutive>(typed);
@@ -138,8 +138,8 @@ BOOST_AUTO_TEST_SUITE(test_Game)
 
 BOOST_AUTO_TEST_CASE(test_Game_ReportsWhatTheDeclarationExports) {
     Host host;
-    auto *spec = host.load();
-    const auto *schema = spec->exports()->as<NoteApi::NoteSchema>();
+    auto spec = host.load();
+    auto schema = spec->exports()->as<NoteApi::NoteSchema>();
     BOOST_REQUIRE(schema != nullptr);
 
     // The exports are the declaration's own words, read through the contract's reader, and the

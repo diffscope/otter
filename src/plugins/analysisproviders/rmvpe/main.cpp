@@ -1,10 +1,11 @@
 #include <atomic>
 #include <cmath>
+#include <cstdint>
 #include <filesystem>
 #include <memory>
 #include <mutex>
-#include <thread>
 #include <string>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -22,9 +23,9 @@
 #include <dsinfer/Inference/InferenceDriverPlugin.h>
 #include <dsinfer/Inference/InferenceSession.h>
 
+#include <otter/Analysis/AnalysisError.h>
 #include <otter/Analysis/AnalysisInput.h>
 #include <otter/Analysis/AnalysisProvider.h>
-#include <otter/Analysis/AnalysisRunner.h>
 #include <otter/Analysis/AnalysisProviderPlugin.h>
 #include <otter/Api/F0/1/F0ApiL1.h>
 
@@ -129,73 +130,39 @@ namespace {
         }
 
         ~RmvpeExecutive() {
-            // The runner's destructor cancels and waits, but it runs after this body, and the
-            // session must not be torn down under a forward pass still in flight.
-            m_runner.cancel();
-            m_runner.wait();
+            // The contract's destructor waits too, but it runs after this body, and the session
+            // must not be torn down under a forward pass still in flight.
+            (void) stop();
+            (void) waitForFinished();
             if (m_session) {
                 m_session->stop();
                 m_session->close();
             }
         }
 
-        srt::ITask::State state() const noexcept override {
-            return m_runner.state();
-        }
-
         srt::Expected<void> stop() override {
-            m_runner.cancel();
+            (void) F0Executive::stop();
             // The session is what is actually blocking, so it hears about it too. A model already
-            // inside a forward pass is not interruptible everywhere, which is why the runner's
-            // flag is checked around the call as well.
+            // inside a forward pass is not interruptible everywhere, which is why the task's
+            // flag is checked around the call as well. A session with nothing running answers
+            // with an error that means only that, so it is not passed on as a failed stop.
             if (m_session) {
-                return m_session->stop();
+                (void) m_session->stop();
             }
             return srt::Expected<void>();
         }
 
         srt::Expected<void> waitForFinished() override {
-            m_runner.wait();
+            (void) F0Executive::waitForFinished();
             if (m_session) {
                 return m_session->waitForFinished();
             }
             return srt::Expected<void>();
         }
 
+    protected:
         srt::Expected<std::unique_ptr<F0Api::F0Result>>
-            start(const F0Api::F0StartInput &input) override {
-            if (!m_runner.begin()) {
-                return srt::Error(srt::Error::InvalidArgument,
-                                  "this analyzer is already running an execution");
-            }
-            auto result = run(input);
-            m_runner.end(static_cast<bool>(result));
-            return result;
-        }
-
-        srt::Expected<void> startAsync(std::shared_ptr<const F0Api::F0StartInput> input,
-                                       AsyncCallback callback) override {
-            if (!input) {
-                return srt::Error(srt::Error::InvalidArgument, "no input was supplied");
-            }
-            // Claimed here, on the caller's thread, so that a stop arriving the instant this
-            // returns lands on this execution rather than being cleared by the worker.
-            if (!m_runner.begin()) {
-                return srt::Error(srt::Error::InvalidArgument,
-                                  "this analyzer is already running an execution");
-            }
-            // A failure to spawn releases the claim itself; there is no body left to do it.
-            return m_runner.spawn([this, input, callback = std::move(callback)]() mutable {
-                auto result = run(*input);
-                m_runner.end(static_cast<bool>(result));
-                if (callback) {
-                    callback(std::move(result));
-                }
-            });
-        }
-
-    private:
-        srt::Expected<std::unique_ptr<F0Api::F0Result>> run(const F0Api::F0StartInput &input) {
+            run(const F0Api::F0StartInput &input) override {
             const auto &audio = input.audio;
             auto prepared =
                 otter::prepareSamples(audio, m_sampleRate, m_channelCount, m_maxSegmentDuration);
@@ -216,8 +183,8 @@ namespace {
             if (input.progress) {
                 input.progress(0);
             }
-            if (m_runner.cancelled()) {
-                return srt::Error(srt::Error::InvalidArgument, "the execution was cancelled");
+            if (cancelled()) {
+                return srt::Error(otter::AnalysisError::Cancelled, "the execution was cancelled");
             }
 
             OnnxApi::SessionStartInput request;
@@ -231,7 +198,8 @@ namespace {
                 request.inputs["waveform"] = tensor.take();
             }
             {
-                auto tensor = ds::Tensor::createScalar<float>(threshold);
+                // A true scalar, which is what the real export declares for this input.
+                auto tensor = ds::Tensor::createScalar<float>(threshold, true);
                 if (!tensor) {
                     return tensor.takeError();
                 }
@@ -241,10 +209,17 @@ namespace {
 
             auto response = m_session->start(request);
             if (!response) {
-                if (m_runner.cancelled()) {
-                    return srt::Error(srt::Error::InvalidArgument, "the execution was cancelled");
+                if (cancelled()) {
+                    return srt::Error(otter::AnalysisError::Cancelled,
+                                      "the execution was cancelled");
                 }
                 return response.takeError().withContext("the rmvpe model failed");
+            }
+            // A stop that arrived while the model ran may not have reached it in time to fail the
+            // call. The contract says a cancelled execution reports Canceled and no result, so it
+            // is asked again here rather than letting a completed pass count as success.
+            if (cancelled()) {
+                return srt::Error(otter::AnalysisError::Cancelled, "the execution was cancelled");
             }
             auto taskResult = response.take();
             auto outputs = taskResult ? taskResult->as<OnnxApi::SessionResult>() : nullptr;
@@ -310,8 +285,6 @@ namespace {
         double m_maxSegmentDuration;
         CommonApi::Knob m_voicingThreshold;
         CommonApi::FlagKnob m_interpolate;
-
-        otter::AnalysisRunner m_runner;
     };
 
     /// Opens the model on demand and hands out analyzers.
@@ -325,6 +298,9 @@ namespace {
 
         srt::Expected<std::unique_ptr<otter::AnalysisExecutive>>
             createAnalyzer(const otter::AnalysisRuntimeOptions &runtimeOptions) override {
+            if (auto checked = otter::checkRuntimeOptions(runtimeOptions, spec()); !checked) {
+                return checked.takeError();
+            }
             const auto configuration =
                 spec().configuration() ? spec().configuration()->as<RmvpeConfiguration>() : nullptr;
             const auto schema =

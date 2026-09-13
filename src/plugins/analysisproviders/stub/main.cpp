@@ -31,10 +31,10 @@
 #include <synthrt/Support/Expected.h>
 #include <synthrt/Support/JSON.h>
 
+#include <otter/Analysis/AnalysisError.h>
 #include <otter/Analysis/AnalysisInput.h>
 #include <otter/Analysis/AnalysisProvider.h>
 #include <otter/Analysis/AnalysisProviderPlugin.h>
-#include <otter/Analysis/AnalysisRunner.h>
 #include <otter/Api/F0/1/F0ApiL1.h>
 #include <otter/Api/Note/1/NoteApiL1.h>
 #include <otter/Support/ManifestValues.h>
@@ -51,15 +51,16 @@ namespace {
     ///
     /// The delay is declared per contribution and defaults to none, so a test that only wants a
     /// result does not pay for one.
-    bool sleepUnlessStopped(double seconds, const otter::AnalysisRunner &runner) {
+    template <class Cancelled>
+    bool sleepUnlessStopped(double seconds, Cancelled cancelled) {
         const auto steps = static_cast<int>(seconds * 200);
         for (int i = 0; i < steps; ++i) {
-            if (runner.cancelled()) {
+            if (cancelled()) {
                 return false;
             }
             std::this_thread::sleep_for(std::chrono::milliseconds(5));
         }
-        return !runner.cancelled();
+        return !cancelled();
     }
 
     /// The settings a stub declaration may carry in its configuration.
@@ -79,8 +80,8 @@ namespace {
         StubSettings settings;
     };
 
-    /// Shared lifecycle for both stub executives. \a Schema is the contract's exports type, which
-    /// is where the audio format and the knobs come from.
+    /// What both stub executives share: the schema the audio format and knobs come from, the
+    /// settings, and the one validation call. The lifecycle is the contract's own.
     template <class Contract, class Schema>
     class StubExecutive : public Contract {
     public:
@@ -89,47 +90,11 @@ namespace {
         }
 
         ~StubExecutive() {
-            m_runner.cancel();
-            m_runner.wait();
-        }
-
-        srt::ITask::State state() const noexcept override {
-            return m_runner.state();
-        }
-
-        srt::Expected<void> stop() override {
-            m_runner.cancel();
-            return srt::Expected<void>();
-        }
-
-        srt::Expected<void> waitForFinished() override {
-            m_runner.wait();
-            return srt::Expected<void>();
+            (void) this->stop();
+            (void) this->waitForFinished();
         }
 
     protected:
-        /// Claims the execution on the caller's thread, then runs \a body on a worker.
-        template <class Input, class Callback, class Body>
-        srt::Expected<void> spawn(std::shared_ptr<const Input> input, Callback callback,
-                                  Body body) {
-            if (!input) {
-                return srt::Error(srt::Error::InvalidArgument, "no input was supplied");
-            }
-            if (!m_runner.begin()) {
-                return srt::Error(srt::Error::InvalidArgument,
-                                  "this analyzer is already running an execution");
-            }
-            // A failure to spawn releases the claim itself; there is no body left to do it.
-            return m_runner.spawn(
-                [this, input, callback = std::move(callback), body = std::move(body)]() mutable {
-                    auto result = body(*input);
-                    m_runner.end(static_cast<bool>(result));
-                    if (callback) {
-                        callback(std::move(result));
-                    }
-                });
-        }
-
         /// Checks exactly what a shipped provider checks, through the same library call.
         srt::Expected<void> validate(const CommonApi::AudioSegment &audio) const {
             auto prepared = otter::prepareSamples(audio, m_schema.sampleRate, m_schema.channelCount,
@@ -143,25 +108,15 @@ namespace {
         /// Owned by the spec, which outlives every executive created from it.
         const Schema &m_schema;
         StubSettings m_settings;
-        otter::AnalysisRunner m_runner;
     };
 
     class StubF0Executive : public StubExecutive<F0Api::F0Executive, F0Api::F0Schema> {
     public:
         using StubExecutive::StubExecutive;
 
+    protected:
         srt::Expected<std::unique_ptr<F0Api::F0Result>>
-            start(const F0Api::F0StartInput &input) override {
-            if (!m_runner.begin()) {
-                return srt::Error(srt::Error::InvalidArgument,
-                                  "this analyzer is already running an execution");
-            }
-            auto result = run(input);
-            m_runner.end(static_cast<bool>(result));
-            return result;
-        }
-
-        srt::Expected<std::unique_ptr<F0Api::F0Result>> run(const F0Api::F0StartInput &input) {
+            run(const F0Api::F0StartInput &input) override {
             if (auto checked = validate(input.audio); !checked) {
                 return checked.takeError();
             }
@@ -173,8 +128,8 @@ namespace {
             if (input.progress) {
                 input.progress(0);
             }
-            if (!sleepUnlessStopped(m_settings.delay, m_runner)) {
-                return srt::Error(srt::Error::InvalidArgument, "the execution was cancelled");
+            if (!sleepUnlessStopped(m_settings.delay, [this] { return cancelled(); })) {
+                return srt::Error(otter::AnalysisError::Cancelled, "the execution was cancelled");
             }
 
             const auto frames =
@@ -203,32 +158,15 @@ namespace {
             }
             return result;
         }
-
-        srt::Expected<void> startAsync(std::shared_ptr<const F0Api::F0StartInput> input,
-                                       AsyncCallback callback) override {
-            return spawn<F0Api::F0StartInput>(
-                std::move(input), std::move(callback),
-                [this](const F0Api::F0StartInput &one) { return run(one); });
-        }
     };
 
     class StubNoteExecutive : public StubExecutive<NoteApi::NoteExecutive, NoteApi::NoteSchema> {
     public:
         using StubExecutive::StubExecutive;
 
+    protected:
         srt::Expected<std::unique_ptr<NoteApi::NoteResult>>
-            start(const NoteApi::NoteStartInput &input) override {
-            if (!m_runner.begin()) {
-                return srt::Error(srt::Error::InvalidArgument,
-                                  "this analyzer is already running an execution");
-            }
-            auto result = run(input);
-            m_runner.end(static_cast<bool>(result));
-            return result;
-        }
-
-        srt::Expected<std::unique_ptr<NoteApi::NoteResult>>
-            run(const NoteApi::NoteStartInput &input) {
+            run(const NoteApi::NoteStartInput &input) override {
             if (auto checked = validate(input.audio); !checked) {
                 return checked.takeError();
             }
@@ -261,8 +199,8 @@ namespace {
             if (input.progress) {
                 input.progress(0);
             }
-            if (!sleepUnlessStopped(m_settings.delay, m_runner)) {
-                return srt::Error(srt::Error::InvalidArgument, "the execution was cancelled");
+            if (!sleepUnlessStopped(m_settings.delay, [this] { return cancelled(); })) {
+                return srt::Error(otter::AnalysisError::Cancelled, "the execution was cancelled");
             }
 
             auto result = std::make_unique<NoteApi::NoteResult>();
@@ -273,14 +211,26 @@ namespace {
             if (!input.knownNotes.empty()) {
                 // The alignment path: keep the boundaries the caller gave and fill in pitches.
                 // Known notes are already on the host's timeline, so they are kept as they are.
+                // The same three refusals the game provider makes, so a contract test written
+                // against this stub says something about the shipped analyzer too.
                 int key = 60;
+                double previousEnd = input.audio.startTime;
                 for (const auto &known : input.knownNotes) {
+                    if (known.duration <= 0) {
+                        return srt::Error(srt::Error::InvalidArgument,
+                                          "a known note has no duration");
+                    }
                     if (known.start < input.audio.startTime - 1e-9) {
                         return srt::Error(srt::Error::InvalidArgument,
                                           "a known note starts before the audio does");
                     }
+                    if (known.start < previousEnd - 1e-9) {
+                        return srt::Error(srt::Error::InvalidArgument,
+                                          "the known notes overlap or are out of order");
+                    }
                     result->notes.push_back({key, known.start, known.duration, 1.0});
                     key = key < 71 ? key + 1 : 60;
+                    previousEnd = known.start + known.duration;
                 }
             } else {
                 const auto total = input.audio.duration();
@@ -300,13 +250,6 @@ namespace {
             }
             return result;
         }
-
-        srt::Expected<void> startAsync(std::shared_ptr<const NoteApi::NoteStartInput> input,
-                                       AsyncCallback callback) override {
-            return spawn<NoteApi::NoteStartInput>(
-                std::move(input), std::move(callback),
-                [this](const NoteApi::NoteStartInput &one) { return run(one); });
-        }
     };
 
     /// Hands out one stub analyzer. \a Executive names the contract, \a Implementation the
@@ -322,6 +265,9 @@ namespace {
 
         srt::Expected<std::unique_ptr<otter::AnalysisExecutive>>
             createAnalyzer(const otter::AnalysisRuntimeOptions &runtimeOptions) override {
+            if (auto checked = otter::checkRuntimeOptions(runtimeOptions, spec()); !checked) {
+                return checked.takeError();
+            }
             const auto schema = spec().exports() ? spec().exports()->as<Schema>() : nullptr;
             if (schema == nullptr) {
                 return srt::Error(srt::Error::InvalidFormat, "this declaration carries no exports");

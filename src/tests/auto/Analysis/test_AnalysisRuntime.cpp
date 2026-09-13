@@ -64,16 +64,16 @@ namespace {
 
         template <class Executive>
         std::unique_ptr<Executive> create(const char *id) {
-            auto *spec = package.contribution(otter::ANALYSIS_CATEGORY, id);
+            auto spec = package.contribution(otter::ANALYSIS_CATEGORY, id);
             BOOST_REQUIRE(spec != nullptr);
-            auto *extension = srt::ContribSpecExtension::findFromSpec<Executive>(
+            auto extension = srt::ContribSpecExtension::findFromSpec<Executive>(
                 *spec->as<otter::AnalysisSpec>());
             BOOST_REQUIRE(extension != nullptr);
             auto options = RuntimeOptionsFor<Executive>();
             auto made = extension->template as<otter::AnalysisExtension>()->createAnalyzer(options);
             BOOST_REQUIRE_MESSAGE(static_cast<bool>(made), otter::test::why(made));
             auto executive = made.take();
-            auto *typed = executive->template as<Executive>();
+            auto typed = executive->template as<Executive>();
             BOOST_REQUIRE(typed != nullptr);
             executive.release();
             return std::unique_ptr<Executive>(typed);
@@ -346,6 +346,127 @@ BOOST_AUTO_TEST_CASE(test_AnalysisRuntime_RunsAsynchronouslyAndCanBeCancelled) {
     again.audio = silence(1.0);
     auto after = analyzer->start(again);
     BOOST_CHECK_MESSAGE(static_cast<bool>(after), otter::test::why(after));
+}
+
+/// A callback may start the next execution. The worker that delivers the callback is then asked
+/// to spawn its own successor, which it can do only by letting go of itself rather than joining.
+BOOST_AUTO_TEST_CASE(test_AnalysisRuntime_ACallbackMayStartTheNextExecution) {
+    Loaded loaded("stub-analyzers");
+    auto analyzer = loaded.create<F0Api::F0Executive>("f0");
+    auto raw = analyzer.get();
+
+    auto input = std::make_shared<F0Api::F0StartInput>();
+    input->audio = silence(0.5);
+
+    std::mutex mutex;
+    std::condition_variable done;
+    int completed = 0;
+    bool secondStarted = false;
+    bool firstReturned = false;
+
+    auto started =
+        raw->startAsync(input, [&](srt::Expected<std::unique_ptr<F0Api::F0Result>> result) {
+            {
+                std::lock_guard guard(mutex);
+                completed += result ? 1 : 0;
+            }
+            auto again =
+                raw->startAsync(input, [&](srt::Expected<std::unique_ptr<F0Api::F0Result>> second) {
+                    std::lock_guard guard(mutex);
+                    completed += second ? 1 : 0;
+                    done.notify_all();
+                });
+            std::lock_guard guard(mutex);
+            secondStarted = static_cast<bool>(again);
+            firstReturned = true;
+            done.notify_all();
+        });
+    BOOST_REQUIRE_MESSAGE(static_cast<bool>(started), otter::test::why(started));
+    {
+        std::unique_lock guard(mutex);
+        BOOST_REQUIRE(done.wait_for(guard, std::chrono::seconds(10),
+                                    [&] { return firstReturned && completed == 2; }));
+        BOOST_CHECK(secondStarted);
+    }
+    BOOST_CHECK(analyzer->waitForFinished());
+}
+
+/// A callback may be the last owner of the analyzer, so destroying it there has to work. The
+/// worker delivering the callback then destroys the runner it is running on, which again means
+/// letting the thread go rather than joining it.
+BOOST_AUTO_TEST_CASE(test_AnalysisRuntime_ACallbackMayDestroyTheAnalyzer) {
+    Loaded loaded("stub-analyzers");
+    std::shared_ptr<F0Api::F0Executive> owner(loaded.create<F0Api::F0Executive>("f0").release());
+
+    auto input = std::make_shared<F0Api::F0StartInput>();
+    input->audio = silence(0.5);
+
+    std::mutex mutex;
+    std::condition_variable done;
+    bool destroyed = false;
+
+    auto started =
+        owner->startAsync(input, [owner, &mutex, &done, &destroyed](
+                                     srt::Expected<std::unique_ptr<F0Api::F0Result>>) mutable {
+            owner.reset();
+            std::lock_guard guard(mutex);
+            destroyed = true;
+            done.notify_all();
+        });
+    BOOST_REQUIRE_MESSAGE(static_cast<bool>(started), otter::test::why(started));
+    owner.reset();
+    std::unique_lock guard(mutex);
+    BOOST_REQUIRE(done.wait_for(guard, std::chrono::seconds(10), [&] { return destroyed; }));
+}
+
+/// One analyzer serves one span after another, and each result is anchored where its own span
+/// began; nothing accumulates between calls.
+BOOST_AUTO_TEST_CASE(test_AnalysisRuntime_AnchorsEachSegmentWhereItBegan) {
+    Loaded loaded("stub-analyzers");
+    auto analyzer = loaded.create<F0Api::F0Executive>("f0");
+
+    for (const double begin : {10.0, 11.0, 25.5}) {
+        F0Api::F0StartInput input;
+        input.audio = silence(1.0, begin);
+        auto produced = analyzer->start(input);
+        BOOST_REQUIRE_MESSAGE(static_cast<bool>(produced), otter::test::why(produced));
+        BOOST_CHECK_CLOSE(produced.take()->startTime, begin, 1e-9);
+    }
+}
+
+/// Options written for another contract are refused before anything is read out of them.
+BOOST_AUTO_TEST_CASE(test_AnalysisRuntime_RefusesOptionsOfAnotherContract) {
+    Loaded loaded("stub-analyzers");
+    auto spec = loaded.package.contribution(otter::ANALYSIS_CATEGORY, "f0");
+    BOOST_REQUIRE(spec != nullptr);
+    auto extension = srt::ContribSpecExtension::findFromSpec<F0Api::F0Executive>(
+        *spec->as<otter::AnalysisSpec>());
+    BOOST_REQUIRE(extension != nullptr);
+
+    NoteApi::NoteRuntimeOptions wrong("stub");
+    auto made = extension->as<otter::AnalysisExtension>()->createAnalyzer(wrong);
+    BOOST_CHECK(!made);
+}
+
+/// Known notes must be ordered and must not overlap, here as in the shipped provider.
+BOOST_AUTO_TEST_CASE(test_AnalysisRuntime_RefusesKnownNotesOutOfOrder) {
+    Loaded loaded("stub-analyzers");
+    auto analyzer = loaded.create<NoteApi::NoteExecutive>("note");
+
+    NoteApi::NoteStartInput input;
+    input.audio = silence(2.0, 4.0);
+    input.knownNotes = {
+        {5.0, 0.5},
+        {4.5, 0.5}
+    };
+    BOOST_CHECK(!analyzer->start(input));
+
+    NoteApi::NoteStartInput empty;
+    empty.audio = silence(2.0, 4.0);
+    empty.knownNotes = {
+        {4.0, 0.0}
+    };
+    BOOST_CHECK(!analyzer->start(empty));
 }
 
 BOOST_AUTO_TEST_SUITE_END()

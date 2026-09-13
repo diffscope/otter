@@ -1,0 +1,75 @@
+# Builds and tests otter on Linux and Windows.
+#
+# The dependency tree comes from vcpkg through the manifest in scripts/vcpkg-manifest, with the
+# in-repo ports in scripts/vcpkg-ports searched before the shared overlay submodule.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            triplet: x64-linux
+          - os: windows-2022
+            triplet: x64-windows
+    runs-on: ${{ matrix.os }}
+    env:
+      VCPKG_DEFAULT_TRIPLET: ${{ matrix.triplet }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install build tools
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build python3
+          # The model fixtures are generated at build time when a Python with onnx is present.
+          python3 -m pip install --user --break-system-packages onnx numpy
+
+      - name: Set up the MSVC environment
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Set up vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgDirectory: ${{ runner.temp }}/vcpkg
+          vcpkgGitCommitId: 1fddddc280dfed63956e15ef74f4321bc6a219c9
+          runVcpkgInstall: false
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          "${{ runner.temp }}/vcpkg/vcpkg" install \
+            --x-manifest-root=scripts/vcpkg-manifest \
+            --x-install-root=build/vcpkg_installed \
+            --x-feature=onnx --x-feature=tests
+
+      - name: Configure
+        shell: bash
+        run: |
+          cmake -S . -B build/cmake -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_TOOLCHAIN_FILE="${{ runner.temp }}/vcpkg/scripts/buildsystems/vcpkg.cmake" \
+            -DVCPKG_INSTALLED_DIR="$PWD/build/vcpkg_installed" \
+            -DVCPKG_MANIFEST_MODE=OFF \
+            -DOTTER_BUILD_TESTS=ON
+
+      - name: Build
+        run: cmake --build build/cmake
+
+      - name: Run the lint self tests
+        run: python3 -m unittest discover -s scripts -p "test_*.py"
+
+      - name: Test
+        # Data dependent tests exit with the skip status when their packages are absent.
+        run: ctest --test-dir build/cmake --output-on-failure

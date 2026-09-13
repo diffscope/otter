@@ -14,6 +14,7 @@
 #include <synthrt/Task/ITask.h>
 
 #include <otter/Analysis/AnalysisExecutive.h>
+#include <otter/Analysis/AnalysisTask.h>
 #include <otter/Api/Common/1/CommonApiL1.h>
 #include <otter/otter_global.h>
 
@@ -129,15 +130,60 @@ namespace otter::Api::F0::L1 {
     public:
         using AsyncCallback = std::function<void(srt::Expected<std::unique_ptr<F0Result>> result)>;
 
-        /// Executes analysis synchronously.
-        virtual srt::Expected<std::unique_ptr<F0Result>> start(const F0StartInput &input) = 0;
+        /// Executes one F0 analysis synchronously.
+        ///
+        /// One execution at a time: a second call while one is in flight is refused. A stop that
+        /// lands during the run makes it report an error with state() Canceled.
+        srt::Expected<std::unique_ptr<F0Result>> start(const F0StartInput &input) {
+            return m_task.run(input);
+        }
 
-        /// Starts one asynchronous analysis execution.
-        virtual srt::Expected<void> startAsync(std::shared_ptr<const F0StartInput> input,
-                                               AsyncCallback callback) = 0;
+        /// Starts one asynchronous F0 analysis on a worker thread.
+        ///
+        /// The callback may start the next execution or destroy this executive.
+        srt::Expected<void> startAsync(std::shared_ptr<const F0StartInput> input,
+                                       AsyncCallback callback) {
+            return m_task.runAsync(std::move(input), std::move(callback));
+        }
+
+        srt::ITask::State state() const noexcept override {
+            return m_task.state();
+        }
+
+        /// Requests cancellation. A provider whose model session blocks overrides this to tell
+        /// the session too, after calling this.
+        srt::Expected<void> stop() override {
+            return m_task.stop();
+        }
+
+        /// Waits for the current execution and, for an asynchronous one, its callback. A
+        /// provider with model sessions overrides this to wait on them too, after calling this.
+        srt::Expected<void> waitForFinished() override {
+            return m_task.waitForFinished();
+        }
 
     protected:
-        using otter::AnalysisExecutive::AnalysisExecutive;
+        /// The body of one execution, which is the one thing a provider writes.
+        ///
+        /// Runs on the caller's thread for start() and on a worker for startAsync(). It polls
+        /// cancelled() at whatever granularity it can afford to stop at and returns an error when
+        /// it is set. The provider's destructor must call stop() and waitForFinished() before it
+        /// destroys anything the body reads.
+        virtual srt::Expected<std::unique_ptr<F0Result>> run(const F0StartInput &input) = 0;
+
+        /// Whether a stop has been requested for the execution in flight.
+        bool cancelled() const noexcept {
+            return m_task.cancelled();
+        }
+
+        explicit F0Executive(otter::AnalysisSpec &spec)
+            : otter::AnalysisExecutive(spec),
+              m_task([this](const F0StartInput &input) { return run(input); }) {
+        }
+
+    private:
+        /// Declared last: the body captures this object.
+        otter::AnalysisTask<F0StartInput, F0Result> m_task;
     };
 
 }

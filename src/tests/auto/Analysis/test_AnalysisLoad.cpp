@@ -53,10 +53,10 @@ BOOST_AUTO_TEST_CASE(test_AnalysisLoad_ReadsBothContracts) {
     BOOST_REQUIRE_MESSAGE(static_cast<bool>(opened), otter::test::why(opened));
     auto package = opened.take();
 
-    auto *category = host.unit.category(otter::ANALYSIS_CATEGORY)->as<otter::AnalysisCategory>();
+    auto category = host.unit.category(otter::ANALYSIS_CATEGORY)->as<otter::AnalysisCategory>();
     BOOST_REQUIRE_EQUAL(category->analyzers().size(), 2u);
 
-    auto *f0 = package.contribution(otter::ANALYSIS_CATEGORY, "f0");
+    auto f0 = package.contribution(otter::ANALYSIS_CATEGORY, "f0");
     BOOST_REQUIRE(f0 != nullptr);
     BOOST_CHECK_EQUAL(f0->interface(), F0Api::API_INTERFACE);
     BOOST_CHECK_EQUAL(f0->level(), F0Api::API_LEVEL);
@@ -65,7 +65,7 @@ BOOST_AUTO_TEST_CASE(test_AnalysisLoad_ReadsBothContracts) {
 
     // What the host reads before it commits to anything: the audio format it must produce, and
     // which knobs this module answers to.
-    const auto *schema = f0->exports()->as<F0Api::F0Schema>();
+    auto schema = f0->exports()->as<F0Api::F0Schema>();
     BOOST_REQUIRE(schema != nullptr);
     BOOST_CHECK_EQUAL(schema->sampleRate, 16000);
     BOOST_CHECK_EQUAL(schema->channelCount, 1);
@@ -75,10 +75,10 @@ BOOST_AUTO_TEST_CASE(test_AnalysisLoad_ReadsBothContracts) {
     BOOST_CHECK_CLOSE(schema->voicingThreshold.defaultValue, 0.03, 1e-9);
     BOOST_CHECK(schema->interpolateUnvoiced.honored);
 
-    auto *note = package.contribution(otter::ANALYSIS_CATEGORY, "note");
+    auto note = package.contribution(otter::ANALYSIS_CATEGORY, "note");
     BOOST_REQUIRE(note != nullptr);
     BOOST_CHECK_EQUAL(note->interface(), NoteApi::API_INTERFACE);
-    const auto *noteSchema = note->exports()->as<NoteApi::NoteSchema>();
+    auto noteSchema = note->exports()->as<NoteApi::NoteSchema>();
     BOOST_REQUIRE(noteSchema != nullptr);
     BOOST_CHECK(noteSchema->supportsKnownNotes);
     BOOST_REQUIRE_EQUAL(noteSchema->languages.size(), 1u);
@@ -104,7 +104,7 @@ BOOST_AUTO_TEST_CASE(test_AnalysisLoad_DataOnlyStopsBeforeTheProvider) {
     BOOST_REQUIRE_MESSAGE(static_cast<bool>(opened), otter::test::why(opened));
     auto package = opened.take();
 
-    auto *f0 = package.contribution(otter::ANALYSIS_CATEGORY, "f0");
+    auto f0 = package.contribution(otter::ANALYSIS_CATEGORY, "f0");
     BOOST_REQUIRE(f0 != nullptr);
     BOOST_CHECK_EQUAL(f0->interface(), F0Api::API_INTERFACE);
     BOOST_CHECK_EQUAL(f0->variant(), "stub");
@@ -161,7 +161,7 @@ BOOST_AUTO_TEST_CASE(test_AnalysisLoad_LetsAnotherModuleReferenceAnAnalyzer) {
     auto opened = host.unit.openPackage(packages() / "importing", srt::SynthUnit::Load);
     BOOST_REQUIRE_MESSAGE(static_cast<bool>(opened), otter::test::why(opened));
     auto package = opened.take();
-    auto *note = package.contribution(otter::ANALYSIS_CATEGORY, "note");
+    auto note = package.contribution(otter::ANALYSIS_CATEGORY, "note");
     BOOST_REQUIRE(note != nullptr);
     BOOST_REQUIRE_EQUAL(note->imports().size(), 1u);
     BOOST_CHECK(note->findImport("analysis/reference").has_value());

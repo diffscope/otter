@@ -8,10 +8,10 @@
 
 #include <cstdlib>
 #include <filesystem>
-#include <string_view>
 #include <iostream>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include <dsinfer/Api/Drivers/Onnx/OnnxDriverApi.h>
@@ -66,7 +66,7 @@ namespace {
             otter::linkAnalysisCategory();
             std::vector<fs::path> driverPaths = {fs::path(OTTER_TEST_DRIVER_PLUGIN_DIR)};
             factory.setPluginPaths(driverPaths);
-            auto *loader = factory.find(OnnxApi::API_NAME);
+            auto loader = factory.find(OnnxApi::API_NAME);
             BOOST_REQUIRE_MESSAGE(loader != nullptr, "the ONNX driver plugin should be present");
             auto created = factory.create(loader);
             BOOST_REQUIRE_MESSAGE(static_cast<bool>(created), otter::test::why(created));
@@ -94,9 +94,9 @@ namespace {
             BOOST_REQUIRE_MESSAGE(static_cast<bool>(opened), otter::test::why(opened));
             package = opened.take();
 
-            auto *spec = package.contribution(otter::ANALYSIS_CATEGORY, "f0");
+            auto spec = package.contribution(otter::ANALYSIS_CATEGORY, "f0");
             BOOST_REQUIRE(spec != nullptr);
-            auto *extension = srt::ContribSpecExtension::findFromSpec<F0Api::F0Executive>(
+            auto extension = srt::ContribSpecExtension::findFromSpec<F0Api::F0Executive>(
                 *spec->as<otter::AnalysisSpec>());
             BOOST_REQUIRE(extension != nullptr);
 
@@ -104,7 +104,7 @@ namespace {
             auto made = extension->as<otter::AnalysisExtension>()->createAnalyzer(options);
             BOOST_REQUIRE_MESSAGE(static_cast<bool>(made), otter::test::why(made));
             auto executive = made.take();
-            auto *typed = executive->as<F0Api::F0Executive>();
+            auto typed = executive->as<F0Api::F0Executive>();
             BOOST_REQUIRE(typed != nullptr);
             executive.release();
             return std::unique_ptr<F0Api::F0Executive>(typed);
