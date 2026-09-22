@@ -1,0 +1,8 @@
+# 模型权重不入库
+
+本目录下的 `*.onnx` 是训练产物，体积远大于仓库该装的东西（RMVPE 单个 345 MB），
+由打包者在生成包时从模型来源复制进来。声明文件（`desc.json` 与 `analyzers/**/analysis.json`）
+才是这里的资产。
+
+`python3 scripts/check-declarations.py <包目录>` 会在缺模型时报错——那是期望行为：
+校验的正是"声明指的文件确实在"。

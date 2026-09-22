@@ -1,0 +1,60 @@
+{
+    "interface": "org.openvpi.otter.analysis.Note",
+    "level": 1,
+    "variant": "game",
+    "name": "GAME",
+    "exports": {
+        "sampleRate": 44100,
+        "channelCount": 1,
+        "maxSegmentDuration": 60,
+        "languages": [
+            "cmn",
+            "eng",
+            "jpn",
+            "yue"
+        ],
+        "supportsKnownNotes": true,
+        "knobs": {
+            "boundaryThreshold": {
+                "minimum": 0.0,
+                "maximum": 1.0,
+                "default": 0.2
+            },
+            "boundaryRadius": {
+                "minimum": 0.0,
+                "maximum": 1.0,
+                "default": 0.02
+            },
+            "noteThreshold": {
+                "minimum": 0.0,
+                "maximum": 1.0,
+                "default": 0.2
+            },
+            "notePresenceCutoff": {
+                "minimum": 0.0,
+                "maximum": 1.0,
+                "default": 0.0
+            },
+            "steps": {
+                "minimum": 1,
+                "maximum": 64,
+                "default": 8
+            }
+        }
+    },
+    "configuration": {
+        "encoder": "../../encoder.onnx",
+        "segmenter": "../../segmenter.onnx",
+        "estimator": "../../estimator.onnx",
+        "boundaryToDuration": "../../bd2dur.onnx",
+        "durationToBoundary": "../../dur2bd.onnx",
+        "timestep": 0.01,
+        "languages": {
+            "eng": 1,
+            "jpn": 2,
+            "yue": 3,
+            "cmn": 4
+        },
+        "defaultLanguage": "cmn"
+    }
+}

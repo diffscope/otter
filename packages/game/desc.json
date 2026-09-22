@@ -1,0 +1,15 @@
+{
+    "$version": "1.0",
+    "id": "otter/game",
+    "version": "0.1.0.0",
+    "compatVersion": "0.1.0.0",
+    "runtimeLevel": 1,
+    "contributions": {
+        "analysis": [
+            {
+                "id": "note",
+                "path": "./analyzers/note/analysis.json"
+            }
+        ]
+    }
+}
