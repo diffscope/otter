@@ -172,7 +172,7 @@ namespace otter {
                 }
                 m_asyncState->finished.notify_all();
                 setState(Failed);
-                return srt::Error(srt::Error::NotImplemented,
+                return srt::Error(AnalysisError::NoWorker,
                                   std::string("no worker thread could be started: ") +
                                       error.what());
             }

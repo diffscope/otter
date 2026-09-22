@@ -19,7 +19,14 @@ namespace otter::manifest {
         if (text.empty()) {
             return srt::Error(srt::Error::InvalidFormat, std::string(what) + " must not be empty");
         }
-        auto path = stdc::path::from_utf8(text);
+        // Spec 2.4 counts both / and \ as separators and asks the reader to normalize before the
+        // host file system sees the path, so that one declaration names the same file on a host
+        // where only / separates. A \ is a separator on Windows, so this is what makes the two
+        // platforms agree rather than a Windows-only convenience. synthrt's loader rewrites the
+        // separators the same way for the paths it resolves itself (resolvePath in SingerContrib).
+        std::string normalized = text;
+        std::replace(normalized.begin(), normalized.end(), '\\', '/');
+        auto path = stdc::path::from_utf8(normalized);
         if (path.is_absolute()) {
             return path;
         }

@@ -33,6 +33,15 @@ BOOST_AUTO_TEST_CASE(test_ManifestValues_ResolvesPathsAgainstTheDeclaration) {
     BOOST_REQUIRE(absolute);
     BOOST_CHECK_EQUAL(absolute.take(), std::filesystem::path("/opt/models/rmvpe.onnx"));
 
+    // Spec 2.4 counts \ as a separator as well, so the two spellings have to name the same file
+    // whichever host reads them.
+    auto backslashed =
+        otter::manifest::readPath(parse(R"("an\\analyzers\\model.onnx")"), base, "model");
+    auto slashed = otter::manifest::readPath(parse("\"an/analyzers/model.onnx\""), base, "model");
+    BOOST_REQUIRE(backslashed);
+    BOOST_REQUIRE(slashed);
+    BOOST_CHECK_EQUAL(backslashed.take(), slashed.take());
+
     BOOST_CHECK(!otter::manifest::readPath(parse("\"\""), base, "model"));
     BOOST_CHECK(!otter::manifest::readPath(parse("16000"), base, "model"));
 }
