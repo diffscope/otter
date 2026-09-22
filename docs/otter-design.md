@@ -390,9 +390,10 @@ spec 2.4 把声明文件分三层，三个字段各就各位：
 ```json
 {
   "$version": "1.0",
-  "id": "openvpi/rmvpe",
+  "id": "otter/rmvpe",
   "version": "1.0.0.0",
   "compatVersion": "1.0.0.0",
+  "runtimeLevel": 1,
   "contributions": {
     "analysis": [
       { "id": "f0", "path": "./analyzers/f0/analysis.json" }

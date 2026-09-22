@@ -197,6 +197,91 @@ struct AnalyzerEntry {
 
 `reference` 是设置里存的东西 —— 不是文件路径。文件路径会随安装位置变，贡献引用不会。
 
+### 装错根的表现（实测，供安装方对照）
+
+包放错目录时宿主**不会报错**，只是分析器不上榜——两个状态分得很开，别把它们读成一个：
+
+| 现象 | 含义 | 判据（lite 侧） |
+| :-- | :-- | :-- |
+| `module_state = "unavailable"` | 没有任何包应答该契约 | `SynthrtEngine::analyzers(interface)` 为空 |
+| `module_state = "ready"` 但 `available = false`，理由 "…model is not configured" | 契约有实现者了，只是**人还没在设置里选** | `settings.general.pitchAnalyzer` / `noteAnalyzer` 为空 |
+| 两者都过 | 可跑 | `available = true` |
+
+易踩的两点：
+
+1. **`wolf/packages` 不是抽参包的安装根**。它是 wolf 语言包的**依赖查找**根：lite 把它作为 `packagePaths`
+   交给 Bootstrap（供"某个声库点名依赖某语言包"时查找），而**扫描根**是用户设置的包搜索路径
+   （`SynthrtEngine` 的 `voicebankPaths` 实参，`InferEngine.cpp:207-217` 的绑定），`analyzers()` 读的正是
+   本次扫描的结果（"the analysers the last scan found"，`SynthrtEngine.h:158`）。放错根的现象就是上表
+   第一行，而且**日志里确实无痕**——包根本没进扫描列表，自然不会有人去打开它，也就没有可报的失败。
+2. **`packages.list` 列的是声库目录里的包**，分析器包不会出现在这份清单里。要确认分析器是否上榜，
+   问 `extract.get_capabilities`，别看包清单。
+
+### 声明不合格时：运行期拒载长什么样（实测）
+
+包被扫到了、但声明违反契约的两条互检规则时（provider 装载期即拒，`game/main.cpp:747-750` 与 `:743`；linter
+的 `scripts/check-declarations.py:279-285` 是同一对规则，**打包期就该挡住**）：
+
+```
+SynthrtEngine: could not open D:\...\otter-game@0.1.0.0 : failed to interpret module exports:
+    the exports declare supportsKnownNotes but the configuration names no durationToBoundary model
+```
+
+- 宿主侧可观测面：该契约 `module_state = "unavailable"`、`available = false`（reason `… module is
+  unavailable`），**另一路不受牵连**（同一次实测里 pitch 仍 `ready`/`true`）；
+- 硬发命令会得到明确拒绝：`The note analyzer is not installed: otter/game:analysis/note`
+  （`file_not_found`，字段 `note_analyzer`）；
+- ⇒ 与本文件前面那句"日志里无痕"并不矛盾：**没被扫描到**才无痕，**扫到但声明坏**是有痕的，且会指名包与原因。
+
+2026-09 实测链路（lite 隔离副本 + 本仓 `packages/{rmvpe,game}`，模型按声明路径就位）：
+`module_state` 两路都 `ready`；选中 `otter/rmvpe:analysis/f0` 与 `otter/game:analysis/note` 后
+`available` 两路为 `true`；`extract.pitch.start` 与 `extract.midi.start` 都被接受，且 ONNX 驱动按
+**包内声明路径**开出了六个模型（`otter-rmvpe@0.1.0.0/rmvpe.onnx` 与 `otter-game@0.1.0.0/{encoder,
+segmenter,estimator,bd2dur,dur2bd}.onnx`）——即"声明 → 模型"这一段是通的。同一轮里任务随后停在下游：
+`ExtractTask` 报 "Failed to open the audio file"（`AnalysisAudio.cpp:38-41`），与本仓无关，属 lite 侧
+音频来源路径的问题，另行跟踪。
+
+### 语言标识用**宿主的**词汇表
+
+宿主把语言 id **逐字**递给分析器（lite: `ExtractionAutomationAdapter.cpp:128`），不做翻译——因此
+分析器自己要按宿主 id 认语言，声明两侧都写宿主词汇：
+
+| 位置 | 写什么 | lite 的取值 |
+| :-- | :-- | :-- |
+| `exports.languages` | 宿主 id 表（分析器接受哪些） | ISO 639-3：`cmn` `eng` `jpn` `yue`（`src/app/Global/AppGlobal.h:28`） |
+| `configuration.languages` | 键=宿主 id，值=**模型自己的**编号 | 例：`{"eng":1,"jpn":2,"yue":3,"cmn":4}` |
+| `configuration.defaultLanguage` | 同上，宿主 id | `cmn` |
+
+模型之间不必同意"1 是哪种语言"，所以编号表天然属于 `configuration`；`exports` 只回答"宿主问哪种语
+言时我能答"。反例（本仓 `0.1.0.0` 第一条声明即如此，已改）：写模型词汇 `zh/en/ja/yue`，宿主递 `cmn`
+⇒ 查表未命中，任务以模型内抛出的 `this model does not know the language cmn` 失败，宿主原样上报。
+F0 契约没有语言项（RMVPE 无此字段），不受这条影响。
+
+### 声明的音频格式是承诺，分析器必须自己校验
+
+`exports` 里的 `sampleRate` / `channelCount`（F0 还有 `interval`）是**"宿主会照它准备音频"的承诺**。
+契约为真不等于模型能履行：**无法履行就必须在 `createExports` 里拒绝**，否则错的是数据而不是错误码。
+
+代价实测过（lite 2026-09，同一份代码、同一段音频、只改活包声明的采样率）：
+
+| GAME 声明 | 结果 |
+| :-- | :-- |
+| `44100`（模型真实值） | 594 个音符，中位音高键 64 |
+| `22050`（错报） | **569 个音符，中位音高键 76（整一个八度）**，首音位置与跨度几乎不变，**日志零异常** |
+
+即"错报声明 → 静默高八度"，在编辑器里看起来像一次正常抽参。低报采样率等于让模型按两倍速度读音频，
+频率翻倍，正好 +12 半音——数字与理论吻合，说明这条不是噪声。
+
+拒绝的写法（两个 provider 同形，`InvalidFormat` / `FeatureNotSupported`）：
+
+```
+the rmvpe variant runs at 16000 Hz; the exports declare 44100      // rmvpe: sampleRate + interval
+the game variant runs at 44100 Hz; the exports declare 22050       // game: sampleRate + channelCount
+```
+
+
+
+
 ### 设置界面
 
 `GeneralPage` 的两个 `FileSelector` 换成两个下拉框，分别按 `interfaceName` 过滤出音高抽参器与音符
