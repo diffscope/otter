@@ -55,6 +55,8 @@ namespace {
     constexpr char VARIANT[] = "game";
     constexpr char BACKEND[] = "onnx";
 
+    constexpr int MODEL_SAMPLE_RATE = 44100;
+
     /// Knob values used when the declaration honors no such knob.
     constexpr int FALLBACK_STEPS = 8;
     constexpr double FALLBACK_BOUNDARY_THRESHOLD = 0.2;
@@ -240,14 +242,14 @@ namespace {
             (void) stop();
             (void) waitForFinished();
             m_models.forEach([](ds::InferenceSession &session) {
-                session.stop();
-                session.close();
+                (void) session.stop();
+                (void) session.close();
             });
         }
 
         srt::Expected<void> stop() override {
             (void) NoteExecutive::stop();
-            m_models.forEach([](ds::InferenceSession &session) { session.stop(); });
+            m_models.forEach([](ds::InferenceSession &session) { (void) session.stop(); });
             return srt::Expected<void>();
         }
 
@@ -731,6 +733,17 @@ namespace {
             // promise but the model cannot number, or an alignment path promised without the
             // model that performs it, would otherwise surface as a failed execution long after
             // the package loaded.
+            //
+            // The audio format is the same kind of promise, and a worse one to leave unchecked:
+            // the host prepares the audio exactly as declared, so a rate these models were not
+            // trained at does not fail -- it transcribes at the wrong speed, which reads as a
+            // plausible extraction an octave away from the truth.
+            if (declared.sampleRate != MODEL_SAMPLE_RATE) {
+                return srt::Error(srt::Error::InvalidFormat,
+                                  "the game variant runs at " + std::to_string(MODEL_SAMPLE_RATE) +
+                                      " Hz; the exports declare " +
+                                      std::to_string(declared.sampleRate));
+            }
             if (declared.channelCount != 1) {
                 return srt::Error(srt::Error::FeatureNotSupported,
                                   "the game variant feeds its models one channel, and the exports "
