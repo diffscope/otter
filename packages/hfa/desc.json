@@ -1,0 +1,15 @@
+{
+    "$version": "1.0",
+    "id": "otter/hfa",
+    "version": "0.2.0.0",
+    "compatVersion": "0.2.0.0",
+    "runtimeLevel": 1,
+    "contributions": {
+        "inference": [
+            {
+                "id": "align",
+                "path": "./inferences/align/inference.json"
+            }
+        ]
+    }
+}

@@ -1,0 +1,10 @@
+# 模型权重不入库
+#
+# 本目录下的 `*.onnx` 是训练产物，体积远超仓库适合容纳的范围（RMVPE 单个 345 MB，HFA 的图 415 MB），
+# 由打包者在生成包时从模型来源复制。本目录纳入版本管理的是声明文件（`desc.json` 与
+# `inferences/**/inference.json`）。
+#
+# 模型缺失时 `python3 scripts/check-declarations.py <包目录>` 报错，这是预期行为：
+# 该脚本校验的正是声明所引用的文件确实存在。
+
+*.onnx

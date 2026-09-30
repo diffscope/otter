@@ -1,0 +1,15 @@
+{
+    "$version": "1.0",
+    "id": "otter/rmvpe",
+    "version": "0.2.0.0",
+    "compatVersion": "0.2.0.0",
+    "runtimeLevel": 1,
+    "contributions": {
+        "inference": [
+            {
+                "id": "f0",
+                "path": "./inferences/f0/inference.json"
+            }
+        ]
+    }
+}
