@@ -1,0 +1,79 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://github.com/diffscope/otter/docs/schemas/note-1-exports.schema.json",
+    "title": "org.openvpi.otter.inference.Note Level 1 exports",
+    "description": "Properties declared by a note transcription contribution: the audio format that a host must prepare, the languages that the module distinguishes, whether transcription can be conditioned on known notes, and the supported knobs. The interface and level define the syntax, independent of the variant.",
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["sampleRate"],
+    "properties": {
+        "sampleRate": {
+            "description": "Input sample rate in hertz. The host resamples the audio to this rate; the module never resamples.",
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+        },
+        "channelCount": {
+            "description": "Input channel count. The module averages input with more channels down to this count and rejects input with fewer channels.",
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647,
+            "default": 1
+        },
+        "maxSegmentDuration": {
+            "description": "Maximum duration of the audio accepted by one execution, in seconds. No limit applies if absent. The limit is mandatory: the host slices the audio so that no segment exceeds it.",
+            "type": "number",
+            "exclusiveMinimum": 0
+        },
+        "languages": {
+            "description": "Language identifiers this module distinguishes, as ISO 639-3 codes. Absent or empty indicates that the module does not distinguish languages.",
+            "type": "array",
+            "uniqueItems": true,
+            "items": { "type": "string", "pattern": "^[a-z]{3}$" }
+        },
+        "defaultLanguage": {
+            "description": "The language used by an execution that specifies none. Required if languages is not empty, and must be one of the listed languages.",
+            "type": "string",
+            "pattern": "^[a-z]{3}$"
+        },
+        "supportsKnownNotes": {
+            "description": "Whether the module reads knownNotes and preserves their boundaries.",
+            "type": "boolean",
+            "default": false
+        },
+        "knobs": {
+            "description": "The knobs this module supports. The module ignores a caller-supplied value for a knob that is absent here.",
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "boundaryThreshold": { "$ref": "#/$defs/knob" },
+                "boundaryRadius": { "$ref": "#/$defs/knob" },
+                "noteThreshold": { "$ref": "#/$defs/knob" },
+                "notePresenceCutoff": { "$ref": "#/$defs/knob" },
+                "steps": { "$ref": "#/$defs/intKnob" }
+            }
+        }
+    },
+    "$defs": {
+        "knob": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["minimum", "maximum", "default"],
+            "properties": {
+                "minimum": { "type": "number" },
+                "maximum": { "type": "number" },
+                "default": { "type": "number" }
+            }
+        },
+        "intKnob": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["minimum", "maximum", "default"],
+            "properties": {
+                "minimum": { "type": "integer", "minimum": -2147483647, "maximum": 2147483647 },
+                "maximum": { "type": "integer", "minimum": -2147483647, "maximum": 2147483647 },
+                "default": { "type": "integer", "minimum": -2147483647, "maximum": 2147483647 }
+            }
+        }
+    }
+}

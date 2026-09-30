@@ -1,0 +1,37 @@
+{
+  "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
+  "name": "synthrt-main",
+  "version-string": "onnxruntime-builds-uptake",
+  "port-version": 1,
+  "description": [
+    "SVS Synthesis Runtime Library, main line.",
+    "The port is not named synthrt because the shared overlay contains a port of that name pinned to the refactor line; this overlay is searched first, so a port of the same name here would shadow that port without notice."
+  ],
+  "homepage": "https://github.com/diffscope/synthrt",
+  "license": "Apache-2.0",
+  "dependencies": [
+    {
+      "name": "vcpkg-cmake",
+      "host": true
+    },
+    {
+      "name": "vcpkg-cmake-config",
+      "host": true
+    },
+    "qmsetup",
+    "stduuid",
+    "stdcorelib",
+    "stdcorelib-plugin",
+    "blake3",
+    "sparsepp",
+    "bit7z"
+  ],
+  "features": {
+    "onnx": {
+      "description": "Build dsinfer and its ONNX Runtime driver (DirectML on Windows, CPU elsewhere)",
+      "dependencies": [
+        "onnxruntime-builds"
+      ]
+    }
+  }
+}

@@ -1,0 +1,25 @@
+{
+    "interface": "org.openvpi.otter.inference.Align",
+    "level": 1,
+    "variant": "stub",
+    "name": "Stub Align",
+    "exports": {
+        "sampleRate": 16000,
+        "channelCount": 1,
+        "maxSegmentDuration": 60,
+        "languages": [
+            { "language": "cmn", "scheme": "pinyin", "lyrics": "scheme", "phonemes": ["a", "b"] },
+            { "language": "yue", "scheme": "jyutping", "lyrics": "scheme", "phonemes": ["aa"] },
+            { "language": "yue", "scheme": "yale", "lyrics": "text", "phonemes": ["a"] }
+        ],
+        "defaultLanguage": "cmn",
+        "nonSpeechPhonemes": ["AP", "EP"],
+        "defaultNonSpeechPhonemes": ["AP"],
+        "silenceLabel": "SP",
+        "knobs": {
+            "nonSpeechThreshold": { "minimum": 0.0, "maximum": 1.0, "default": 0.5 },
+            "nonSpeechMinDuration": { "minimum": 0.0, "maximum": 2.0, "default": 0.1 },
+            "gapFill": { "minimum": 0.0, "maximum": 1.0, "default": 0.1 }
+        }
+    }
+}

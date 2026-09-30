@@ -1,0 +1,13 @@
+{
+    "interface": "org.openvpi.otter.inference.F0",
+    "level": 1,
+    "variant": "stub",
+    "name": "F0 whose interpreter returns an executive of no contract",
+    "exports": {
+        "sampleRate": 16000,
+        "interval": 0.01
+    },
+    "configuration": {
+        "foreignExecutive": true
+    }
+}

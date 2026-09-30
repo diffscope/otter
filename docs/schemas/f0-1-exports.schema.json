@@ -1,0 +1,64 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://github.com/diffscope/otter/docs/schemas/f0-1-exports.schema.json",
+    "title": "org.openvpi.otter.inference.F0 Level 1 exports",
+    "description": "Properties declared by an F0 analysis contribution: the audio format that a host must prepare and the supported knobs. The host reads these properties before any provider runs. The interface and level define the syntax, independent of the variant.",
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["sampleRate", "interval"],
+    "properties": {
+        "sampleRate": {
+            "description": "Input sample rate in hertz. The host resamples the audio to this rate; the module never resamples.",
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+        },
+        "channelCount": {
+            "description": "Input channel count. The module averages input with more channels down to this count and rejects input with fewer channels.",
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647,
+            "default": 1
+        },
+        "interval": {
+            "description": "Time between adjacent output frames, in seconds.",
+            "type": "number",
+            "exclusiveMinimum": 0
+        },
+        "maxSegmentDuration": {
+            "description": "Maximum duration of the audio accepted by one execution, in seconds. No limit applies if absent. The host slices the audio so that no segment exceeds it.",
+            "type": "number",
+            "exclusiveMinimum": 0
+        },
+        "knobs": {
+            "description": "The knobs this module supports. The module ignores a caller-supplied value for a knob that is absent here.",
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "voicingThreshold": { "$ref": "#/$defs/knob" },
+                "interpolateUnvoiced": { "$ref": "#/$defs/flagKnob" }
+            }
+        }
+    },
+    "$defs": {
+        "knob": {
+            "description": "A continuous knob: the range of values that a caller may request, and the value used if the caller requests none.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["minimum", "maximum", "default"],
+            "properties": {
+                "minimum": { "type": "number" },
+                "maximum": { "type": "number" },
+                "default": { "type": "number" }
+            }
+        },
+        "flagKnob": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["default"],
+            "properties": {
+                "default": { "type": "boolean" }
+            }
+        }
+    }
+}

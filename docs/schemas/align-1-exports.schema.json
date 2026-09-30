@@ -1,0 +1,102 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://github.com/diffscope/otter/docs/schemas/align-1-exports.schema.json",
+    "title": "org.openvpi.otter.inference.Align Level 1 exports",
+    "description": "Properties declared by a forced alignment contribution: the audio format that a host must prepare, the languages and non-speech classes that the module distinguishes, the silence label, and the supported knobs. The interface and level define the syntax, independent of the variant.",
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["sampleRate"],
+    "properties": {
+        "sampleRate": {
+            "description": "Input sample rate in hertz. The host resamples the audio to this rate; the module never resamples.",
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+        },
+        "channelCount": {
+            "description": "Input channel count. The module averages input with more channels down to this count and rejects input with fewer channels.",
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647,
+            "default": 1
+        },
+        "maxSegmentDuration": {
+            "description": "Maximum duration of the audio accepted by one execution, in seconds. No limit applies if absent. The limit is mandatory: the host slices the audio so that no segment exceeds it.",
+            "type": "number",
+            "exclusiveMinimum": 0
+        },
+        "languages": {
+            "description": "The languages this module aligns. Each entry specifies an ISO 639-3 code, the scheme of its phonemes (a wolf scheme name), the form of its lyrics, and the phonemes a result can contain. Each language and scheme pair appears at most once. Absent or empty indicates that the module does not distinguish languages.",
+            "type": "array",
+            "items": { "$ref": "#/$defs/language" }
+        },
+        "defaultLanguage": {
+            "description": "The language used by an execution that specifies none. Required if languages is not empty, and must be one of the listed languages.",
+            "type": "string",
+            "pattern": "^[a-z]{3}$"
+        },
+        "nonSpeechPhonemes": {
+            "description": "Labels of the non-speech sounds that the module detects independently of the lyrics. Absent or empty indicates that the module detects no non-speech sounds.",
+            "type": "array",
+            "uniqueItems": true,
+            "items": { "type": "string", "minLength": 1 }
+        },
+        "defaultNonSpeechPhonemes": {
+            "description": "The non-speech labels detected by an execution that specifies none. Must be a subset of nonSpeechPhonemes.",
+            "type": "array",
+            "uniqueItems": true,
+            "items": { "type": "string", "minLength": 1 }
+        },
+        "silenceLabel": {
+            "description": "Label of a word that represents silence. If absent, the module does not report silence as a word.",
+            "type": "string",
+            "minLength": 1
+        },
+        "knobs": {
+            "description": "The knobs this module supports. The module ignores a caller-supplied value for a knob that is absent here.",
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "nonSpeechThreshold": { "$ref": "#/$defs/knob" },
+                "nonSpeechMinDuration": { "$ref": "#/$defs/knob" },
+                "gapFill": { "$ref": "#/$defs/knob" }
+            }
+        }
+    },
+    "$defs": {
+        "language": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["language", "scheme", "lyrics", "phonemes"],
+            "properties": {
+                "language": { "type": "string", "pattern": "^[a-z]{3}$" },
+                "scheme": {
+                    "description": "The scheme of the phonemes, such as pinyin or arpabet.",
+                    "type": "string",
+                    "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+                },
+                "lyrics": {
+                    "description": "scheme: lyrics are syllables written in the scheme, as produced by a wolf G2P of the same language and scheme. text: lyrics are ordinary words, which the module converts internally.",
+                    "enum": ["scheme", "text"]
+                },
+                "phonemes": {
+                    "description": "All phoneme labels that a result in this language can contain, excluding the silence label and the non-speech labels.",
+                    "type": "array",
+                    "minItems": 1,
+                    "uniqueItems": true,
+                    "items": { "type": "string", "minLength": 1 }
+                }
+            }
+        },
+        "knob": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["minimum", "maximum", "default"],
+            "properties": {
+                "minimum": { "type": "number" },
+                "maximum": { "type": "number" },
+                "default": { "type": "number" }
+            }
+        }
+    }
+}

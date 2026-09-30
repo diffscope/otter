@@ -1,0 +1,25 @@
+@PACKAGE_INIT@
+
+include(CMakeFindDependencyMacro)
+
+find_dependency(synthrt CONFIG REQUIRED)
+
+include("${CMAKE_CURRENT_LIST_DIR}/otterTargets.cmake")
+
+# Installation directory of the plugin bundles, with one subdirectory per category
+# (inferenceinterpreters). When a host calls SynthUnit::setPluginPaths for the inference category,
+# it passes the category directory together with those of the other libraries it loads. The value
+# is a path rather than a link target because plugins are loaded by name at run time. The path is
+# the path used by the install rules and is therefore also correct for a tree whose library
+# directory is not lib.
+set(OTTER_PLUGINS_DIR "${PACKAGE_PREFIX_DIR}/@OTTER_INSTALL_PLUGINS_DIR@")
+
+# A vcpkg tree keeps its Debug build under a separate debug/ prefix, and a Debug host must load the
+# plugins in that prefix: on Windows, a plugin and a host built against different runtimes cannot
+# load each other. The release tree remains in OTTER_PLUGINS_DIR, which a plain install provides and
+# existing consumers already read. The second variable is defined only if a debug tree exists, so
+# that a consumer can select a directory per configuration and a consumer that ignores the variable
+# continues to work.
+if(IS_DIRECTORY "${PACKAGE_PREFIX_DIR}/debug/@OTTER_INSTALL_PLUGINS_DIR@")
+    set(OTTER_PLUGINS_DIR_DEBUG "${PACKAGE_PREFIX_DIR}/debug/@OTTER_INSTALL_PLUGINS_DIR@")
+endif()

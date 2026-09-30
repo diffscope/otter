@@ -1,0 +1,38 @@
+{
+    "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
+    "dependencies": [
+        "qmsetup",
+        "stdcorelib",
+        "stdcorelib-plugin",
+        "synthrt-main"
+    ],
+    "features": {
+        "onnx": {
+            "description": "Build the analysis providers, which need dsinfer and its ONNX Runtime driver",
+            "dependencies": [
+                {
+                    "name": "synthrt-main",
+                    "default-features": false,
+                    "features": [
+                        "onnx"
+                    ]
+                }
+            ]
+        },
+        "tests": {
+            "description": "Enable test cases support",
+            "dependencies": [
+                "boost-test"
+            ]
+        }
+    },
+    "vcpkg-configuration": {
+        "overlay-ports": [
+            "../vcpkg-ports",
+            "../vcpkg/ports"
+        ],
+        "overlay-triplets": [
+            "../vcpkg/triplets"
+        ]
+    }
+}
