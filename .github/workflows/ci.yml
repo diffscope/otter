@@ -1,0 +1,98 @@
+# Builds and tests otter on Linux and Windows.
+#
+# The dependency tree comes from vcpkg through the manifest in scripts/vcpkg-manifest, with the
+# in-repo ports in scripts/vcpkg-ports searched before the shared overlay submodule.
+name: ci
+
+on:
+  push:
+    # Runs on the trunk and on the integration branches, because work remains on an integration
+    # branch for extended periods. The trunk is main, as in wolf; a trigger restricted to a branch
+    # absent from the repository never runs.
+    branches: [main, "analysis-**"]
+  pull_request:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            triplet: x64-linux
+          - os: windows-2022
+            triplet: x64-windows
+    runs-on: ${{ matrix.os }}
+    env:
+      VCPKG_DEFAULT_TRIPLET: ${{ matrix.triplet }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install build tools
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build python3
+          # The build generates the model fixtures if a Python interpreter with onnx is present.
+          python3 -m pip install --user --break-system-packages onnx numpy
+
+      - name: Set up the MSVC environment
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Set up vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgDirectory: ${{ runner.temp }}/vcpkg
+          vcpkgGitCommitId: 1fddddc280dfed63956e15ef74f4321bc6a219c9
+          runVcpkgInstall: false
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          "${{ runner.temp }}/vcpkg/vcpkg" install \
+            --x-manifest-root=scripts/vcpkg-manifest \
+            --x-install-root=build/vcpkg_installed \
+            --x-feature=onnx --x-feature=tests
+
+      - name: Configure
+        shell: bash
+        run: |
+          cmake -S . -B build/cmake -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_TOOLCHAIN_FILE="${{ runner.temp }}/vcpkg/scripts/buildsystems/vcpkg.cmake" \
+            -DVCPKG_INSTALLED_DIR="$PWD/build/vcpkg_installed" \
+            -DVCPKG_MANIFEST_MODE=OFF \
+            -DOTTER_BUILD_TESTS=ON
+
+      - name: Build
+        run: cmake --build build/cmake
+
+      - name: Run the script tests
+        run: python3 -m unittest discover -s scripts -p "test_*.py"
+
+      - name: Lint the shipped declarations
+        # The repository holds the declarations without their models, so this step checks only the
+        # declarations; make-package.py checks the model files when it assembles a package.
+        run: python3 scripts/check-declarations.py --declarations-only packages/rmvpe packages/game packages/hfa
+
+      - name: Test
+        # Data-dependent tests exit with the skip status if their packages are absent.
+        run: ctest --test-dir build/cmake --output-on-failure
+
+      - name: Check the installed CMake package
+        # The test suite exercises the code, and this step exercises the installed package that a
+        # host consumes. The install rules write its targets, include directories and plugin
+        # directory, and only a consumer project reads them.
+        shell: bash
+        run: |
+          cmake --install build/cmake --prefix build/install
+          cmake -S .github/consumer -B build/consumer -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_TOOLCHAIN_FILE="${{ runner.temp }}/vcpkg/scripts/buildsystems/vcpkg.cmake" \
+            -DVCPKG_INSTALLED_DIR="$PWD/build/vcpkg_installed" \
+            -DVCPKG_MANIFEST_MODE=OFF \
+            -DCMAKE_PREFIX_PATH="$PWD/build/install"
+          cmake --build build/consumer
