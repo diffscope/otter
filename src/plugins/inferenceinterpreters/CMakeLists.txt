@@ -33,6 +33,20 @@ function(otter_add_interpreter_plugin _target _directory)
     )
     otter_drop_plugin_postfix(${_target})
 
+    # The plugin loader resolves the library beside the manifest, and a multi-config generator
+    # would otherwise build it into a configuration subdirectory the loader never searches. Every
+    # configuration therefore builds into the manifest's directory; the plugin carries no debug
+    # postfix, so the configurations overwrite one another, and only one of them is deployed at a
+    # time.
+    set(_plugin_output_dir "${OTTER_BUILD_PLUGINS_DIR}/${CURRENT_PLUGIN_CATEGORY}/${_directory}")
+    set_target_properties(${_target} PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY "${_plugin_output_dir}"
+        RUNTIME_OUTPUT_DIRECTORY_DEBUG "${_plugin_output_dir}"
+        RUNTIME_OUTPUT_DIRECTORY_RELEASE "${_plugin_output_dir}"
+        RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO "${_plugin_output_dir}"
+        RUNTIME_OUTPUT_DIRECTORY_MINSIZEREL "${_plugin_output_dir}"
+    )
+
     stdc_add_plugin_metadata(TARGET ${_target} IID ${CURRENT_PLUGIN_IID})
 
     # configure_file is used instead of a copy command because it re-runs when plugin.json changes
@@ -86,6 +100,42 @@ if(OTTER_HAS_DSINFER)
         SOURCES tifa/main.cpp tifa/Decode.h tifa/Decode.cpp tifa/Grid.h tifa/Grid.cpp
                 tifa/Scoring.h tifa/Scoring.cpp
         LINKS otter otter_support otter_onnx_support dsinfer::dsinfer
+    )
+endif()
+
+# The ggml providers drive the command line tools of the game.cpp and tifa.cpp releases as child
+# processes: the span travels in, the notes or the alignment travel out, and the engine, the ggml
+# backends it ships with and the weights stay outside the host process, where their own release
+# keeps them. They need neither dsinfer nor any source of this repository, so they build beside the
+# ONNX providers, and a host that offers them needs nothing beside the package.
+option(OTTER_BUILD_GAME_GGML "Build the game-ggml interpreter, which drives the game.cpp CLI" ON)
+option(OTTER_BUILD_TIFA_GGML "Build the tifa-ggml interpreter, which drives the tifa.cpp CLI" ON)
+
+# otter_cli_support contains the code the two external providers share, as a static library that
+# each provider links: the child process with its redirected streams, the float32 WAV an execution
+# hands its engine, and the scratch directory of one execution. Hidden visibility prevents a plugin
+# from re-exporting it.
+add_library(otter_cli_support STATIC external/CliProcess.h external/CliProcess.cpp)
+target_link_libraries(otter_cli_support PUBLIC otter otter_support)
+target_include_directories(otter_cli_support PUBLIC external)
+target_compile_features(otter_cli_support PUBLIC cxx_std_17)
+set_target_properties(otter_cli_support PROPERTIES
+    POSITION_INDEPENDENT_CODE ON
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN ON
+)
+
+if(OTTER_BUILD_GAME_GGML)
+    otter_add_interpreter_plugin(ottergameggml game-ggml
+        SOURCES game-ggml/main.cpp
+        LINKS otter otter_support otter_cli_support
+    )
+endif()
+
+if(OTTER_BUILD_TIFA_GGML)
+    otter_add_interpreter_plugin(ottertifaggml tifa-ggml
+        SOURCES tifa-ggml/main.cpp
+        LINKS otter otter_support otter_cli_support
     )
 endif()
 

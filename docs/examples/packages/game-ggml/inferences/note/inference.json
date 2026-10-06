@@ -1,0 +1,56 @@
+{
+    "interface": "org.openvpi.otter.inference.Note",
+    "level": 1,
+    "variant": "game-ggml",
+    "name": "GAME (ggml)",
+    "exports": {
+        "sampleRate": 44100,
+        "channelCount": 1,
+        "maxSegmentDuration": 30,
+        "languages": [
+            "cmn",
+            "eng",
+            "jpn",
+            "yue"
+        ],
+        "defaultLanguage": "cmn",
+        "knobs": {
+            "steps": {
+                "minimum": 1,
+                "maximum": 16,
+                "default": 8
+            },
+            "boundaryThreshold": {
+                "minimum": 0.0,
+                "maximum": 1.0,
+                "default": 0.2
+            },
+            "boundaryRadius": {
+                "minimum": 0.0,
+                "maximum": 1.0,
+                "default": 0.02
+            },
+            "noteThreshold": {
+                "minimum": 0.0,
+                "maximum": 1.0,
+                "default": 0.2
+            },
+            "notePresenceCutoff": {
+                "minimum": 0.0,
+                "maximum": 1.0,
+                "default": 0.5
+            }
+        }
+    },
+    "configuration": {
+        "cli": "../../game_ggml_cli.exe",
+        "model": "../../game_medium.gguf",
+        "languages": {
+            "cmn": 4,
+            "eng": 1,
+            "jpn": 2,
+            "yue": 3
+        },
+        "timestep": 0.01
+    }
+}

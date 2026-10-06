@@ -1,0 +1,15 @@
+{
+    "$version": "1.0",
+    "id": "otter/tifa-ggml",
+    "version": "0.1.0.0",
+    "compatVersion": "0.1.0.0",
+    "runtimeLevel": 1,
+    "contributions": {
+        "inference": [
+            {
+                "id": "align",
+                "path": "./inferences/align/inference.json"
+            }
+        ]
+    }
+}

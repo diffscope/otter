@@ -1,0 +1,10 @@
+{
+    "name": "ottergameggml",
+    "interpreters": [
+        {
+            "interface": "org.openvpi.otter.inference.Note",
+            "level": 1,
+            "variant": "game-ggml"
+        }
+    ]
+}

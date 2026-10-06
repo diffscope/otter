@@ -108,6 +108,22 @@ MODEL_KEYS = {
         # its exports, not from this table, so they are optional here and reached again below.
         "optional": ["dictionaryCmn", "dictionaryYue", "dictionaryJpn", "dictionaryEng"],
     },
+    (NOTE, "game-ggml"): {"required": ["cli", "model"], "optional": []},
+    (ALIGN, "tifa-ggml"): {
+        "required": ["cli", "model"],
+        # The directory the engine's G2P configuration resolves its dictionary references
+        # against. A package without it reads the dictionaries from beside the model, so it is
+        # optional here; it is a directory rather than a file, and the path checks below reach it
+        # through DIRECTORY_KEYS.
+        "optional": ["dictionaries"],
+    },
+}
+
+# The configuration keys of a variant whose value is a directory rather than a file. The engine
+# behind the tifa-ggml variant reads a whole dictionary tree, the cpp-pinyin engine's own data
+# included, so the declaration names the tree's root and the packager copies it whole.
+DIRECTORY_KEYS = {
+    (ALIGN, "tifa-ggml"): {"dictionaries"},
 }
 
 # The dictionary key a tifa configuration carries for each language its exports may declare.
@@ -135,6 +151,8 @@ CONFIGURATION_KEYS = {
         "spectrogram", "model", "prepare", "score", "select", "config", "vocabulary",
         "dictionaryCmn", "dictionaryYue", "dictionaryJpn", "dictionaryEng", "languages",
     },
+    (NOTE, "game-ggml"): {"cli", "model", "languages", "timestep"},
+    (ALIGN, "tifa-ggml"): {"cli", "model", "dictionaries", "languages"},
 }
 
 # Export values fixed by each variant's model. The interpreter rejects a declaration that
@@ -148,6 +166,12 @@ VARIANT_FACTS = {
     # which the align check reads, so the declaration is compared against the model rather than
     # against a constant here.
     (ALIGN, "tifa"): {},
+    # The ggml variants have no fixed facts here: their model facts live in a GGUF file, which
+    # this lint cannot read, and their providers drive an external tool that reads the file
+    # itself. The exports therefore state the audio format from the model's own documentation, and
+    # the host owns the promise.
+    (NOTE, "game-ggml"): {},
+    (ALIGN, "tifa-ggml"): {},
 }
 
 # The largest value the readers accept for an integer that they narrow to int.
@@ -167,6 +191,8 @@ LANGUAGE_NUMBERING = {
     (NOTE, "game"): "int",
     (ALIGN, "hfa"): "string",
     (ALIGN, "tifa"): "string",
+    (NOTE, "game-ggml"): "int",
+    (ALIGN, "tifa-ggml"): "string",
 }
 
 # The exports keys each contract defines, mirroring docs/schemas/<contract>-1-exports.schema.json.
@@ -541,7 +567,10 @@ def check_declaration(path: Path, report: Report, declarations_only: bool = Fals
         if declarations_only:
             continue
         target = resolve(path.parent, value)
-        if not target.is_file():
+        if key in DIRECTORY_KEYS.get((interface, variant), ()):
+            if not target.is_dir():
+                report.error(where, f"{key} refers to a missing directory: {value}")
+        elif not target.is_file():
             report.error(where, f"{key} refers to a missing file: {value}")
         elif target.stat().st_size == 0:
             report.error(where, f"{key} refers to an empty file: {value}")
@@ -587,12 +616,20 @@ def check_declaration(path: Path, report: Report, declarations_only: bool = Fals
         if start is not None and (isinstance(start, bool) or not isinstance(start, (int, float))
                                   or not 0 <= start <= 1):
             report.error(where, "scheduleStart must be a number between 0 and 1")
-        if exports.get("supportsKnownNotes") and "durationToBoundary" not in configuration:
-            report.error(where, "the exports declare supportsKnownNotes, but the configuration names no durationToBoundary model")
-        if "durationToBoundary" in configuration and not exports.get("supportsKnownNotes"):
-            report.warn(where, "the package contains an alignment model, but the exports do not declare supportsKnownNotes, so hosts never use the model")
-        if "durationToBoundary" not in configuration:
-            report.warn(where, "the package contains no alignment model; transcription cannot be conditioned on known notes")
+        if variant == "game-ggml":
+            # The ggml engine opens no session for the model that converts durations into
+            # boundaries, so the alignment path does not exist for the variant and the exports
+            # cannot promise it.
+            if exports.get("supportsKnownNotes"):
+                report.error(where, "the game-ggml variant cannot be conditioned on known notes, "
+                                    "so the exports cannot declare supportsKnownNotes")
+        else:
+            if exports.get("supportsKnownNotes") and "durationToBoundary" not in configuration:
+                report.error(where, "the exports declare supportsKnownNotes, but the configuration names no durationToBoundary model")
+            if "durationToBoundary" in configuration and not exports.get("supportsKnownNotes"):
+                report.warn(where, "the package contains an alignment model, but the exports do not declare supportsKnownNotes, so hosts never use the model")
+            if "durationToBoundary" not in configuration:
+                report.warn(where, "the package contains no alignment model; transcription cannot be conditioned on known notes")
 
     if interface == ALIGN and not declarations_only:
         check_align_declaration(where, path, variant, exports, configuration, numbering, report)
@@ -610,6 +647,11 @@ def check_align_declaration(where: str, path: Path, variant: str, exports: dict,
     """
     if variant == "tifa":
         check_tifa_align_declaration(where, path, exports, configuration, numbering, report)
+        return
+    if variant == "tifa-ggml":
+        # The engine's vocabulary and G2P configuration live inside the GGUF file, which this lint
+        # cannot read; the interpreter checks the declared phonemes against the model when an
+        # analyzer is created.
         return
     check_hfa_align_declaration(where, path, exports, configuration, numbering, report)
 

@@ -1,0 +1,10 @@
+{
+    "name": "ottertifaggml",
+    "interpreters": [
+        {
+            "interface": "org.openvpi.otter.inference.Align",
+            "level": 1,
+            "variant": "tifa-ggml"
+        }
+    ]
+}

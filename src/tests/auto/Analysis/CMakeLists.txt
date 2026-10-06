@@ -25,8 +25,19 @@ if(OTTER_HAS_DSINFER)
     endif()
 endif()
 
+# The ggml providers exist only in a build that named their engines, so their tests exist only
+# beside them. Without a model the tests still cover the declaration surface, and a run with no
+# model named in the environment reports itself as a skip.
+if(TARGET ottergameggml)
+    add_auto_test(test_GameGgml.cpp otter)
+endif()
+if(TARGET ottertifaggml)
+    add_auto_test(test_TifaGgml.cpp otter)
+endif()
+
 set(_otter_tests test_AnalysisContrib test_AnalysisLoad test_AnalysisRuntime test_ManifestValues
-                 test_F0Curve test_Rmvpe test_Game test_Hfa test_Tifa test_OnnxSupport)
+                 test_F0Curve test_Rmvpe test_Game test_Hfa test_Tifa test_OnnxSupport
+                 test_GameGgml test_TifaGgml)
 
 # The tests load the library under test, synthrt, its stdcorelib dependencies and, if present,
 # dsinfer and ONNX Runtime at run time. Windows resolves those through PATH; the ELF and Mach-O
@@ -159,6 +170,31 @@ foreach(_model_test IN ITEMS test_Rmvpe test_Game test_Hfa test_Tifa)
             OTTER_TEST_DRIVER_PLUGIN_DIR="${OTTER_DSINFER_DRIVER_DIR}"
             OTTER_TEST_ONNXRUNTIME_DIR="${OTTER_ONNXRUNTIME_DIR}"
         )
+    endif()
+endforeach()
+
+# The ggml tests load packages they write themselves and need no fixtures, packages directory or
+# driver. Their execution cases run against a stand-in command line tool that answers the engines'
+# protocols with canned output, which the build compiles beside the tests; the real-engine cases
+# name the engine through the environment and report themselves as a skip without it.
+add_executable(otterfakecli fakecli.cpp)
+target_compile_features(otterfakecli PRIVATE cxx_std_17)
+foreach(_ggml_test IN ITEMS test_GameGgml test_TifaGgml)
+    if(TARGET ${_ggml_test})
+        foreach(_ggml_plugin IN ITEMS ottergameggml ottertifaggml)
+            if(TARGET ${_ggml_plugin})
+                add_dependencies(${_ggml_test} ${_ggml_plugin})
+            endif()
+        endforeach()
+        add_dependencies(${_ggml_test} otterfakecli)
+        set_tests_properties(${_ggml_test} PROPERTIES SKIP_RETURN_CODE ${OTTER_TEST_SKIP_EXIT_CODE})
+        target_compile_definitions(${_ggml_test} PRIVATE
+            OTTER_TEST_SKIP_EXIT_CODE=${OTTER_TEST_SKIP_EXIT_CODE}
+            OTTER_TEST_PLUGIN_DIR="${OTTER_BUILD_PLUGINS_DIR}/inferenceinterpreters"
+            OTTER_TEST_FAKE_CLI="$<TARGET_FILE:otterfakecli>"
+        )
+        set_tests_properties(${_ggml_test} PROPERTIES ENVIRONMENT_MODIFICATION
+            "${_otter_test_env}")
     endif()
 endforeach()
 

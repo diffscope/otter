@@ -1,0 +1,15 @@
+{
+    "$version": "1.0",
+    "id": "otter/game-ggml",
+    "version": "0.1.0.0",
+    "compatVersion": "0.1.0.0",
+    "runtimeLevel": 1,
+    "contributions": {
+        "inference": [
+            {
+                "id": "note",
+                "path": "./inferences/note/inference.json"
+            }
+        ]
+    }
+}

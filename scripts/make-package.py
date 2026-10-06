@@ -93,7 +93,25 @@ FIXED_TIME = (1980, 1, 1, 0, 0, 0)
 
 
 def digest(path: Path, algorithm: str) -> str:
-    """Returns the hex digest of a file, reading it in chunks to bound memory use."""
+    """Returns the hex digest of a file, reading it in chunks to bound memory use.
+
+    A directory is hashed as one unit: the names and the contents of its files, walked in the
+    order of their POSIX-relative paths, so the digest of the same tree is the same everywhere and
+    a replaced file inside it changes the digest of the whole.
+    """
+    if path.is_dir():
+        hasher = hashlib.new(algorithm)
+        members = sorted((member for member in path.rglob("*") if member.is_file()),
+                         key=lambda member: member.relative_to(path).as_posix())
+        for member in members:
+            name = member.relative_to(path).as_posix().encode("utf-8")
+            hasher.update(len(name).to_bytes(8, "little"))
+            hasher.update(name)
+            hasher.update(member.stat().st_size.to_bytes(8, "little"))
+            with member.open("rb") as handle:
+                for block in iter(lambda: handle.read(CHUNK), b""):
+                    hasher.update(block)
+        return hasher.hexdigest()
     hasher = hashlib.new(algorithm)
     with path.open("rb") as handle:
         for block in iter(lambda: handle.read(CHUNK), b""):
@@ -158,14 +176,14 @@ def find_model(models: Path, inside: Path, names: dict) -> Path | None:
     :returns: the path of the file, or None if no file is found.
     """
     candidate = models / inside
-    if candidate.is_file():
+    if candidate.is_file() or candidate.is_dir():
         return candidate
     if len(names.get(inside.name, ())) > 1:
         paths = ", ".join(sorted(str(path) for path in names[inside.name]))
         raise SystemExit(f"{paths} share the name {inside.name}; arrange {models} in the "
                          f"package layout so that each file is found at its own path")
     candidate = models / inside.name
-    return candidate if candidate.is_file() else None
+    return candidate if candidate.is_file() or candidate.is_dir() else None
 
 
 def assemble(declarations: Path, variant: str, models: Path, output: Path,
@@ -203,7 +221,14 @@ def assemble(declarations: Path, variant: str, models: Path, output: Path,
         if candidate is None:
             raise SystemExit(f"{what} names {inside}, which is missing from {models}")
         (directory / inside).parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(candidate, directory / inside)
+        if candidate.is_dir():
+            # A directory a declaration names is one unit the engine reads whole, the dictionaries
+            # of the tifa-ggml variant above all, so it travels with every file it holds. The
+            # destination may already exist because an earlier key shipped a file inside it, so the
+            # copy merges rather than refuses.
+            shutil.copytree(candidate, directory / inside, dirs_exist_ok=True)
+        else:
+            shutil.copy2(candidate, directory / inside)
         shipped.append(inside)
 
     shipped = []

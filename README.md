@@ -144,7 +144,7 @@ Without that variable the two tests exit with the status ctest reports as skippe
 
 ## Model packages
 
-A package is a declaration plus the model files it names, and it travels as one archive that is published with the models rather than from this repository: release `models-v0.1` provides `otter-game`, `otter-hfa`, `otter-rmvpe` and `otter-tifa`, version 0.1.0.0, with a `manifest.json` that lists all four. The declarations are not tracked here; assembly reads them from the directory given as `--declarations`, and [docs/packages.md](docs/packages.md) is the authority on what a release contains.
+A package is a declaration plus the model files it names, and it travels as one archive that is published with the models rather than from this repository: release `models-v0.1` provides `otter-game`, `otter-hfa`, `otter-rmvpe` and `otter-tifa`, version 0.1.0.0, with a `manifest.json` that lists all four. The declarations are not tracked here; assembly reads them from the directory given as `--declarations`, and [docs/packages.md](docs/packages.md) is the authority on what a release contains. Two more variants run the engines of their own releases instead of ONNX graphs and package an engine archive rather than weights; [docs/ggml-providers.md](docs/ggml-providers.md) describes them and the declarations under [docs/examples/packages](docs/examples/packages).
 
 A checkout can be given the real packages with one command, without a Python interpreter:
 
@@ -184,6 +184,7 @@ The analyzers are plugins located through the inference search path. A host ther
 
 + [otter-design.md](docs/otter-design.md): the design, including the layering, the contract surfaces, the host responsibilities, the decision ledger, the audits and the implementation milestones.
 + [packages.md](docs/packages.md): the factory declarations, the assembly of a package and the checks it must pass.
++ [ggml-providers.md](docs/ggml-providers.md): the `game-ggml` and `tifa-ggml` variants, which drive the ggml engines of game.cpp and tifa.cpp as external processes.
 + [lite-integration.md](docs/lite-integration.md): the integration of otter into ds-editor-lite and the functions that ds-editor-lite no longer implements itself.
 + [plans/hfa-align.md](docs/plans/hfa-align.md): the implementation plan and record of the Align contract and the `hfa` variant.
 + [plans/tifa-align.md](docs/plans/tifa-align.md): the implementation plan and record of the `tifa` variant, including the readings of the real-weight gate.
