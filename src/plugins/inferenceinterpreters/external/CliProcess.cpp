@@ -1,7 +1,10 @@
 #include "CliProcess.h"
 
 #include <atomic>
+#include <cerrno>
 #include <chrono>
+#include <cstddef>
+#include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <mutex>
@@ -19,6 +22,7 @@
 #include <windows.h>
 #else
 #include <csignal>
+#include <fcntl.h>
 #include <sys/wait.h>
 #include <unistd.h>
 #endif
