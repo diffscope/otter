@@ -259,7 +259,7 @@
     },
     "configuration": {
         "cli": "../../tifa_ggml_cli.exe",
-        "model": "../../models/tifa-1.0-st-f16.gguf",
+        "model": "../../models/tifa.gguf",
         "dictionaries": "../../models",
         "languages": {
             "cmn": "zh",

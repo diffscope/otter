@@ -9,6 +9,8 @@
 | `hfa/` | `org.openvpi.otter.inference.Align` | `hfa` | `model.onnx` 及模型自带的 `config.json`、`vocab.json` 与三部词典（44.1 kHz） |
 | `tifa/` | `org.openvpi.otter.inference.Align` | `tifa` | `spectrogram`、`model`、`prepare`、`score`、`select` 五个 ONNX（由上游导出器产出）及导出的 `config.json`、`vocabulary.json` 与四本词典（48 kHz） |
 
+另有两个 ggml 变体 `game-ggml`（`Note`）与 `tifa-ggml`（`Align`），它们**不跑 ONNX 图，而是把引擎自己的 release 当包**：包内必须有引擎的可执行文件、GGUF 权重与引擎自带的 ggml 运行库，声明用 `configuration` 的 `cli`／`model`／`dictionaries` 指到它们。两者**不在 `models-v0.1` 里**，需要单独下载引擎归档（game.cpp 的 `game_ggml-<平台>-<后端>.oudep`、tifa.cpp 的 `tifa-cli-<平台>-<精度>.tar.gz`）；包里没有引擎文件时创建分析器直接失败（`cannot find the game/tifa CLI at <path>`），**不会回退到 ONNX 变体**。安装步骤、平台矩阵、运行代价与示例声明见 [ggml-providers.md](ggml-providers.md)（中文对照 [ggml-providers.zh.md](ggml-providers.zh.md)）。
+
 ## 包声明的形状
 
 一个变体一个目录，`desc.json` 位于该目录的根，包的其余内容按声明写的路径摆放：
