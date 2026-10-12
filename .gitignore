@@ -56,6 +56,10 @@ __pycache__/
 /.tmp/
 /.safety/
 
+# Scratch written by the installed-surface check. It removes them itself; this catches the run
+# that was interrupted before it could, or one made by hand in a directory of the caller's.
+otter-version-probe-*.cmake
+
 # Packages
 #
 # A package is a declaration (desc.json and inferences/*/inference.json) plus the model files it

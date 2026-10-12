@@ -126,6 +126,35 @@ macOS 的 Python 步骤连续四轮失败，最后三轮都是 **pip exit 8**，
 
 **下一步只差一次有认证的日志读取**：浏览器打开 run #18 的 macOS 作业（`Install the Python build tools on macOS` 那一步），把原始输出贴出来即可定位。
 
+### 已定论（2026-10-12，用户提供了 macOS 作业日志之后）
+
+用户贴出的日志直接给出了答案，且**推翻了我前面所有关于 Python/onnx 的推断**：macOS 作业的 `Configure`、`Build` **全部通过**，`ctest` 14 个用例里 **13 个通过、1 个失败**，失败的是 `test_InstalledSurface`：
+
+```text
+Error:   the installed tree is not the surface a host expects:
+    the installed CMake package accepts versions other than the one it was built from,
+    although otter promises no ABI stability before 1.0: lib/cmake/otter/otterConfigVersion.cmake
+```
+
+也就是说 **macOS 的 Python 依赖链已经通了**（`test_Rmvpe`/`test_Game`/`test_Hfa`/`test_Tifa` 四个模型测试都 Passed），我此前"macOS 卡在装 onnx"的判断**是错的**——那些 exit 8 是 ctest 的失败退出码，不是 pip 的。两个 skipped 是 `test_GameGgml`/`test_TifaGgml`（需要真引擎），属设计内跳过。
+
+#### 真正的两个缺陷
+
+**缺陷 A（P0，测试脆弱）**：那条断言检查的是 `otterConfigVersion.cmake` 里是否出现字面量 `ExactVersion`。该字符串**只来自 CMake 模板的 `AUTHOR_WARNING` 分支**（`Modules/BasicConfigVersion-ExactVersion.cmake.in`）。实测本机 CMake 3.30.4 生成的 `build/cmake/src/otterConfigVersion.cmake` 里确有它（第 12–17 行），而 macOS 镜像的 CMake 4.4.3 生成的文件里没有——于是**行为完全正确的包被判定失败**。即：这条断言测的是 CMake 自己的模板，不是 otter 装出来的东西，CMake 换个措辞它就翻。
+
+**缺陷 B（P0，真实缺口，原断言掩盖了它）**：把断言换成**实测行为**（写一个 probe 脚本 `set(PACKAGE_FIND_VERSION ...)` 后 `include()` 安装好的版本文件，读 `PACKAGE_VERSION_COMPATIBLE`/`PACKAGE_VERSION_EXACT`），结果暴露出 `ExactVersion` 语义比声称的松：
+
+| 请求 | COMPATIBLE | 说明 |
+| :-- | :-- | :-- |
+| `0.1.0.0` | TRUE（EXACT=TRUE） | 正确 |
+| `0.1.0.0.1` | **TRUE** | **不该**——四个组件里最后一个不同，却被接受 |
+| `1.0.0.0` | FALSE | 正确 |
+
+原因是 `ExactVersion` 的比较**只看前三个组件**（major.minor.patch），把第四位当 tweak 忽略。otter 的项目版本是四位（`0.1.0.0`），于是**一个带不同第四位的构建会被寻求精确版本的宿主接受**——正是"1.0 前不做 ABI 承诺"想拦住的场景。
+
+**为什么这个缺口以前没被发现**：老断言只在文件里找字符串，从不问它接受什么；字符串在，测试就绿，哪怕策略是松的。这就是"断言实现细节"与"断言行为"的差别，也是本轮最值得记的一条。
+
+
 ### 已试过且失败的手段（勿重复）
 
 1. 完全不装 onnx（run #13）→ 门禁报 `interpreter without onnx`，四个模型测试未注册；
