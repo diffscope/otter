@@ -65,24 +65,33 @@ jobs:
         # the "Require the model tests" step below exists to catch. Installing here fails in seconds
         # instead of after a full build.
         #
-        # The interpreter is chosen, not taken from the path: the image ships Python 3.11 through
-        # 3.14 with `python3` on 3.14, and onnx publishes no macOS wheel for a release Python that
-        # new — its macOS wheels stop at the 3.12 stable ABI, which every interpreter above it
-        # accepts. `python3` would therefore try to build onnx from source, which is the failure run
-        # #14 died of. The last version named here is the oldest one the image ships.
+        # Two things about this runner make a plain install wrong, and a virtual environment answers
+        # both. Its `python3` is 3.14, for which onnx publishes no macOS wheel (its macOS wheels stop
+        # at the 3.12 stable ABI, which every interpreter above accepts), so the interpreter is
+        # chosen from the ones the image ships, onnx-compatible first. And those interpreters are
+        # externally managed, so pip refuses to install into them; run #15 died of exactly that,
+        # with pip's exit 8.
         #
-        # The import is asserted rather than assumed, and PYTHON is exported so that the Configure
-        # step below hands this same interpreter to CMake: an interpreter without onnx disables the
-        # model tests instead of failing, and the wrong one would do it silently.
+        # PYTHON is exported so the Configure step hands CMake this same interpreter: an interpreter
+        # without onnx disables the model tests instead of failing them, so installing into one while
+        # CMake probes another would shrink the suite just as silently as not installing at all.
         run: |
-          for candidate in python3.13 python3.12 python3.11; do
-            if command -v "$candidate" >/dev/null 2>&1; then PYTHON="$(command -v "$candidate")"; break; fi
+          set -e
+          PYTHON=""
+          for candidate in python3.13 python3.12 python3.11 "${PYTHON:-}"; do
+            if [ -n "$candidate" ] && command -v "$candidate" >/dev/null 2>&1; then
+              PYTHON="$(command -v "$candidate")"
+              break
+            fi
           done
           if [ -z "$PYTHON" ]; then
-            echo "::error::none of python3.13, python3.12 or python3.11 is on the image"
+            echo "::error::no onnx-compatible interpreter is on this image"
             exit 1
           fi
-          "$PYTHON" -m pip install --user onnx numpy
+          "$PYTHON" -m venv build/python-env
+          PYTHON="$PWD/build/python-env/bin/python"
+          "$PYTHON" -m pip install --upgrade pip
+          "$PYTHON" -m pip install onnx numpy
           "$PYTHON" --version
           "$PYTHON" -c "import onnx, numpy; print('onnx', onnx.__version__, 'numpy', numpy.__version__)"
           echo "PYTHON=$PYTHON" >> "$GITHUB_ENV"
