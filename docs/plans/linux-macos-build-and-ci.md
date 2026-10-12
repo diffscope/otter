@@ -32,13 +32,20 @@
 + 事实：原始文件未包含 `<pthread.h>`。glibc 的 `<csignal>` 会带入声明，所以 Linux 能编过；但这是偶然的传递包含，与上一个提交（`e770ab9`）修掉的 `<fcntl.h>`/`<cerrno>` 属同一类缺陷。
 + 修复：POSIX 分支补 `#include <pthread.h>`。
 
-### P0（新，run #13 暴露并已修）：macOS 作业缺一个 Python 依赖安装步骤
+### P0（run #13 暴露，run #14 暴露第二层，已修）：macOS 作业的 Python 依赖链
 
-+ **成因已定论**：`.github/workflows/ci.yml` 里安装 `onnx`/`numpy` 的步骤原有两个互斥分支——`Install build tools` 为 `if: runner.os == 'Linux'`，`Install the Python build tools` 为 `if: runner.os == 'Windows'`。**macOS 两个都不满足，因此该作业从未安装 onnx**，这是一处条件分支漏项，不是平台问题。
-+ 后果链：macOS runner 镜像自带 Python → `find_package(Python3)` 命中它 → 配置期 `import onnx, numpy` 失败 → `_otter_can_make_fixtures` 为 OFF → 四个模型测试被 `DISABLED` → `Require the model tests` 打印 `test_Rmvpe is not an enabled test, so an interpreter without onnx was found` 并转红。
-+ 归属层：**本仓的 workflow**。`synthrt`、vcpkg、macOS 全部无关——同一次运行里 `Install dependencies`、`Configure`、`Build` 都是成功步骤。
-+ 修复（已实施，见 §4 的 D7）：新增 `Install the Python build tools on macOS`（`if: runner.os == 'MacOS'`），当场 `pip install --user onnx numpy` 并**断言 `import onnx, numpy` 成功**——这样「解释器没有 onnx」在十几秒内暴露，而不是等一次完整构建之后。
-+ 教训（同类缺陷的形状）：凡是按 `runner.os` 分支的安装步骤，**新增平台时必须逐个复核每个分支是否覆盖新平台**。本仓的门禁哲学是「宁可早失败也别让套件无声缩水」，而这次正是门禁替 CI 抓到了这个漏项——但代价是十几分钟才报。
+这一条有两层，都是**本仓 workflow 的漏项**，与 `synthrt`／vcpkg／macOS 平台本身无关——同一次 run #13 里 `Install dependencies`、`Configure`、`Build` 全部是成功步骤。
+
+**第一层（run #13）：macOS 从未被任何安装步骤覆盖。** 安装 `onnx`/`numpy` 的两个步骤分别以 `runner.os == 'Linux'` 与 `== 'Windows'` 为条件，macOS 两个都不满足。于是 `find_package(Python3)` 命中镜像自带的解释器、配置期 `import onnx, numpy` 失败、四个模型测试被 `DISABLED`、`Require the model tests` 报 `test_Rmvpe is not an enabled test, so an interpreter without onnx was found` 并转红。门禁按设计工作了。
+
+**第二层（run #14）：补上的步骤选错了 Python 版本。** `macos-15` 镜像自带 Python 3.11.9 / 3.12.10 / 3.13.15 / 3.14.7，而 `python3` 指向 **3.14.7**；`onnx` 在 PyPI 上的 macOS wheel 只有 `cp310`、`cp311`、`cp312-abi3`（稳定 ABI，3.12 以上可用）和一个**自由线程**的 `cp314t`——没有普通 CPython 3.14 的 wheel。于是 `pip install onnx` 走源码构建并在该步骤失败。这一层是**推断**：run #14 的失败步骤名因 API 配额耗尽未能取到，依据是「新增的那一步 + 失败时机」与上述 wheel 事实；下一节记录实际取值。
+
+**修复（两段，已实施）：**
+
+1. 新增 `Install the Python build tools on macOS`（`if: runner.os == 'MacOS'`），并按 3.13 → 3.12 → 3.11 的顺序**显式挑一个解释器**，而不是用路径上的 `python3`；挑不到就 `::error::` 退出。
+2. 该步骤断言 `import onnx, numpy` 并把选中的解释器经 `$GITHUB_ENV` 导出为 `PYTHON`；`Configure` 步骤改为 `${PYTHON:-$(command -v python3 || command -v python)}`，**让 CMake 用的是同一个装好 onnx 的解释器**——否则「装在某一个上、CMake 找到另一个」同样是静默削套件。
+
+**教训（同类缺陷的形状）**：凡按 `runner.os` 分支的安装步骤，新增平台时必须逐个复核覆盖面（第一层）；而**解释器版本本身也是平台事实**，镜像的默认 `python3` 不一定有你要装的包的 wheel（第二层）。两层的共同后果都是「测试静默消失」，两次都由那条门禁抓到。
 
 ### 未证实（不作为缺陷排期）
 
@@ -65,10 +72,10 @@
 | D1 | 扩展现有 `ci.yml`，加一个 macOS 矩阵项，而不是新建 workflow 文件 | 与另两平台共用同一套步骤，改一处即可；代价是平台差异要靠 `runner.os` 条件控制 | 用户确认 |
 | D2 | macOS 用显式的 `macos-15`（arm64 镜像） | `macos-14` 按 GitHub 公告于 2026-11-02 退休；`macos-latest` 指向的 `macos-26` 同时存在 x64 与 arm64 两种镜像，而本构建要的正是 arm64，所以钉显式版本而不是浮动标签 | 本方案（GitHub changelog，2026-10-01） |
 | D3 | macOS 默认三元组即 `arm64-osx`，不额外传 `--triplet`/`--overlay-triplets` | 少一处配置；代价是依赖「镜像必须是 arm64」这一前提，已在 workflow 注释中写明 | 本方案 |
-| D4 | 三个检查步骤（夹具生成、`Require the model tests`、消费者包校验）在 macOS 上原样复用，不新增；**但「安装 Python 依赖」不在复用之列**（见 D7，它是按平台分支的，macOS 当时被漏掉） | 保持三平台一致；`Require the model tests` 在 macOS 上仍能把「ONNX 特性丢失导致测试静默消失」变成红——run #13 证明它确实报了 | 本方案（D7 为 run #13 后修正） |
+| D4 | 三个检查步骤（夹具生成、`Require the model tests`、消费者包校验）在 macOS 上原样复用，不新增；**但「安装 Python 依赖」不在复用之列**（见 D7，它按平台分支且 macOS 当时被漏掉） | 保持三平台一致；`Require the model tests` 在 macOS 上仍能把「ONNX 特性丢失导致测试静默消失」变成红——run #13 证明它确实报了 | 本方案（D7 为 run #13 后修正） |
 | D5 | 触发范围改为 `branches: ["spec2.4-**"]`，并去掉 `pull_request` | 让 2.4 线上的 push 直接跑到新作业；代价是其它分支不再被 CI 覆盖，且这条线将来开 PR 时检查不会自动挂上 | 用户确认（「目前只在 2.4 这个分支上提交和测试」） |
 | D6 | 信号消费保留平台分支：Darwin 走 `sigpending()+sigwait()`，其余 POSIX 保持 `sigtimedwait()` | 这是用户明确选定的一项；代价是同一段逻辑有两份实现，注释必须写明为何不统一。另一种更少分支的写法是两平台都用可移植的 `sigpending()+sigwait()`，但那会改动 Linux 一条已跑通且没有测试兜底的运行时路径，不属于本轮最小改动 | 用户确认 |
-| D7（run #13 后追加） | 单独加一个 `if: runner.os == 'MacOS'` 的 Python 依赖步骤（含 `import onnx, numpy` 断言），而不是把 Windows/Linux 两步改成 `!=` 之类的合并写法 | 保留另两平台已验证的步骤内容、改动最小，且平台名在标签里显式可见；代价是同一件事有三处分支，将来再加平台仍要逐个复核 | 本方案（依据 run #13 的失败读数） |
+| D7（run #13/#14 后追加） | 单独加一个 `if: runner.os == 'MacOS'` 的 Python 依赖步骤：**显式按 3.13→3.12→3.11 挑解释器**（不用路径上的 `python3`）、断言 `import onnx, numpy`、并经 `$GITHUB_ENV` 导出 `PYTHON` 供 `Configure` 使用 | 保留另两平台已验证的步骤内容；不用 `!=` 合并写法，平台名在标签里显式可见；挑版本是为了避开镜像默认的 3.14（onnx 无其 wheel），导出解释器是为了让 CMake 与安装步骤用同一个——否则仍是静默削套件。代价是同一件事有三处分支，将来再加平台仍要逐个复核 | 本方案（依据 run #13 的失败读数与 run #14 的第二层暴露） |
 
 ## 5. 未覆盖项与建议
 
@@ -91,7 +98,13 @@
 
 顺带把两条待验证项升级为已证：`scripts/vcpkg` 覆盖三元组 `arm64-osx` 在 macOS arm64 runner 上确被采用（否则三元组缺失元数据会 FATAL_ERROR，而 `Install dependencies` 是成功步骤），`synthrt` 及其 macOS 依赖臂（`stdcorelib`、`qmsetup`、`bit7z`/`7zip` 等）也都在 macOS 上真的构建成功了。
 
-**待补**：本节记录的是 **run #13（`df34f7e`）**的读数；`Install the Python build tools on macOS` 修好之后的**第二次实测（run #14 及以后）另开一节**记录，届时才会知道 macOS 是否全绿，以及 pip 在 macOS runner 上是否真的装得动 onnx。
+**待补**：本节只记录 **run #13（`df34f7e`）**的读数，后续实测见下一节。
 
+## 7. 二跑与三跑（run #14、run #15）
+
++ **run #14（`80798db`，加了 macOS 安装步骤之后）**：仍然 failed。取到的读数有限——GitHub 匿名 API 配额在 run #14 期间耗尽，`/jobs` 与 `/annotations` 都返回 403，而 run 页面与 job 页面只能给出「有且仅有一个作业的某一步以 exit 1 结束」，**判不出是哪一个作业**（job 页面里嵌了整份 workflow 的文本，我最初用它做「是否 macOS」的判据是错的，已弃用）。因此 run #14 的失败步骤名**未取得**，本节的第二层结论（Python 3.14 无 onnx wheel）是**推断**，判据见 §2 的 P0。
++ **run #15（本次修复后）**：待记录。**它要回答的问题**：①镜像上能否按 3.13→3.12→3.11 挑到解释器并装上 onnx；②`Configure` 是否真的用了同一个解释器（看它打印的 `Python3_EXECUTABLE`）；③macOS 作业是否全绿；④`test_AnalysisLoad`／`test_AnalysisRuntime`／四个模型测试是否真的跑起来（而不是转成 skipped）。若 run #15 仍红，下一轮的判据是 run 页面里那条 `::error::` 文本——门禁与新增断言都会把原因写在里面。
+
+**关于取日志的教训**：GitHub 匿名 API 配额是 60 次/小时、按 IP 计，polling 很容易打光；日志接口 `/actions/jobs/<id>/logs` 需要认证，本地无 token 时取不到。要看详细日志，用浏览器打开 run 页面最省事（本轮全程受此限制，故部分结论只能标为推断）。
 
 

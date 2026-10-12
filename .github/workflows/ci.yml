@@ -63,15 +63,29 @@ jobs:
         # macOS belongs in this list because the model tests do: without onnx the four of them are
         # registered as disabled while ctest still reports the run as green, which is the shrinkage
         # the "Require the model tests" step below exists to catch. Installing here fails in seconds
-        # instead of after a full build, and the printed interpreter names what was installed.
+        # instead of after a full build.
         #
-        # --user matches the Linux branch: the runner's Python is an externally managed one, and
-        # --break-system-packages would defeat the point of that refusal.
+        # The interpreter is chosen, not taken from the path: the image ships Python 3.11 through
+        # 3.14 with `python3` on 3.14, and onnx publishes no macOS wheel for a release Python that
+        # new — its macOS wheels stop at the 3.12 stable ABI, which every interpreter above it
+        # accepts. `python3` would therefore try to build onnx from source, which is the failure run
+        # #14 died of. The last version named here is the oldest one the image ships.
+        #
+        # The import is asserted rather than assumed, and PYTHON is exported so that the Configure
+        # step below hands this same interpreter to CMake: an interpreter without onnx disables the
+        # model tests instead of failing, and the wrong one would do it silently.
         run: |
-          PYTHON="$(command -v python3 || command -v python)"
+          for candidate in python3.13 python3.12 python3.11; do
+            if command -v "$candidate" >/dev/null 2>&1; then PYTHON="$(command -v "$candidate")"; break; fi
+          done
+          if [ -z "$PYTHON" ]; then
+            echo "::error::none of python3.13, python3.12 or python3.11 is on the image"
+            exit 1
+          fi
           "$PYTHON" -m pip install --user onnx numpy
           "$PYTHON" --version
           "$PYTHON" -c "import onnx, numpy; print('onnx', onnx.__version__, 'numpy', numpy.__version__)"
+          echo "PYTHON=$PYTHON" >> "$GITHUB_ENV"
 
       - name: Set up the MSVC environment
         if: runner.os == 'Windows'
@@ -109,9 +123,10 @@ jobs:
         run: |
           # The fixture generation and the script tests need the interpreter the packages were
           # installed into. The probe in CMake could find another one, and an interpreter without
-          # onnx disables the four model tests instead of failing them, so the path is stated here
-          # rather than left to the probe.
-          PYTHON="$(command -v python3 || command -v python)"
+          # onnx disables the four model tests instead of failing them, so the interpreter is named
+          # here rather than left to the probe. The macOS job exports the one it installed into and
+          # this takes it; the other jobs have a single interpreter and fall back to the path.
+          PYTHON="${PYTHON:-$(command -v python3 || command -v python)}"
           cmake -S . -B build/cmake -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_TOOLCHAIN_FILE="${{ runner.temp }}/vcpkg/scripts/buildsystems/vcpkg.cmake" \
