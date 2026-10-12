@@ -1,6 +1,8 @@
 # Linux 与 macOS 构建审计，以及 CI 的 macOS 覆盖
 
 > 快照：HEAD `e770ab9`（2026-10-06）。本文的行号引用在后续提交后必须自行复核。
+>
+> **落地形态与已知偏差**：本轮的 4 个本地提交在推送前合并为 2 个——`95e58bf`（`CliProcess.cpp` 的信号修复）与 `df34f7e`（CI + 本文档，已推送到 `origin/spec2.4-uptake`，触发 run #13）。合并时按路径分阶段提交，但 `ci.yml` 在第二个提交里已被整文件提交，原计划的第三个提交因此成为空提交而未能生成：**D5 的触发器改动实际落在 `df34f7e` 内，而该提交的信息只描述了 macOS 作业，没有提到触发器收紧**。内容本身正确（推送后 `HEAD^{tree}` 与合并前逐字节一致，`766d904`），但这条提交信息与它携带的改动不完整对应。修复需要改写已推送的历史（force push），本轮未做。
 
 ## 需人工确认的关键点
 
@@ -30,6 +32,14 @@
 + 事实：原始文件未包含 `<pthread.h>`。glibc 的 `<csignal>` 会带入声明，所以 Linux 能编过；但这是偶然的传递包含，与上一个提交（`e770ab9`）修掉的 `<fcntl.h>`/`<cerrno>` 属同一类缺陷。
 + 修复：POSIX 分支补 `#include <pthread.h>`。
 
+### P0（新，run #13 暴露并已修）：macOS 作业缺一个 Python 依赖安装步骤
+
++ **成因已定论**：`.github/workflows/ci.yml` 里安装 `onnx`/`numpy` 的步骤原有两个互斥分支——`Install build tools` 为 `if: runner.os == 'Linux'`，`Install the Python build tools` 为 `if: runner.os == 'Windows'`。**macOS 两个都不满足，因此该作业从未安装 onnx**，这是一处条件分支漏项，不是平台问题。
++ 后果链：macOS runner 镜像自带 Python → `find_package(Python3)` 命中它 → 配置期 `import onnx, numpy` 失败 → `_otter_can_make_fixtures` 为 OFF → 四个模型测试被 `DISABLED` → `Require the model tests` 打印 `test_Rmvpe is not an enabled test, so an interpreter without onnx was found` 并转红。
++ 归属层：**本仓的 workflow**。`synthrt`、vcpkg、macOS 全部无关——同一次运行里 `Install dependencies`、`Configure`、`Build` 都是成功步骤。
++ 修复（已实施，见 §4 的 D7）：新增 `Install the Python build tools on macOS`（`if: runner.os == 'MacOS'`），当场 `pip install --user onnx numpy` 并**断言 `import onnx, numpy` 成功**——这样「解释器没有 onnx」在十几秒内暴露，而不是等一次完整构建之后。
++ 教训（同类缺陷的形状）：凡是按 `runner.os` 分支的安装步骤，**新增平台时必须逐个复核每个分支是否覆盖新平台**。本仓的门禁哲学是「宁可早失败也别让套件无声缩水」，而这次正是门禁替 CI 抓到了这个漏项——但代价是十几分钟才报。
+
 ### 未证实（不作为缺陷排期）
 
 + `synthrt` 在其 pinned 提交（`63bef253607649dcface0b37abc68f051cc45c8b`）上能否在 macOS arm64 编译通过。这是上游仓库的构建能力，本地无法验证；由新增的 macOS CI 首跑给出答案。已有的间接证据：其 vcpkg 端口对非 Windows 平台显式把 DirectML 关掉、改让 dsinfer 走 CPU provider（`scripts/vcpkg-ports/synthrt-main/portfile.cmake:34-50`），说明该分支确实考虑过非 Windows 平台。
@@ -55,13 +65,33 @@
 | D1 | 扩展现有 `ci.yml`，加一个 macOS 矩阵项，而不是新建 workflow 文件 | 与另两平台共用同一套步骤，改一处即可；代价是平台差异要靠 `runner.os` 条件控制 | 用户确认 |
 | D2 | macOS 用显式的 `macos-15`（arm64 镜像） | `macos-14` 按 GitHub 公告于 2026-11-02 退休；`macos-latest` 指向的 `macos-26` 同时存在 x64 与 arm64 两种镜像，而本构建要的正是 arm64，所以钉显式版本而不是浮动标签 | 本方案（GitHub changelog，2026-10-01） |
 | D3 | macOS 默认三元组即 `arm64-osx`，不额外传 `--triplet`/`--overlay-triplets` | 少一处配置；代价是依赖「镜像必须是 arm64」这一前提，已在 workflow 注释中写明 | 本方案 |
-| D4 | 不新增任何步骤：Python/onnx 夹具生成、`Require the model tests`、消费者包校验三步在 macOS 上同样适用 | 保持三平台一致；`Require the model tests` 在 macOS 上仍能把「ONNX 特性丢失导致测试静默消失」变成红 | 本方案 |
+| D4 | 三个检查步骤（夹具生成、`Require the model tests`、消费者包校验）在 macOS 上原样复用，不新增；**但「安装 Python 依赖」不在复用之列**（见 D7，它是按平台分支的，macOS 当时被漏掉） | 保持三平台一致；`Require the model tests` 在 macOS 上仍能把「ONNX 特性丢失导致测试静默消失」变成红——run #13 证明它确实报了 | 本方案（D7 为 run #13 后修正） |
 | D5 | 触发范围改为 `branches: ["spec2.4-**"]`，并去掉 `pull_request` | 让 2.4 线上的 push 直接跑到新作业；代价是其它分支不再被 CI 覆盖，且这条线将来开 PR 时检查不会自动挂上 | 用户确认（「目前只在 2.4 这个分支上提交和测试」） |
 | D6 | 信号消费保留平台分支：Darwin 走 `sigpending()+sigwait()`，其余 POSIX 保持 `sigtimedwait()` | 这是用户明确选定的一项；代价是同一段逻辑有两份实现，注释必须写明为何不统一。另一种更少分支的写法是两平台都用可移植的 `sigpending()+sigwait()`，但那会改动 Linux 一条已跑通且没有测试兜底的运行时路径，不属于本轮最小改动 | 用户确认 |
+| D7（run #13 后追加） | 单独加一个 `if: runner.os == 'MacOS'` 的 Python 依赖步骤（含 `import onnx, numpy` 断言），而不是把 Windows/Linux 两步改成 `!=` 之类的合并写法 | 保留另两平台已验证的步骤内容、改动最小，且平台名在标签里显式可见；代价是同一件事有三处分支，将来再加平台仍要逐个复核 | 本方案（依据 run #13 的失败读数） |
 
 ## 5. 未覆盖项与建议
 
 1. **SIGPIPE 消费路径没有测试。** 现有用例（`test_GameGgml.cpp`、`test_TifaGgml.cpp`）不构造「子进程已退出后再写入」的场景，所以修复只被编译覆盖。建议后续补一个用例：spawn 假 CLI → `terminate()` → 再 `write()`，断言返回错误而不是进程被 SIGPIPE 杀死。
 2. **Intel macOS 不可用**，见「需人工确认的关键点」第 1 条。
-3. **`synthrt` 能否在 macOS 编译通过仍未证实**，见「未证实」一节；macOS 作业首跑若红，应先读该结论再判断责任层。
+3. **`Require the model tests` 的时机偏晚**：run #13 印证了这一点——平台缺件要等一次完整构建才报（十几分钟），而同样的缺件在安装步骤里十几秒就能查出。是否把「解释器必须有 onnx」提前到配置期（本仓的包测试同样是配置期决定启停），留待下一轮决定；本轮只在自己的 macOS 步骤里加了断言，没有动既有门禁。
 4. **与 CI 无关的本机事实**：本地 `build/`、`.tmp/`、`.safety/` 是既有产物目录，均已在 `.gitignore` 内；`docs/plans/asr-integration.md` 为未跟踪的历史遗留文件，本轮未触碰。
+
+## 6. 首跑实测（run #13）
+
+推送 `df34f7e` 到 `origin/spec2.4-uptake` 后触发 run #13（[run #13](https://github.com/diffscope/otter/actions/runs/38230044049)）：触发器改动确实生效——**该分支上真的跑起来了**，D5 的目的达成。
+
+| 作业 | 结论 | 说明 |
+| :-- | :-- | :-- |
+| `build (ubuntu-24.04, x64-linux)` | **success** | 与 run #12 一致，改动未使 Linux 回归 |
+| `build (windows-2022, x64-windows)` | **success** | 未回归 |
+| `build (macos-15, arm64-osx)` | **failure** | 失败步骤 = `Require the model tests`（唯一的 failure 步骤；`Configure`/`Build` 均通过） |
+
+**这是本轮最重要的读数，且方向与预期相反：** macOS 的 `sigtimedwait` 编译错误**确实被修复了**——`Configure` 与 `Build` 两步都成功，说明 `CliProcess.cpp` 与整个仓库在 macOS arm64 上编得过；同时它**推翻了我先前把「synthrt 能否在 macOS 编译」列为最大风险的判断**（该风险未发生）。失败的是那份防沉默门禁本身，成因见 §2 的 P0（新）。
+
+顺带把两条待验证项升级为已证：`scripts/vcpkg` 覆盖三元组 `arm64-osx` 在 macOS arm64 runner 上确被采用（否则三元组缺失元数据会 FATAL_ERROR，而 `Install dependencies` 是成功步骤），`synthrt` 及其 macOS 依赖臂（`stdcorelib`、`qmsetup`、`bit7z`/`7zip` 等）也都在 macOS 上真的构建成功了。
+
+**待补**：本节记录的是 **run #13（`df34f7e`）**的读数；`Install the Python build tools on macOS` 修好之后的**第二次实测（run #14 及以后）另开一节**记录，届时才会知道 macOS 是否全绿，以及 pip 在 macOS runner 上是否真的装得动 onnx。
+
+
+
