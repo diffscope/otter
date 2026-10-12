@@ -1,16 +1,24 @@
-# Builds and tests otter on Linux and Windows.
+# Builds and tests otter on Linux, Windows and macOS.
 #
 # The dependency tree comes from vcpkg through the manifest in scripts/vcpkg-manifest, with the
 # in-repo ports in scripts/vcpkg-ports searched before the shared overlay submodule.
+#
+# The macOS job builds Apple Silicon only, and cannot cover Intel macOS: the onnxruntime-builds port
+# refuses a triplet other than arm64 on Darwin (scripts/vcpkg/ports/onnxruntime-builds/
+# portfile.cmake), because upstream publishes no x64 macOS payload to deploy. A runner label is
+# therefore used whose image is arm64, since an x64 image would leave the default triplet at
+# x64-osx and fail the install.
 name: ci
 
 on:
   push:
-    # Runs on the trunk and on the integration branches, because work remains on an integration
-    # branch for extended periods. The trunk is main, as in wolf; a trigger restricted to a branch
-    # absent from the repository never runs.
-    branches: [main, "analysis-**"]
-  pull_request:
+    # The 2.4 line is the only one that commits here right now, so the trigger names it instead of
+    # the trunk and the integration branches the workflow used to cover. A line added later needs
+    # its own entry: a branch absent from this list is never built.
+    #
+    # pull_request is deliberately absent, which leaves the jobs unattached to a pull request that
+    # opens from this line later. Add it back when a review needs the checks on the request itself.
+    branches: ["spec2.4-**"]
 
 jobs:
   build:
@@ -22,6 +30,9 @@ jobs:
             triplet: x64-linux
           - os: windows-2022
             triplet: x64-windows
+          # An arm64 image: the arm64-osx triplet and the arm64 payload of ONNX Runtime go with it.
+          - os: macos-15
+            triplet: arm64-osx
     runs-on: ${{ matrix.os }}
     env:
       VCPKG_DEFAULT_TRIPLET: ${{ matrix.triplet }}
