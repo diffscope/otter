@@ -23,6 +23,7 @@
 #else
 #include <csignal>
 #include <fcntl.h>
+#include <pthread.h>
 #include <sys/wait.h>
 #include <unistd.h>
 #endif
@@ -299,9 +300,26 @@ namespace otter::cli {
             pthread_sigmask(SIG_BLOCK, &blocked, &previous);
 
             const auto finish = [&blocked, &previous] {
+#if defined(__APPLE__)
+                // Darwin is the one platform here that declares neither sigtimedwait() nor
+                // sigwaitinfo(), so the pending set is read first and the signal taken with
+                // sigwait(), which is POSIX and which the platform does declare. The read cannot be
+                // dropped: sigwait() returns only once a member of its set is pending, and blocks
+                // otherwise. A SIGPIPE still pending when the mask is restored below would be
+                // delivered there and kill the host, which is what this consumption prevents.
+                sigset_t pending;
+                int consumed = 0;
+                while (sigpending(&pending) == 0 && sigismember(&pending, SIGPIPE) == 1 &&
+                       sigwait(&pending, &consumed) == 0) {
+                }
+#else
+                // A zero timeout returns at once and clears one member of the set that is pending,
+                // so this drains the SIGPIPE left pending whatever the write returned, and nothing
+                // else, because SIGPIPE is the set's only member.
                 const timespec zero{0, 0};
                 while (sigtimedwait(&blocked, nullptr, &zero) == SIGPIPE) {
                 }
+#endif
                 pthread_sigmask(SIG_SETMASK, &previous, nullptr);
             };
 
