@@ -65,35 +65,46 @@ jobs:
         # the "Require the model tests" step below exists to catch. Installing here fails in seconds
         # instead of after a full build.
         #
-        # Two things about this runner make a plain install wrong, and a virtual environment answers
-        # both. Its `python3` is 3.14, for which onnx publishes no macOS wheel (its macOS wheels stop
-        # at the 3.12 stable ABI, which every interpreter above accepts), so the interpreter is
-        # chosen from the ones the image ships, onnx-compatible first. And those interpreters are
-        # externally managed, so pip refuses to install into them; run #15 died of exactly that,
-        # with pip's exit 8.
+        # The interpreter is chosen, not taken from the path. This image ships Python 3.11 through
+        # 3.14 with `python3` on 3.14, and onnx publishes no macOS wheel for a plain 3.14: its macOS
+        # wheels are 3.10, 3.11 and the 3.12 stable ABI, plus a free-threaded 3.14 that a release
+        # interpreter will not accept.
+        #
+        # The candidates are tried in order, each with the `--break-system-packages` the Linux step
+        # already uses for the same reason — this image's interpreters are externally managed — and
+        # each failure prints the interpreter and pip's own complaint, so a log is enough to see
+        # which one worked and why the others did not. The first candidate to import onnx wins.
         #
         # PYTHON is exported so the Configure step hands CMake this same interpreter: an interpreter
         # without onnx disables the model tests instead of failing them, so installing into one while
         # CMake probes another would shrink the suite just as silently as not installing at all.
         run: |
-          set -e
           PYTHON=""
-          for candidate in python3.13 python3.12 python3.11 "${PYTHON:-}"; do
-            if [ -n "$candidate" ] && command -v "$candidate" >/dev/null 2>&1; then
-              PYTHON="$(command -v "$candidate")"
-              break
+          for candidate in python3.13 python3.12 python3.11; do
+            path="$(command -v "$candidate" || true)"
+            if [ -z "$path" ]; then
+              echo "$candidate: not on this image"
+              continue
             fi
+            echo "== trying $candidate at $path =="
+            "$path" --version
+            if ! "$path" -m pip install --user --break-system-packages onnx numpy; then
+              echo "$candidate: pip failed, see its output above"
+              continue
+            fi
+            if ! "$path" -c "import onnx, numpy; print('ok onnx', onnx.__version__)"; then
+              echo "$candidate: installed but does not import onnx"
+              continue
+            fi
+            PYTHON="$(command -v "$candidate")"
+            break
           done
           if [ -z "$PYTHON" ]; then
-            echo "::error::no onnx-compatible interpreter is on this image"
+            echo "::error::no interpreter on this image could import onnx"
             exit 1
           fi
-          "$PYTHON" -m venv build/python-env
-          PYTHON="$PWD/build/python-env/bin/python"
-          "$PYTHON" -m pip install --upgrade pip
-          "$PYTHON" -m pip install onnx numpy
           "$PYTHON" --version
-          "$PYTHON" -c "import onnx, numpy; print('onnx', onnx.__version__, 'numpy', numpy.__version__)"
+          "$PYTHON" -c "import onnx, numpy; print('using onnx', onnx.__version__, 'numpy', numpy.__version__)"
           echo "PYTHON=$PYTHON" >> "$GITHUB_ENV"
 
       - name: Set up the MSVC environment
