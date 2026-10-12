@@ -100,39 +100,44 @@
 
 **待补**：本节只记录 **run #13（`df34f7e`）**的读数，后续实测见下一节。
 
-## 7. 二跑、三跑、四跑（run #14 → run #16）
+## 7. 二跑至五跑（run #14 → run #18）
 
-| 运行 | head | macOS 作业 | 取到的读数 |
-| :-- | :-- | :-- | :-- |
-| run #13 | `df34f7e` | failure | 失败步骤 = `Require the model tests`（API 取得，唯一 failure 步骤） |
-| run #14 | `80798db` | failure | 仅取到「某作业某步 exit 1」；**失败步骤名未取得** |
-| run #15 | `da23ca8` | failure | 仅取到 `exit 8` |
-| run #16 | `a1ce082` | failure | 仅取到 `exit 8`；已用 MSVC 标记确认失败的不是 Windows 作业，故在 macOS 与 Linux 之间未定 |
+| 运行 | head | Linux | Windows | macOS | 取到的读数 |
+| :-- | :-- | :-- | :-- | :-- | :-- |
+| #13 | `df34f7e` | success | success | failure | 失败步骤 = `Require the model tests`（API 取得，唯一 failure 步骤） |
+| #14 | `80798db` | success | success | failure | 「某作业某步 exit 1」；**失败步骤名未取得** |
+| #15 | `da23ca8` | success | success | failure | `exit 8`（挑 3.13→3.12→3.11 + `--user`，失败） |
+| #16 | `a1ce082` | success | success | failure | `exit 8`（改为 `venv`，失败） |
+| #17 | `aab328c` | success | success | failure | `exit 8`（仅文档提交，与 #16 同码同结果） |
+| #18 | `e9009be` | success | success | failure | 页面上失败徽章 10 个 ⇒ **三个候选解释器各自都让 pip 以 exit 8 失败**；报告文本仍未取得 |
 
-四次里 Linux 与 Windows 两项**始终 success**（本轮对 `CliProcess.cpp` 的信号改动没有造成任何平台回归，这点是四次一致的读数）。
+六次里 Linux 与 Windows **始终 success**，两次拿到 `Require the model tests` 的判据（#13）之后未再出现——说明本轮对 `CliProcess.cpp` 的信号改动没有造成任何平台回归，这是六次一致的事实。
 
 ### 当前卡点（如实记录，不粉饰）
 
-macOS 的 Python 步骤连续两轮以 **exit 8** 结束。exit 8 是 pip 的「找不到匹配的分发」一类错误，不是编译错误，所以问题仍限于「在这台 runner 上把 onnx 装进一个解释器」这一步，与 otter 代码、`synthrt`、vcpkg 都无关。
+macOS 的 Python 步骤连续四轮失败，最后三轮都是 **pip exit 8**，且已证明**不是某一个解释器的问题**——3.13、3.12、3.11 三个候选在 run #18 里全部失败（10 个失败徽章）。问题因此收敛为「在这台 runner 的哪一个解释器上、用哪种方式能装上 onnx」这一个具体问题。
 
-**但具体报错文本取不到**，原因是工具链限制而非判断力问题：
+**但报错文本取不到，这是工具限制而非判断力问题：**
 
-+ GitHub **匿名 API 配额 60 次/小时且按 IP 计**，本轮的轮询把它打光，`/jobs` 与 check-runs 的 `/annotations` 连续 403；
-+ **作业日志接口 `/actions/jobs/<id>/logs` 需要认证**，本机只有 SSH 凭据，没有 token；
-+ run 页面与 job 页面只给出「有一步 exit N」，**不含 `::error::` 文本**，而每个 job 页面都内嵌了整份 workflow 的步骤名，因此**无法用它判断哪个作业失败**（我早前用页面文本猜「是不是 macOS」的做法是错的，已弃用）。
++ `https://api.github.com/repos/…/actions/jobs/<id>/logs` 需要认证 → 403（试了两次，稳定 403，是鉴权拒绝不是限流）；
++ `https://github.com/…/job/<id>/logs` 返回「连接被意外关闭」（沙箱 HTTPS 层不稳，同一 URL 有时通有时断）；
++ run 页面与 job 页面只给出「某步 exit N」，**不含 `::error::` 文本**；每个 job 页面都内嵌整份 workflow 的步骤名，所以**无法用它判断哪个作业失败**（早前用页面文本猜「是不是 macOS」的做法是错的，已弃用）；
++ 匿名 API 配额 60 次/小时且按 IP 计，轮询很容易打光。
 
-**下一步需要一次有认证的日志读取**（最省事：在浏览器里打开 run #16 的 macOS 作业，看失败那一步的原始输出）。拿到之后本节应替换为「哪一步 + 原始报错 + 该选哪个解释器」的结论。
+**下一步只差一次有认证的日志读取**：浏览器打开 run #18 的 macOS 作业（`Install the Python build tools on macOS` 那一步），把原始输出贴出来即可定位。
 
-已试过且失败的手段，记在这里避免重复：
+### 已试过且失败的手段（勿重复）
 
-1. 完全不装 onnx（run #13）→ 门禁报 `interpreter without onnx`；
-2. `python3` + `--user`（run #14 前）→ 该步失败（失败步骤名未取得，**推测**是 3.14 无 wheel 导致源码构建）；
-3. 按 3.13→3.12→3.11 挑解释器 + `--user`（run #15）→ exit 8（**推测**是 PEP 668 externally-managed 拒绝）；
-4. 挑解释器 + `venv`（run #16）→ exit 8（原因未知，待日志）。
+1. 完全不装 onnx（run #13）→ 门禁报 `interpreter without onnx`，四个模型测试未注册；
+2. `python3`（镜像默认 3.14）+ `--user` → 该步失败（**推测**：3.14 无 onnx 的 macOS wheel）；
+3. 挑 3.13→3.12→3.11 + `--user` → exit 8（**推测**：PEP 668 externally-managed 拒绝）；
+4. 挑解释器 + `venv` + pip 升级 → exit 8；
+5. 三个候选逐个 `--user --break-system-packages` 并断言 import（run #18）→ 三个全失败，exit 8。
 
-### 一个已知的 schema 坑（供下一轮直接用）
+### 已知的 schema 事实（供下一轮直接用）
 
-onnx 的 macOS wheel 是 `macosx_13_0_universal2`。`universal2` 不匹配 `macosx_arm64` 这种标记，但 pip 的 macOS 平台兼容逻辑会把它算作兼容 arm64（余下约束是系统 ≥ 13.0，而 `macos-15` 满足）。**因此「3.13 上没有 wheel」不是本轮 exit 8 的解释**，别再按这个方向查——本仓的 `pip install --dry-run` 是验证它的最快手段。
+onnx 在 PyPI 上的 macOS wheel 只有 `cp310`、`cp311`、`cp312-abi3-macosx_13_0_universal2` 与自由线程的 `cp314t`。`universal2` 不匹配 `macosx_arm64` 标记，但 pip 的 macOS 兼容逻辑把 universal2 视作兼容 arm64，余下约束是系统 ≥ 13.0（`macos-15` 满足）。**所以「3.13 没有 wheel」不是这几轮 exit 8 的解释**，别再往这个方向查——`pip install --dry-run` 是验证它的最快手段。
+
 
 
 
