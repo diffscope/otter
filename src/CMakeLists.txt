@@ -43,6 +43,16 @@ if(OTTER_INSTALL)
         EXPORT ${OTTER_EXPORT}
         WRITE_CONFIG_OPTIONS NO_CHECK_REQUIRED_COMPONENTS_MACRO
     )
+    # The helper writes otterConfigVersion.cmake with COMPATIBILITY ExactVersion, whose comparison
+    # stops at the third version component, so the package accepts a host that asks for a different
+    # fourth one. otter promises no ABI stability before 1.0, so the template beside this file
+    # compares all four. The helper writes the file into this directory's binary tree and its
+    # install rule references that path, so writing it again here replaces what a host reads.
+    configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/OtterConfigVersion.cmake.in"
+        "${CMAKE_CURRENT_BINARY_DIR}/otterConfigVersion.cmake"
+        @ONLY
+    )
 endif()
 
 otter_finish_buildsystem()

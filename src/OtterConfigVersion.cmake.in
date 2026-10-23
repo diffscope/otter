@@ -1,0 +1,57 @@
+# Version file of the otter CMake package.
+#
+# Written by this repository instead of by write_basic_package_version_file(COMPATIBILITY
+# ExactVersion), because that strategy compares only the first three version components: a package
+# built as 0.1.0.0 answers find_package(otter 0.1.0.1) with PACKAGE_VERSION_COMPATIBLE TRUE, so a
+# host could load a build that carries a different project version. otter promises no ABI stability
+# before 1.0, so a differing component must be refused whatever its position.
+#
+# The comparison pads both versions with zeros to the longer of the two, and to four components when
+# both are shorter, then compares every component. Padding at the end only: a component that differs
+# anywhere, including one past the fourth, makes the request incompatible. Truncating instead - which
+# is what ExactVersion does - is the defect this file replaces, and it hides a difference in the
+# fifth component as readily as one in the fourth.
+#
+# configure_file() substitutes the version below at configure time; nothing else here is generated.
+
+set(PACKAGE_VERSION "@OTTER_INSTALL_VERSION@")
+
+if(NOT PACKAGE_FIND_VERSION)
+    # No version was asked for, so there is nothing to compare against.
+    set(PACKAGE_VERSION_COMPATIBLE TRUE)
+    return()
+endif()
+
+string(REPLACE "." ";" _otter_package_parts "${PACKAGE_VERSION}")
+string(REPLACE "." ";" _otter_requested_parts "${PACKAGE_FIND_VERSION}")
+list(LENGTH _otter_package_parts _otter_package_count)
+list(LENGTH _otter_requested_parts _otter_requested_count)
+
+# Compare over the longer of the two, and over at least four components so that a version written
+# with a trailing zero and one written without compare equal.
+set(_otter_width ${_otter_package_count})
+if(_otter_requested_count GREATER _otter_width)
+    set(_otter_width ${_otter_requested_count})
+endif()
+if(_otter_width LESS 4)
+    set(_otter_width 4)
+endif()
+
+# Both loops use a count comparison rather than while(TRUE): a version file is included from scopes
+# whose policy settings this file does not control, and under the old CMP0012 policy the constant is
+# read as an undefined variable and the loop never runs.
+while(_otter_package_count LESS _otter_width)
+    list(APPEND _otter_package_parts "0")
+    math(EXPR _otter_package_count "${_otter_package_count}+1")
+endwhile()
+while(_otter_requested_count LESS _otter_width)
+    list(APPEND _otter_requested_parts "0")
+    math(EXPR _otter_requested_count "${_otter_requested_count}+1")
+endwhile()
+
+if(_otter_package_parts STREQUAL _otter_requested_parts)
+    set(PACKAGE_VERSION_COMPATIBLE TRUE)
+    set(PACKAGE_VERSION_EXACT TRUE)
+else()
+    set(PACKAGE_VERSION_COMPATIBLE FALSE)
+endif()
