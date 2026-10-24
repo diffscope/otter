@@ -28,7 +28,7 @@ namespace otter {
                               "options would have no effect");
         }
         return std::unique_ptr<srt::ContribImportOptions>(
-            new EmptyImportOptions(target.interface(), target.variant(), target.level()));
+            new EmptyImportOptions(target.interfaceId(), target.variant(), target.level()));
     }
 
 }

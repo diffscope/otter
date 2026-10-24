@@ -79,7 +79,7 @@ BOOST_AUTO_TEST_CASE(test_AnalysisLoad_ReadsBothContracts) {
 
     auto f0 = package.contribution(srt::InferenceCategory::NAME, "f0");
     BOOST_REQUIRE(f0 != nullptr);
-    BOOST_CHECK_EQUAL(f0->interface(), F0Api::API_INTERFACE);
+    BOOST_CHECK_EQUAL(f0->interfaceId(), F0Api::API_INTERFACE);
     BOOST_CHECK_EQUAL(f0->level(), F0Api::API_LEVEL);
     BOOST_CHECK_EQUAL(f0->variant(), "stub");
     BOOST_CHECK_EQUAL(f0->name().text(), "Stub F0");
@@ -98,7 +98,7 @@ BOOST_AUTO_TEST_CASE(test_AnalysisLoad_ReadsBothContracts) {
 
     auto note = package.contribution(srt::InferenceCategory::NAME, "note");
     BOOST_REQUIRE(note != nullptr);
-    BOOST_CHECK_EQUAL(note->interface(), NoteApi::API_INTERFACE);
+    BOOST_CHECK_EQUAL(note->interfaceId(), NoteApi::API_INTERFACE);
     auto noteSchema = note->exports()->as<NoteApi::NoteSchema>();
     BOOST_REQUIRE(noteSchema != nullptr);
     BOOST_CHECK(noteSchema->supportsKnownNotes);
@@ -128,7 +128,7 @@ BOOST_AUTO_TEST_CASE(test_AnalysisLoad_DataOnlyStopsBeforeTheProvider) {
 
     auto f0 = package.contribution(srt::InferenceCategory::NAME, "f0");
     BOOST_REQUIRE(f0 != nullptr);
-    BOOST_CHECK_EQUAL(f0->interface(), F0Api::API_INTERFACE);
+    BOOST_CHECK_EQUAL(f0->interfaceId(), F0Api::API_INTERFACE);
     BOOST_CHECK_EQUAL(f0->variant(), "stub");
     BOOST_CHECK(f0->exports() == nullptr);
     // The raw exports block of the declaration remains available to a host that reads it without
