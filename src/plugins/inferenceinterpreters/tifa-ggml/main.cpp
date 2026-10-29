@@ -33,7 +33,7 @@
 
 #include <synthrt/SVS/InferenceInterpreterPlugin.h>
 #include <synthrt/Support/Expected.h>
-#include <synthrt/Support/JSON.h>
+#include <synthrt/Support/Json.h>
 
 #include <otter/Analysis/AnalysisError.h>
 #include <otter/Analysis/Provider/AnalysisInput.h>

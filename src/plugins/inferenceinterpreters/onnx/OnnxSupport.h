@@ -15,7 +15,7 @@
 
 #include <synthrt/SVS/InferenceContrib.h>
 #include <synthrt/Support/Expected.h>
-#include <synthrt/Support/JSON.h>
+#include <synthrt/Support/Json.h>
 
 #include <dsinfer/Core/Tensor.h>
 #include <dsinfer/Inference/InferenceSession.h>

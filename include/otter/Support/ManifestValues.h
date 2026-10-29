@@ -8,7 +8,7 @@
 #include <vector>
 
 #include <synthrt/Support/Expected.h>
-#include <synthrt/Support/JSON.h>
+#include <synthrt/Support/Json.h>
 
 #include <otter/Api/Common/1/CommonApiL1.h>
 

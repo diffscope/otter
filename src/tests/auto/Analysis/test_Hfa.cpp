@@ -17,7 +17,7 @@
 #include <vector>
 
 #include <synthrt/SVS/InferenceContrib.h>
-#include <synthrt/Support/JSON.h>
+#include <synthrt/Support/Json.h>
 
 #include <otter/Analysis/AnalysisError.h>
 #include <otter/Api/Align/1/AlignApiL1.h>

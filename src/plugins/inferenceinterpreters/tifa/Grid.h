@@ -9,7 +9,7 @@
 #include <vector>
 
 #include <synthrt/Support/Expected.h>
-#include <synthrt/Support/JSON.h>
+#include <synthrt/Support/Json.h>
 
 /// The text side of the tifa aligner: the model's own symbol table, the pronunciation dictionaries
 /// the declaration names, and the candidate grid the model's graphs consume.
