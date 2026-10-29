@@ -85,13 +85,9 @@ The headers under `otter/Support` are not part of the API. They declare the mani
 
 ## Requirements
 
-CMake 3.20 or later (configuring needs the 3.19 the project declares; the `ctest --test-dir` used below needs 3.20), and a checkout of the vcpkg overlay submodule:
+CMake 3.20 or later (configuring needs the 3.19 the project declares; the `ctest --test-dir` used below needs 3.20), and Git, with which vcpkg and its overlays are checked out.
 
-```sh
-git submodule update --init
-```
-
-Every dependency, synthrt included, comes from vcpkg. Ports resolve through two overlays, searched in order: `scripts/vcpkg-ports` in this repository, then the shared `scripts/vcpkg` submodule.
+Every dependency, synthrt included, comes from vcpkg. Ports resolve through two overlays, searched in order: `scripts/vcpkg-ports` in this repository, then the shared overlay that `scripts/vcpkg-sources.json` specifies.
 
 + [synthrt](https://github.com/diffscope/synthrt), through the in-repo `synthrt-main` port, which pins the `onnxruntime-builds-uptake` branch of the main line
 + [stdcorelib](https://github.com/SineStriker/stdcorelib)
@@ -103,13 +99,16 @@ All four shipped providers run ONNX models and are built only if dsinfer is pres
 
 ## Build
 
+The dependencies are installed with [vcpkg-workspace.cmake](https://github.com/stdware/dev-scripts/blob/main/docs/about-scripts/vcpkg-workspace.md), downloaded into `scripts/`. The script checks out vcpkg and the overlays that `scripts/vcpkg-sources.json` specifies into `deps/`, and installs the dependencies there. Run the following commands from the repository root. On Windows, download the script with `powershell -Command "Invoke-WebRequest -OutFile scripts/vcpkg-workspace.cmake <url>"` in place of `curl`.
+
 ```sh
-vcpkg install --x-manifest-root=scripts/vcpkg-manifest --x-install-root=build/vcpkg_installed \
-    --x-feature=onnx --x-feature=tests
+curl -fsSL -o scripts/vcpkg-workspace.cmake \
+    https://raw.githubusercontent.com/stdware/dev-scripts/main/scripts/vcpkg-workspace.cmake
+cmake -P scripts/vcpkg-workspace.cmake install -- --x-feature=onnx --x-feature=tests
 
 cmake -B build/cmake -G Ninja \
-    -DCMAKE_TOOLCHAIN_FILE=<vcpkg>/scripts/buildsystems/vcpkg.cmake \
-    -DVCPKG_INSTALLED_DIR=<install root passed above> \
+    -DCMAKE_TOOLCHAIN_FILE=deps/vcpkg/scripts/buildsystems/vcpkg.cmake \
+    -DVCPKG_INSTALLED_DIR=deps/vcpkg/installed \
     -DVCPKG_MANIFEST_MODE=OFF \
     -DCMAKE_BUILD_TYPE=Release \
     -DOTTER_BUILD_TESTS=ON

@@ -1,0 +1,18 @@
+{
+    "manifest-dir": "vcpkg-manifest",
+    "vcpkg": {
+        "repository": "https://github.com/microsoft/vcpkg.git",
+        "ref": "1fddddc280dfed63956e15ef74f4321bc6a219c9"
+    },
+    "overlays": [
+        {
+            "name": "otter-ports",
+            "path": "vcpkg-ports",
+            "ports": "."
+        },
+        {
+            "repository": "../../stdware/vcpkg-overlay.git",
+            "ref": "main"
+        }
+    ]
+}
