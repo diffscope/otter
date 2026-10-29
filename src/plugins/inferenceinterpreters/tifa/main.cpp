@@ -214,7 +214,7 @@ namespace {
     class TifaConfiguration : public srt::ContribConfiguration {
     public:
         TifaConfiguration()
-            : srt::ContribConfiguration(AlignApi::API_INTERFACE, VARIANT, AlignApi::API_LEVEL) {
+            : srt::ContribConfiguration({AlignApi::API_INTERFACE, AlignApi::API_LEVEL, VARIANT}) {
         }
 
         std::filesystem::path spectrogram;
@@ -903,8 +903,7 @@ namespace {
                 return choices;
             }
             if (!m_models.score) {
-                return srt::Error(srt::Error::InvalidFormat,
-                                  "this package carries no score graph");
+                return srt::Error(srt::Error::InvalidFormat, "this package carries no score graph");
             }
 
             auto logits = runModel(features, view.tokens, view.maskN, {"logits"});
@@ -1100,8 +1099,7 @@ namespace {
             runModel(const Features &features, const TensorPtr &tokens, const TensorPtr &maskN,
                      const std::set<std::string> &wanted) const {
             if (!m_models.model) {
-                return srt::Error(srt::Error::InvalidFormat,
-                                  "this package carries no model graph");
+                return srt::Error(srt::Error::InvalidFormat, "this package carries no model graph");
             }
             if (auto stopped = checkCancelled(); !stopped) {
                 return stopped.takeError();
@@ -1250,10 +1248,10 @@ namespace {
                 gap.text = m_schema.silenceLabel;
                 gap.start = from;
                 gap.duration = to - from;
-                // The label of an inserted segment is one of the declared phonemes, and the contract
-                // expects the phonemes of a word to cover it exactly, with the label of the segment
-                // in PhoneInfo::text. hfa, the other variant that inserts segments, reports the same
-                // shape.
+                // The label of an inserted segment is one of the declared phonemes, and the
+                // contract expects the phonemes of a word to cover it exactly, with the label of
+                // the segment in PhoneInfo::text. hfa, the other variant that inserts segments,
+                // reports the same shape.
                 gap.phones.push_back({m_schema.silenceLabel, from, to - from});
                 words.push_back(std::move(gap));
             };
@@ -1692,10 +1690,10 @@ namespace {
     class TifaPlugin : public srt::InferenceInterpreterPlugin {
     public:
         srt::Expected<std::unique_ptr<srt::ContribInterpreter>>
-            create(std::string_view interfaceName, int level, std::string_view variant) override {
-            if (auto served =
-                    otter::onnx::checkServed(interfaceName, level, variant, AlignApi::API_INTERFACE,
-                                             AlignApi::API_LEVEL, VARIANT);
+            create(const srt::ContribTriplet &triplet) override {
+            if (auto served = otter::onnx::checkServed(
+                    triplet,
+                    srt::ContribTriplet(AlignApi::API_INTERFACE, AlignApi::API_LEVEL, VARIANT));
                 !served) {
                 return served.takeError();
             }

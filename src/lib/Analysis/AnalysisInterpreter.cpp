@@ -11,8 +11,8 @@ namespace otter {
         // Import options of any analysis contract, which identify only the contract.
         class EmptyImportOptions : public AnalysisImportOptions {
         public:
-            EmptyImportOptions(std::string interfaceName, std::string variant, int level)
-                : AnalysisImportOptions(std::move(interfaceName), std::move(variant), level) {
+            explicit EmptyImportOptions(srt::ContribTriplet triplet)
+                : AnalysisImportOptions(std::move(triplet)) {
             }
         };
 
@@ -27,8 +27,7 @@ namespace otter {
                               "analysis contracts define no import options, and the given "
                               "options would have no effect");
         }
-        return std::unique_ptr<srt::ContribImportOptions>(
-            new EmptyImportOptions(target.interfaceId(), target.variant(), target.level()));
+        return std::unique_ptr<srt::ContribImportOptions>(new EmptyImportOptions(target.triplet()));
     }
 
 }

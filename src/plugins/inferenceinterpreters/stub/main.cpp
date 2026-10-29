@@ -99,7 +99,7 @@ namespace {
     class StubConfiguration : public srt::ContribConfiguration {
     public:
         StubConfiguration(const char *interfaceName, int level, StubSettings settings)
-            : srt::ContribConfiguration(interfaceName, VARIANT, level), settings(settings) {
+            : srt::ContribConfiguration({interfaceName, level, VARIANT}), settings(settings) {
         }
 
         StubSettings settings;
@@ -566,23 +566,26 @@ namespace {
     class StubPlugin : public srt::InferenceInterpreterPlugin {
     public:
         srt::Expected<std::unique_ptr<srt::ContribInterpreter>>
-            create(std::string_view interfaceName, int level, std::string_view variant) override {
-            if (variant != VARIANT) {
+            create(const srt::ContribTriplet &triplet) override {
+            if (triplet.variant() != VARIANT) {
                 return srt::Error(srt::Error::FeatureNotSupported,
                                   "this plugin serves only the stub variant");
             }
-            if (interfaceName == F0Api::API_INTERFACE && level == F0Api::API_LEVEL) {
+            if (triplet.interfaceId() == F0Api::API_INTERFACE &&
+                triplet.level() == F0Api::API_LEVEL) {
                 return std::unique_ptr<srt::ContribInterpreter>(new StubF0Interpreter());
             }
-            if (interfaceName == NoteApi::API_INTERFACE && level == NoteApi::API_LEVEL) {
+            if (triplet.interfaceId() == NoteApi::API_INTERFACE &&
+                triplet.level() == NoteApi::API_LEVEL) {
                 return std::unique_ptr<srt::ContribInterpreter>(new StubNoteInterpreter());
             }
-            if (interfaceName == AlignApi::API_INTERFACE && level == AlignApi::API_LEVEL) {
+            if (triplet.interfaceId() == AlignApi::API_INTERFACE &&
+                triplet.level() == AlignApi::API_LEVEL) {
                 return std::unique_ptr<srt::ContribInterpreter>(new StubAlignInterpreter());
             }
             return srt::Error(srt::Error::FeatureNotSupported,
-                              "this plugin does not serve " + std::string(interfaceName) +
-                                  " level " + std::to_string(level));
+                              "this plugin does not serve " + triplet.interfaceId() + " level " +
+                                  std::to_string(triplet.level()));
         }
     };
 

@@ -35,7 +35,7 @@ namespace otter::Api::F0::L1 {
     class F0Schema : public srt::ContribExports {
     public:
         inline explicit F0Schema(std::string variant)
-            : srt::ContribExports(API_INTERFACE, std::move(variant), API_LEVEL) {
+            : srt::ContribExports({API_INTERFACE, API_LEVEL, std::move(variant)}) {
         }
 
         /// Input sample rate in hertz. The host resamples its audio to this rate.
@@ -78,7 +78,7 @@ namespace otter::Api::F0::L1 {
     class F0ImportOptions : public otter::AnalysisImportOptions {
     public:
         inline explicit F0ImportOptions(std::string variant)
-            : otter::AnalysisImportOptions(API_INTERFACE, std::move(variant), API_LEVEL) {
+            : otter::AnalysisImportOptions({API_INTERFACE, API_LEVEL, std::move(variant)}) {
         }
     };
 
@@ -86,7 +86,7 @@ namespace otter::Api::F0::L1 {
     class F0RuntimeOptions : public otter::AnalysisRuntimeOptions {
     public:
         inline explicit F0RuntimeOptions(std::string variant)
-            : otter::AnalysisRuntimeOptions(API_INTERFACE, std::move(variant), API_LEVEL) {
+            : otter::AnalysisRuntimeOptions({API_INTERFACE, API_LEVEL, std::move(variant)}) {
         }
     };
 
@@ -233,8 +233,8 @@ namespace otter::Api::F0::L1 {
     /// \return The analyzer, the error of \c srt::InferenceSpec::createInference, or an
     /// \c AnalysisError::ContractViolation error if the executive is not an F0Executive.
     inline srt::Expected<std::unique_ptr<F0Executive>> createAnalyzer(srt::InferenceSpec &spec) {
-        auto made =
-            spec.createInference(F0ImportOptions(spec.variant()), F0RuntimeOptions(spec.variant()));
+        auto made = spec.createInference(F0ImportOptions(spec.triplet().variant()),
+                                         F0RuntimeOptions(spec.triplet().variant()));
         if (!made) {
             return made.takeError();
         }
@@ -242,7 +242,7 @@ namespace otter::Api::F0::L1 {
         auto typed = dynamic_cast<F0Executive *>(executive.get());
         if (typed == nullptr) {
             return srt::Error(AnalysisError::ContractViolation,
-                              "the interpreter of " + spec.variant() +
+                              "the interpreter of " + spec.triplet().variant() +
                                   " created an executive that is not an F0Executive");
         }
         (void) executive.release();

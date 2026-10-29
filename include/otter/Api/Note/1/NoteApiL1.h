@@ -71,7 +71,7 @@ namespace otter::Api::Note::L1 {
     class NoteSchema : public srt::ContribExports {
     public:
         inline explicit NoteSchema(std::string variant)
-            : srt::ContribExports(API_INTERFACE, std::move(variant), API_LEVEL) {
+            : srt::ContribExports({API_INTERFACE, API_LEVEL, std::move(variant)}) {
         }
 
         /// Input sample rate in hertz. The host resamples its audio to this rate.
@@ -135,7 +135,7 @@ namespace otter::Api::Note::L1 {
     class NoteImportOptions : public otter::AnalysisImportOptions {
     public:
         inline explicit NoteImportOptions(std::string variant)
-            : otter::AnalysisImportOptions(API_INTERFACE, std::move(variant), API_LEVEL) {
+            : otter::AnalysisImportOptions({API_INTERFACE, API_LEVEL, std::move(variant)}) {
         }
     };
 
@@ -143,7 +143,7 @@ namespace otter::Api::Note::L1 {
     class NoteRuntimeOptions : public otter::AnalysisRuntimeOptions {
     public:
         inline explicit NoteRuntimeOptions(std::string variant)
-            : otter::AnalysisRuntimeOptions(API_INTERFACE, std::move(variant), API_LEVEL) {
+            : otter::AnalysisRuntimeOptions({API_INTERFACE, API_LEVEL, std::move(variant)}) {
         }
     };
 
@@ -288,8 +288,8 @@ namespace otter::Api::Note::L1 {
     /// \return The analyzer, the error of \c srt::InferenceSpec::createInference, or an
     /// \c AnalysisError::ContractViolation error if the executive is not a NoteExecutive.
     inline srt::Expected<std::unique_ptr<NoteExecutive>> createAnalyzer(srt::InferenceSpec &spec) {
-        auto made = spec.createInference(NoteImportOptions(spec.variant()),
-                                         NoteRuntimeOptions(spec.variant()));
+        auto made = spec.createInference(NoteImportOptions(spec.triplet().variant()),
+                                         NoteRuntimeOptions(spec.triplet().variant()));
         if (!made) {
             return made.takeError();
         }
@@ -297,7 +297,7 @@ namespace otter::Api::Note::L1 {
         auto typed = dynamic_cast<NoteExecutive *>(executive.get());
         if (typed == nullptr) {
             return srt::Error(AnalysisError::ContractViolation,
-                              "the interpreter of " + spec.variant() +
+                              "the interpreter of " + spec.triplet().variant() +
                                   " created an executive that is not a NoteExecutive");
         }
         (void) executive.release();

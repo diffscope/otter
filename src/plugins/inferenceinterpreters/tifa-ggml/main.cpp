@@ -60,7 +60,7 @@ namespace {
     class TifaGgmlConfiguration : public srt::ContribConfiguration {
     public:
         TifaGgmlConfiguration()
-            : srt::ContribConfiguration(AlignApi::API_INTERFACE, VARIANT, AlignApi::API_LEVEL) {
+            : srt::ContribConfiguration({AlignApi::API_INTERFACE, AlignApi::API_LEVEL, VARIANT}) {
         }
 
         /// The engine's command line tool, as shipped in its release.
@@ -352,9 +352,8 @@ namespace {
                 wrote = [&] {
                     std::FILE *file = std::fopen(lyricsFile.string().c_str(), "wb");
                     if (file == nullptr) {
-                        return srt::Expected<void>(srt::Error(srt::Error::FileNotOpen,
-                                                              "cannot write " +
-                                                                  lyricsFile.string()));
+                        return srt::Expected<void>(srt::Error(
+                            srt::Error::FileNotOpen, "cannot write " + lyricsFile.string()));
                     }
                     std::fwrite(lyrics.data(), 1, lyrics.size(), file);
                     std::fclose(file);
@@ -374,8 +373,8 @@ namespace {
                 commandLine.insert(commandLine.end(), {"-l", engineCode});
             }
             if (!m_configuration.dictionaries.empty()) {
-                commandLine.insert(commandLine.end(), {"--dict-dir",
-                                                       m_configuration.dictionaries.string()});
+                commandLine.insert(commandLine.end(),
+                                   {"--dict-dir", m_configuration.dictionaries.string()});
             }
             commandLine.insert(commandLine.end(), {"--skip-handling", "omit", "--output-formats",
                                                    "textgrid", "-o", directory.string()});
@@ -415,8 +414,8 @@ namespace {
         // between two words, the ends of the span included, becomes a word of its own carrying the
         // declaration's silence label. That is what makes the result cover the span: a host that
         // wants only what was sung filters on that label rather than reconstructing the gaps.
-        srt::Expected<std::vector<AlignApi::WordInfo>>
-            place(const GridTiers &tiers, double length, double anchor) const {
+        srt::Expected<std::vector<AlignApi::WordInfo>> place(const GridTiers &tiers, double length,
+                                                             double anchor) const {
             // The words of the result, in the order the texts tier wrote them. An interval the
             // tool left empty is a stretch of no word, which the silence below fills; an interval
             // its phones did not reach is a word of no audio, which is dropped, because the
@@ -655,9 +654,10 @@ namespace {
             auto result = std::make_unique<TifaGgmlConfiguration>();
 
             const auto directory = spec.declarationPath().parent_path();
-            const std::pair<const char *, std::filesystem::path TifaGgmlConfiguration::*> files[] = {
-                {"cli",   &TifaGgmlConfiguration::cli  },
-                {"model", &TifaGgmlConfiguration::model},
+            const std::pair<const char *, std::filesystem::path TifaGgmlConfiguration::*> files[] =
+                {
+                    {"cli",   &TifaGgmlConfiguration::cli  },
+                    {"model", &TifaGgmlConfiguration::model},
             };
             for (const auto &[key, member] : files) {
                 const auto it = object.find(key);
@@ -704,12 +704,11 @@ namespace {
     class TifaGgmlPlugin : public srt::InferenceInterpreterPlugin {
     public:
         srt::Expected<std::unique_ptr<srt::ContribInterpreter>>
-            create(std::string_view interfaceName, int level, std::string_view variant) override {
-            if (interfaceName != AlignApi::API_INTERFACE || level != AlignApi::API_LEVEL ||
-                variant != VARIANT) {
+            create(const srt::ContribTriplet &triplet) override {
+            if (triplet !=
+                srt::ContribTriplet(AlignApi::API_INTERFACE, AlignApi::API_LEVEL, VARIANT)) {
                 return srt::Error(srt::Error::FeatureNotSupported,
-                                  "this plugin serves the " +
-                                      std::string(AlignApi::API_INTERFACE) +
+                                  "this plugin serves the " + std::string(AlignApi::API_INTERFACE) +
                                       " contract at level " + std::to_string(AlignApi::API_LEVEL) +
                                       " only, in the variant " + VARIANT);
             }

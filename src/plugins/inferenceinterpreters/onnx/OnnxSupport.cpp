@@ -18,14 +18,11 @@ namespace otter::onnx {
 
     namespace OnnxApi = ds::Api::Onnx;
 
-    srt::Expected<void> checkServed(std::string_view interfaceName, int level,
-                                    std::string_view variant, const char *servedInterface,
-                                    int servedLevel, const char *servedVariant) {
-        if (interfaceName != servedInterface || level != servedLevel || variant != servedVariant) {
+    srt::Expected<void> checkServed(const srt::ContribTriplet &requested,
+                                    const srt::ContribTriplet &served) {
+        if (requested != served) {
             return srt::Error(srt::Error::FeatureNotSupported,
-                              "this plugin serves only " + std::string(servedInterface) +
-                                  " level " + std::to_string(servedLevel) + " variant " +
-                                  servedVariant);
+                              "this plugin serves only " + served.toString());
         }
         return srt::Expected<void>();
     }

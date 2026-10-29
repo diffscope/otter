@@ -248,7 +248,7 @@ namespace {
     class HfaConfiguration : public srt::ContribConfiguration {
     public:
         HfaConfiguration()
-            : srt::ContribConfiguration(AlignApi::API_INTERFACE, VARIANT, AlignApi::API_LEVEL) {
+            : srt::ContribConfiguration({AlignApi::API_INTERFACE, AlignApi::API_LEVEL, VARIANT}) {
         }
 
         std::filesystem::path model;
@@ -513,9 +513,9 @@ namespace {
             }
             const auto code = m_configuration.languages.find(language);
             if (code == m_configuration.languages.end()) {
-                return srt::Error(srt::Error::InvalidFormat,
-                                  "the caller asked for the language " + language +
-                                      ", which this model cannot align");
+                return srt::Error(srt::Error::InvalidFormat, "the caller asked for the language " +
+                                                                 language +
+                                                                 ", which this model cannot align");
             }
             result.code = &code->second;
             const auto dictionary = m_configuration.dictionaries.find(language);
@@ -971,10 +971,10 @@ namespace {
     class HfaPlugin : public srt::InferenceInterpreterPlugin {
     public:
         srt::Expected<std::unique_ptr<srt::ContribInterpreter>>
-            create(std::string_view interfaceName, int level, std::string_view variant) override {
-            if (auto served =
-                    otter::onnx::checkServed(interfaceName, level, variant, AlignApi::API_INTERFACE,
-                                             AlignApi::API_LEVEL, VARIANT);
+            create(const srt::ContribTriplet &triplet) override {
+            if (auto served = otter::onnx::checkServed(
+                    triplet,
+                    srt::ContribTriplet(AlignApi::API_INTERFACE, AlignApi::API_LEVEL, VARIANT));
                 !served) {
                 return served.takeError();
             }

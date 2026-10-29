@@ -37,14 +37,12 @@ namespace otter::onnx {
     /// Tensors by name, as a session takes and returns them.
     using Tensors = std::map<std::string, TensorPtr>;
 
-    /// Checks that the requested contract (\a interfaceName, \a level, \a variant) is the contract
-    /// that the plugin serves (\a servedInterface, \a servedLevel, \a servedVariant).
+    /// Checks that the \a requested triplet is the triplet that the plugin serves, \a served.
     ///
-    /// \return An empty value if the contracts are equal. Otherwise
+    /// \return An empty value if the triplets are equal. Otherwise
     ///         \c srt::Error::FeatureNotSupported.
-    srt::Expected<void> checkServed(std::string_view interfaceName, int level,
-                                    std::string_view variant, const char *servedInterface,
-                                    int servedLevel, const char *servedVariant);
+    srt::Expected<void> checkServed(const srt::ContribTriplet &requested,
+                                    const srt::ContribTriplet &served);
 
     /// Opens the model at \a path through the ONNX driver registered on the unit of \a spec.
     ///
@@ -192,7 +190,8 @@ namespace otter::onnx {
         srt::Expected<Tensors> runModel(ds::InferenceSession &session, Tensors inputs,
                                         const std::set<std::string> &wanted,
                                         std::string_view what) const {
-            // Qualified: the contract's run() would hide this free function (the appendix of docs/plans/tifa-align.md).
+            // Qualified: the contract's run() would hide this free function (the appendix of
+            // docs/plans/tifa-align.md).
             return otter::onnx::run(session, std::move(inputs), wanted, what,
                                     [this] { return this->cancelled(); });
         }

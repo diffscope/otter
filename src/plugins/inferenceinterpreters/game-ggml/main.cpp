@@ -76,7 +76,7 @@ namespace {
     class GameGgmlConfiguration : public srt::ContribConfiguration {
     public:
         GameGgmlConfiguration()
-            : srt::ContribConfiguration(NoteApi::API_INTERFACE, VARIANT, NoteApi::API_LEVEL) {
+            : srt::ContribConfiguration({NoteApi::API_INTERFACE, NoteApi::API_LEVEL, VARIANT}) {
         }
 
         /// The engine's command line tool, as shipped in its release.
@@ -124,15 +124,15 @@ namespace {
         const std::tuple<const std::optional<double> &, const CommonApi::Knob &, double, double *,
                          const char *>
             knobs[] = {
-                {input.boundaryThreshold,  schema.boundaryThreshold,
-                 FALLBACK_BOUNDARY_THRESHOLD,                                                    &boundaryThreshold, "boundaryThreshold" },
-                {input.noteThreshold,      schema.noteThreshold,      FALLBACK_NOTE_THRESHOLD,
-                 &noteThreshold,                                                                                      "noteThreshold"     },
-                {input.notePresenceCutoff, schema.notePresenceCutoff,
-                 FALLBACK_NOTE_PRESENCE_CUTOFF,                                                  &settings.cutoff,   "notePresenceCutoff"},
+                {input.boundaryThreshold,  schema.boundaryThreshold,  FALLBACK_BOUNDARY_THRESHOLD,
+                 &boundaryThreshold,                                                                                 "boundaryThreshold" },
+                {input.noteThreshold,      schema.noteThreshold,      FALLBACK_NOTE_THRESHOLD,       &noteThreshold,
+                 "noteThreshold"                                                                                                         },
+                {input.notePresenceCutoff, schema.notePresenceCutoff, FALLBACK_NOTE_PRESENCE_CUTOFF,
+                 &settings.cutoff,                                                                                   "notePresenceCutoff"},
                 {input.boundaryRadius,     schema.boundaryRadius,     FALLBACK_BOUNDARY_RADIUS,
-                 &radiusSeconds,                                                                                      "boundaryRadius"    },
-            };
+                 &radiusSeconds,                                                                                     "boundaryRadius"    },
+        };
         for (const auto &[given, knob, fallback, target, what] : knobs) {
             auto chosen = otter::chooseKnob(given, knob, fallback, what);
             if (!chosen) {
@@ -247,8 +247,8 @@ namespace {
         }
         if (typeName == "error") {
             response.error = true;
-            if (const auto message = object.find("message"); message != object.end() &&
-                                                             message->second.isString()) {
+            if (const auto message = object.find("message");
+                message != object.end() && message->second.isString()) {
                 response.message = message->second.toString();
             }
             return response;
@@ -468,9 +468,8 @@ namespace {
             for (const auto &[offset, duration, pitch, voiced] : produced) {
                 const double confidence = voiced ? 1.0 : 0.0;
                 if (confidence >= cutoff) {
-                    result->notes.push_back(
-                        {static_cast<int>(std::lround(pitch)), startTime + offset, duration,
-                         confidence});
+                    result->notes.push_back({static_cast<int>(std::lround(pitch)),
+                                             startTime + offset, duration, confidence});
                 }
             }
             return result;
@@ -591,10 +590,9 @@ namespace {
                                   "the game-ggml configuration must be an object");
             }
             const auto object = value.toObject();
-            if (auto checked =
-                    otter::manifest::rejectUnknownKeys(object, {"cli", "model", "languages",
-                                                                "timestep"},
-                                                       "the game-ggml configuration");
+            if (auto checked = otter::manifest::rejectUnknownKeys(
+                    object, {"cli", "model", "languages", "timestep"},
+                    "the game-ggml configuration");
                 !checked) {
                 return checked.takeError();
             }
@@ -602,9 +600,10 @@ namespace {
             auto result = std::make_unique<GameGgmlConfiguration>();
 
             const auto directory = spec.declarationPath().parent_path();
-            const std::pair<const char *, std::filesystem::path GameGgmlConfiguration::*> files[] = {
-                {"cli",   &GameGgmlConfiguration::cli  },
-                {"model", &GameGgmlConfiguration::model},
+            const std::pair<const char *, std::filesystem::path GameGgmlConfiguration::*> files[] =
+                {
+                    {"cli",   &GameGgmlConfiguration::cli  },
+                    {"model", &GameGgmlConfiguration::model},
             };
             for (const auto &[key, member] : files) {
                 const auto it = object.find(key);
@@ -652,9 +651,9 @@ namespace {
     class GameGgmlPlugin : public srt::InferenceInterpreterPlugin {
     public:
         srt::Expected<std::unique_ptr<srt::ContribInterpreter>>
-            create(std::string_view interfaceName, int level, std::string_view variant) override {
-            if (interfaceName != NoteApi::API_INTERFACE || level != NoteApi::API_LEVEL ||
-                variant != VARIANT) {
+            create(const srt::ContribTriplet &triplet) override {
+            if (triplet !=
+                srt::ContribTriplet(NoteApi::API_INTERFACE, NoteApi::API_LEVEL, VARIANT)) {
                 return srt::Error(srt::Error::FeatureNotSupported,
                                   "this plugin serves the " + std::string(NoteApi::API_INTERFACE) +
                                       " contract at level " + std::to_string(NoteApi::API_LEVEL) +

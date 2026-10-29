@@ -98,7 +98,7 @@ namespace {
     class GameConfiguration : public srt::ContribConfiguration {
     public:
         GameConfiguration()
-            : srt::ContribConfiguration(NoteApi::API_INTERFACE, VARIANT, NoteApi::API_LEVEL) {
+            : srt::ContribConfiguration({NoteApi::API_INTERFACE, NoteApi::API_LEVEL, VARIANT}) {
         }
 
         std::filesystem::path encoder;
@@ -661,20 +661,19 @@ namespace {
         // original implementation converted each duration to ticks at a single tempo, which
         // quantized the durations and misplaced every note in a score with tempo changes.
         static srt::Expected<std::unique_ptr<NoteApi::NoteResult>>
-            layOut(const std::vector<float> &durations, const Estimated &estimated, double startTime,
-                   double cutoff) {
+            layOut(const std::vector<float> &durations, const Estimated &estimated,
+                   double startTime, double cutoff) {
             // The two outputs of the estimator belong to the durations one for one: a shorter array
             // would silently drop the notes it does not cover instead of reporting what the model
-            // did. A30 assigns an element count that disagrees with another output to ModelMismatch,
-            // and the rmvpe variant refuses the same way.
+            // did. A30 assigns an element count that disagrees with another output to
+            // ModelMismatch, and the rmvpe variant refuses the same way.
             if (estimated.keys.size() != durations.size() ||
                 estimated.confidences.size() != durations.size()) {
-                return srt::Error(otter::AnalysisError::ModelMismatch,
-                                  "the estimator model returned " +
-                                      std::to_string(estimated.keys.size()) + " keys and " +
-                                      std::to_string(estimated.confidences.size()) +
-                                      " confidences for " + std::to_string(durations.size()) +
-                                      " durations");
+                return srt::Error(
+                    otter::AnalysisError::ModelMismatch,
+                    "the estimator model returned " + std::to_string(estimated.keys.size()) +
+                        " keys and " + std::to_string(estimated.confidences.size()) +
+                        " confidences for " + std::to_string(durations.size()) + " durations");
             }
             auto result = std::make_unique<NoteApi::NoteResult>();
             double at = 0;
@@ -933,10 +932,10 @@ namespace {
     class GamePlugin : public srt::InferenceInterpreterPlugin {
     public:
         srt::Expected<std::unique_ptr<srt::ContribInterpreter>>
-            create(std::string_view interfaceName, int level, std::string_view variant) override {
-            if (auto served =
-                    otter::onnx::checkServed(interfaceName, level, variant, NoteApi::API_INTERFACE,
-                                             NoteApi::API_LEVEL, VARIANT);
+            create(const srt::ContribTriplet &triplet) override {
+            if (auto served = otter::onnx::checkServed(
+                    triplet,
+                    srt::ContribTriplet(NoteApi::API_INTERFACE, NoteApi::API_LEVEL, VARIANT));
                 !served) {
                 return served.takeError();
             }

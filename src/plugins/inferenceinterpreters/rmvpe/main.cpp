@@ -55,7 +55,7 @@ namespace {
     class RmvpeConfiguration : public srt::ContribConfiguration {
     public:
         RmvpeConfiguration()
-            : srt::ContribConfiguration(F0Api::API_INTERFACE, VARIANT, F0Api::API_LEVEL) {
+            : srt::ContribConfiguration({F0Api::API_INTERFACE, F0Api::API_LEVEL, VARIANT}) {
         }
 
         std::filesystem::path model;
@@ -264,9 +264,9 @@ namespace {
     class RmvpePlugin : public srt::InferenceInterpreterPlugin {
     public:
         srt::Expected<std::unique_ptr<srt::ContribInterpreter>>
-            create(std::string_view interfaceName, int level, std::string_view variant) override {
+            create(const srt::ContribTriplet &triplet) override {
             if (auto served = otter::onnx::checkServed(
-                    interfaceName, level, variant, F0Api::API_INTERFACE, F0Api::API_LEVEL, VARIANT);
+                    triplet, srt::ContribTriplet(F0Api::API_INTERFACE, F0Api::API_LEVEL, VARIANT));
                 !served) {
                 return served.takeError();
             }
