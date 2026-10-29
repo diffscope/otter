@@ -82,24 +82,24 @@ endif()
 if(OTTER_EXPECT_PLUGINS)
     set(_plugin_count 0)
     foreach(_installed_path IN LISTS _installed)
-        if(_installed_path MATCHES "^lib/plugins/otter/inferenceinterpreters/.+\\.(dll|so|dylib)$")
+        if(_installed_path MATCHES "^lib/plugins/synthrt-otter/inferenceinterpreters/.+\\.(dll|so|dylib)$")
             math(EXPR _plugin_count "${_plugin_count} + 1")
         endif()
     endforeach()
     if(_plugin_count EQUAL 0)
         list(APPEND _problems
-             "no inference interpreter is installed under lib/plugins/otter, and a build with "
-             "dsinfer is expected to install them")
+             "no inference interpreter is installed under lib/plugins/synthrt-otter, and a build "
+             "with dsinfer is expected to install them")
     endif()
 endif()
 
 # The CMake package, and the version it advertises.
 set(_configs "")
 foreach(_installed_path IN LISTS _installed)
-    if(_installed_path MATCHES "otterConfig\\.cmake$")
+    if(_installed_path MATCHES "synthrt-otterConfig\\.cmake$")
         list(APPEND _configs "${_installed_path}")
     endif()
-    if(_installed_path MATCHES "otterConfigVersion\\.cmake$")
+    if(_installed_path MATCHES "synthrt-otterConfigVersion\\.cmake$")
         file(READ "${OTTER_TEST_PREFIX}/${_installed_path}" _version_file)
         if(NOT _version_file MATCHES "PACKAGE_VERSION \"${OTTER_VERSION}\"")
             list(APPEND _problems

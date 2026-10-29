@@ -2,9 +2,9 @@
 #
 # Written by this repository instead of by write_basic_package_version_file(COMPATIBILITY
 # ExactVersion), because that strategy compares only the first three version components: a package
-# built as 0.1.0.0 answers find_package(otter 0.1.0.1) with PACKAGE_VERSION_COMPATIBLE TRUE, so a
-# host could load a build that carries a different project version. otter promises no ABI stability
-# before 1.0, so a differing component must be refused whatever its position.
+# built as 0.1.0.0 answers find_package(synthrt-otter 0.1.0.1) with PACKAGE_VERSION_COMPATIBLE
+# TRUE, so a host could load a build that carries a different project version. otter promises no
+# ABI stability before 1.0, so a differing component must be refused whatever its position.
 #
 # The comparison pads both versions with zeros to the longer of the two, and to four components when
 # both are shorter, then compares every component. Padding at the end only: a component that differs

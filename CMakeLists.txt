@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.19)
 
 # 0.1.0.0 is the first version to carry the Level 1 contract surface. otter makes no ABI promise
 # before 1.0; see README, "Versioning and ABI".
-project(otter
+project(synthrt-otter
     VERSION 0.1.0.0
     LANGUAGES CXX
     DESCRIPTION "Orchestratable Transcription, Timing and Expression Runtime"
@@ -47,6 +47,7 @@ endif()
 # Project Variables
 # ----------------------------------
 set(OTTER_INSTALL_NAME ${PROJECT_NAME})
+set(OTTER_INSTALL_NAMESPACE synthrt)
 set(OTTER_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 
 # ----------------------------------
@@ -76,10 +77,10 @@ find_package(synthrt CONFIG REQUIRED)
 option(OTTER_DISABLE_DSINFER "Build without dsinfer even if it is installed" OFF)
 
 if(NOT OTTER_DISABLE_DSINFER)
-    find_package(dsinfer CONFIG QUIET)
+    find_package(synthrt-dsinfer CONFIG QUIET)
 endif()
 
-if(TARGET dsinfer::dsinfer)
+if(TARGET synthrt::dsinfer)
     set(OTTER_HAS_DSINFER ON)
     # The ONNX driver is installed as a plugin under lib/plugins/dsinfer beside the library, not
     # as a link target. The dsinfer package reports the location of that tree in
@@ -95,7 +96,7 @@ if(TARGET dsinfer::dsinfer)
     if(DEFINED DSINFER_PLUGINS_DIR AND IS_DIRECTORY "${DSINFER_PLUGINS_DIR}")
         set(_otter_dsinfer_plugins "${DSINFER_PLUGINS_DIR}")
     else()
-        set(_otter_dsinfer_prefix "${dsinfer_DIR}")
+        set(_otter_dsinfer_prefix "${synthrt-dsinfer_DIR}")
         foreach(_step RANGE 3)
             get_filename_component(_otter_dsinfer_prefix "${_otter_dsinfer_prefix}" DIRECTORY)
             if(IS_DIRECTORY "${_otter_dsinfer_prefix}/lib/plugins/dsinfer")
@@ -117,7 +118,7 @@ if(TARGET dsinfer::dsinfer)
         message(WARNING "dsinfer was found but its plugin tree was not; the model tests will "
                         "be skipped because no driver is available")
     endif()
-    message(STATUS "dsinfer: ${dsinfer_DIR}")
+    message(STATUS "dsinfer: ${synthrt-dsinfer_DIR}")
 else()
     set(OTTER_HAS_DSINFER OFF)
     if(OTTER_DISABLE_DSINFER)

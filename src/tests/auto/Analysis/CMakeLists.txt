@@ -1,8 +1,8 @@
-add_auto_test(test_AnalysisContrib.cpp otter)
+add_auto_test(test_AnalysisContrib.cpp synthrt-otter)
 
-add_auto_test(test_AnalysisLoad.cpp otter)
+add_auto_test(test_AnalysisLoad.cpp synthrt-otter)
 
-add_auto_test(test_AnalysisRuntime.cpp otter)
+add_auto_test(test_AnalysisRuntime.cpp synthrt-otter)
 
 # The readers are private to this tree and live in a static library the library does not export.
 add_auto_test(test_ManifestValues.cpp otter_support)
@@ -12,16 +12,16 @@ add_auto_test(test_F0Curve.cpp otter_support)
 # These tests need the driver framework and the generated model fixtures, so they exist only in a
 # build that includes dsinfer. The availability of the fixture generator is determined below.
 if(OTTER_HAS_DSINFER)
-    add_auto_test(test_Rmvpe.cpp otter dsinfer::dsinfer)
-    add_auto_test(test_Game.cpp otter dsinfer::dsinfer)
-    add_auto_test(test_Hfa.cpp otter dsinfer::dsinfer)
-    add_auto_test(test_Tifa.cpp otter dsinfer::dsinfer)
+    add_auto_test(test_Rmvpe.cpp synthrt-otter synthrt::dsinfer)
+    add_auto_test(test_Game.cpp synthrt-otter synthrt::dsinfer)
+    add_auto_test(test_Hfa.cpp synthrt-otter synthrt::dsinfer)
+    add_auto_test(test_Tifa.cpp synthrt-otter synthrt::dsinfer)
 
     # The readers the providers share report refusals of their own, and only a target that links
     # the support library reaches them, since a provider hands its code to a plugin rather than to
     # a test.
     if(TARGET otter_onnx_support)
-        add_auto_test(test_OnnxSupport.cpp otter otter_onnx_support dsinfer::dsinfer)
+        add_auto_test(test_OnnxSupport.cpp synthrt-otter otter_onnx_support synthrt::dsinfer)
     endif()
 endif()
 
@@ -29,10 +29,10 @@ endif()
 # beside them. Without a model the tests still cover the declaration surface, and a run with no
 # model named in the environment reports itself as a skip.
 if(TARGET ottergameggml)
-    add_auto_test(test_GameGgml.cpp otter)
+    add_auto_test(test_GameGgml.cpp synthrt-otter)
 endif()
 if(TARGET ottertifaggml)
-    add_auto_test(test_TifaGgml.cpp otter)
+    add_auto_test(test_TifaGgml.cpp synthrt-otter)
 endif()
 
 set(_otter_tests test_AnalysisContrib test_AnalysisLoad test_AnalysisRuntime test_ManifestValues
@@ -49,13 +49,13 @@ set(_otter_tests test_AnalysisContrib test_AnalysisLoad test_AnalysisRuntime tes
 # executable's directory and the directories the host registered, not PATH. A deployment puts
 # the libraries a plugin needs beside the executable or registers their directory.
 set(_otter_test_runtime_dirs
-    "$<TARGET_FILE_DIR:otter>"
+    "$<TARGET_FILE_DIR:synthrt-otter>"
     "$<TARGET_FILE_DIR:synthrt::synthrt>"
     "$<TARGET_FILE_DIR:stdcorelib::plugin>"
     "$<TARGET_FILE_DIR:stdcorelib::stdcorelib>"
 )
 if(OTTER_HAS_DSINFER)
-    list(APPEND _otter_test_runtime_dirs "$<TARGET_FILE_DIR:dsinfer::dsinfer>")
+    list(APPEND _otter_test_runtime_dirs "$<TARGET_FILE_DIR:synthrt::dsinfer>")
 endif()
 if(OTTER_ONNXRUNTIME_DIR)
     list(APPEND _otter_test_runtime_dirs "${OTTER_ONNXRUNTIME_DIR}")

@@ -19,20 +19,25 @@ set_target_properties(otter_support PROPERTIES
 file(GLOB_RECURSE _src CONFIGURE_DEPENDS "*.cpp")
 list(FILTER _src EXCLUDE REGEX "/Support/")
 
+# The export macros would take their prefix from the target name, SYNTHRT_OTTER, while
+# otter_global.h tests OTTER_LIBRARY and OTTER_STATIC.
 otter_add_library(${PROJECT_NAME} SHARED
+    MACRO_PREFIX OTTER
     SOURCES ${_src}
     LINKS synthrt::synthrt
     LINKS_PRIVATE otter_support
     INCLUDE_PRIVATE ../../include/** **
 )
 
-set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME synthrt-otter)
+# The package is synthrt-otter, and the namespace is synthrt, which the libraries built on synthrt
+# share, so that a host links synthrt::otter.
+set_target_properties(${PROJECT_NAME} PROPERTIES EXPORT_NAME otter)
 
-# Every target named in the exported link interface must be imported by otterConfig.cmake.
-# Otherwise the find_package(otter) call of every consumer fails at generate time with "but the
-# target was not found", and no test in this repository detects the failure, because the tests link
-# the build-tree target directly and never use the installed config.
-set(_otter_exported_targets synthrt::synthrt)  # keep in sync with src/otterConfig.cmake.in
+# Every target named in the exported link interface must be imported by synthrt-otterConfig.cmake.
+# Otherwise the find_package(synthrt-otter) call of every consumer fails at generate time with "but
+# the target was not found", and no test in this repository detects the failure, because the tests
+# link the build-tree target directly and never use the installed config.
+set(_otter_exported_targets synthrt::synthrt)  # keep in sync with src/synthrt-otterConfig.cmake.in
 get_target_property(_otter_interface_links ${PROJECT_NAME} INTERFACE_LINK_LIBRARIES)
 
 foreach(_link IN LISTS _otter_interface_links)
@@ -43,10 +48,10 @@ foreach(_link IN LISTS _otter_interface_links)
         continue()
     endif()
     message(FATAL_ERROR
-        "otter exports '${_link}' in its link interface, but src/otterConfig.cmake.in does not "
-        "import that target. Either move the dependency to LINKS_PRIVATE (correct if it appears "
-        "in no public header), or add a find_dependency() call for it to the config template and "
-        "list it in _otter_exported_targets here.")
+        "otter exports '${_link}' in its link interface, but src/synthrt-otterConfig.cmake.in "
+        "does not import that target. Either move the dependency to LINKS_PRIVATE (correct if it "
+        "appears in no public header), or add a find_dependency() call for it to the config "
+        "template and list it in _otter_exported_targets here.")
 endforeach()
 
 unset(_otter_exported_targets)
