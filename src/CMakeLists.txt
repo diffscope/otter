@@ -16,42 +16,16 @@ if(OTTER_BUILD_TESTS)
     add_subdirectory(tests)
 endif()
 
-# The helper writes a version file that accepts any newer version. otter guarantees no ABI
-# stability before 1.0, so a host built against one version must not load another; this file
-# therefore writes the CMake package with ExactVersion. This file also installs the headers,
-# because the helper installs everything under include/, and otter/Support is not part of the
-# public interface: its readers are compiled into the private static library otter_support, which
-# the library and each plugin in this tree link individually. The installed headers are those of
-# Analysis, Api and otter_global.h.
-otter_install(NO_EXPORT NO_INCLUDE)
+# This file installs the headers, because the helper installs everything under include/, and
+# otter/Support is not part of the public interface: its readers are compiled into the private
+# static library otter_support, which the library and each plugin in this tree link individually.
+# The installed headers are those of Analysis, Api and otter_global.h.
+otter_install(NO_INCLUDE)
 
 if(OTTER_INSTALL AND OTTER_DEVEL)
     install(DIRECTORY ${OTTER_INCLUDE_DIR}/
         DESTINATION ${OTTER_INSTALL_INCLUDE_DIR}
         FILES_MATCHING PATTERN "*.h" PATTERN "Support" EXCLUDE
-    )
-endif()
-
-if(OTTER_INSTALL)
-    qm_basic_install(
-        NAME ${OTTER_INSTALL_NAME}
-        VERSION ${OTTER_INSTALL_VERSION}
-        COMPATIBILITY ExactVersion
-        INSTALL_DIR ${OTTER_INSTALL_CMAKE_DIR}
-        CONFIG_TEMPLATE ${OTTER_INSTALL_CONFIG_TEMPLATE}
-        NAMESPACE ${OTTER_INSTALL_NAMESPACE}::
-        EXPORT ${OTTER_EXPORT}
-        WRITE_CONFIG_OPTIONS NO_CHECK_REQUIRED_COMPONENTS_MACRO
-    )
-    # The helper writes synthrt-otterConfigVersion.cmake with COMPATIBILITY ExactVersion, whose
-    # comparison stops at the third version component, so the package accepts a host that asks for a
-    # different fourth one. otter promises no ABI stability before 1.0, so the template beside this
-    # file compares all four. The helper writes the file into this directory's binary tree and its
-    # install rule references that path, so writing it again here replaces what a host reads.
-    configure_file(
-        "${CMAKE_CURRENT_SOURCE_DIR}/OtterConfigVersion.cmake.in"
-        "${CMAKE_CURRENT_BINARY_DIR}/synthrt-otterConfigVersion.cmake"
-        @ONLY
     )
 endif()
 

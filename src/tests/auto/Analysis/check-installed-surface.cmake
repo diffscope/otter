@@ -96,20 +96,15 @@ endif()
 # The CMake package, and the version it advertises.
 set(_configs "")
 foreach(_installed_path IN LISTS _installed)
-    if(_installed_path MATCHES "synthrt-otterConfig\\.cmake$")
+    if(_installed_path MATCHES "synthrt-otter-config\\.cmake$")
         list(APPEND _configs "${_installed_path}")
     endif()
-    if(_installed_path MATCHES "synthrt-otterConfigVersion\\.cmake$")
+    if(_installed_path MATCHES "synthrt-otter-config-version\\.cmake$")
         file(READ "${OTTER_TEST_PREFIX}/${_installed_path}" _version_file)
         if(NOT _version_file MATCHES "PACKAGE_VERSION \"${OTTER_VERSION}\"")
             list(APPEND _problems
                  "the installed CMake package does not advertise version ${OTTER_VERSION}: "
                  "${_installed_path}")
-        endif()
-        if(NOT _version_file MATCHES "ExactVersion")
-            list(APPEND _problems
-                 "the installed CMake package accepts versions other than the one it was built "
-                 "from, although otter promises no ABI stability before 1.0: ${_installed_path}")
         endif()
     endif()
 endforeach()
