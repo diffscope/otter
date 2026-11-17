@@ -160,7 +160,7 @@ jobs:
         shell: bash
         run: |
           listed="$(ctest --test-dir build/cmake -N)"
-          for test in test_Rmvpe test_Game test_Hfa test_Tifa; do
+          for test in test_RmvpeInterpreter test_GameInterpreter test_HfaInterpreter test_TifaInterpreter; do
             echo "$listed" | grep -qE "^[[:space:]]*Test +#[0-9]+: ${test}\$" || {
               echo "::error::${test} is not an enabled test, so an interpreter without onnx was found"
               exit 1
@@ -188,3 +188,10 @@ jobs:
             -DVCPKG_MANIFEST_MODE=OFF \
             -DCMAKE_PREFIX_PATH="$PWD/build/install"
           cmake --build build/consumer
+          # The consumer finds the plugin tree through the installed library at run time, so it is
+          # run and not only built. Windows resolves the libraries through PATH; elsewhere the
+          # build tree rpath of the consumer already names them.
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            export PATH="$PWD/build/install/bin:$(cygpath -u '${{ steps.vcpkg.outputs.installed-dir }}')/$VCPKG_DEFAULT_TRIPLET/bin:$PATH"
+          fi
+          build/consumer/otter_package_consumer

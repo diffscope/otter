@@ -6,15 +6,12 @@ add_auto_test(test_AnalysisExecutive.cpp synthrt-otter)
 
 set(_otter_tests test_AnalysisError test_AnalysisExecutive_Load test_AnalysisExecutive)
 
+# Every test receives the environment that the parent directory computes.
 foreach(_test IN LISTS _otter_tests)
     if(TARGET ${_test})
         set_tests_properties(${_test} PROPERTIES ENVIRONMENT_MODIFICATION "${_otter_test_env}")
     endif()
 endforeach()
-
-# The exit status with which a test reports that it did not run, which ctest reports as a skip.
-# The value is defined once because the tests and ctest must agree on it.
-set(OTTER_TEST_SKIP_EXIT_CODE 77)
 
 # A cache path rather than a generated directory: the packages are data, and the script that
 # rebuilds them is the single definition of what they hold, so a developer who does not run it, or
@@ -36,10 +33,10 @@ else()
                    "(pass -DOTTER_TEST_PACKAGES_SOURCE=<dir>)")
 endif()
 
-# The loading and runtime tests discover the stub provider, so the provider must be built before
-# they run, and the tests receive its location as a compile definition. They read the packages from
-# the environment rather than a compile definition, so that one build can be pointed at a directory
-# per run without reconfiguring.
+# The loading and runtime tests link the stub provider, which registers itself as a static plugin
+# of the inference category, so they set no plugin path. They read the packages from the
+# environment rather than a compile definition, so that one build can be pointed at a directory per
+# run without reconfiguring.
 foreach(_needs_stub IN ITEMS test_AnalysisExecutive_Load test_AnalysisExecutive)
     if(TARGET ${_needs_stub})
         target_link_libraries(${_needs_stub} PRIVATE otterstub)
@@ -53,10 +50,9 @@ foreach(_needs_stub IN ITEMS test_AnalysisExecutive_Load test_AnalysisExecutive)
     endif()
 endforeach()
 
-find_package(Python3 COMPONENTS Interpreter QUIET)
-
 # The package lint and the package assembler are Python scripts with tests of their own. They need
 # nothing but Python.
+find_package(Python3 COMPONENTS Interpreter QUIET)
 if(Python3_Interpreter_FOUND)
     add_test(NAME test_CheckDeclarations
         COMMAND "${Python3_EXECUTABLE}" -m unittest discover
@@ -70,8 +66,8 @@ endif()
 
 # What a host sees is the installed tree, not the source tree, and the helpers that install it are
 # easy to change without noticing what they add. The check installs into a scratch prefix and
-# asserts the shape, including the headers that must not be installed, which is what keeps the
-# readers under include/otter/Support private.
+# asserts the shape, including the files that must not be installed, which is what keeps the
+# private libraries under src/util out of the installed tree.
 if(OTTER_INSTALL)
     add_test(NAME test_InstalledSurface
         COMMAND ${CMAKE_COMMAND}
@@ -86,7 +82,6 @@ else()
         "OTTER_INSTALL is off, so the shape of the installed tree is not covered: the check is not "
         "registered with ctest")
 endif()
-
 add_auto_test(Provider/test_AnalysisInput.cpp synthrt-otter)
 if(TARGET test_AnalysisInput)
     set_tests_properties(test_AnalysisInput PROPERTIES ENVIRONMENT_MODIFICATION "${_otter_test_env}")

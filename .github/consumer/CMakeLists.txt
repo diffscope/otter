@@ -17,39 +17,44 @@ if(NOT TARGET synthrt::otter)
     message(FATAL_ERROR "the synthrt-otter package defines no synthrt::otter target")
 endif()
 
-# The plugin tree is a path rather than a target. No target links it, and no other check detects
-# its absence. A host passes the category directory to SynthUnit::setPluginPaths, which requires
-# the package to export its location.
-if(NOT DEFINED OTTER_PLUGINS_DIR)
-    message(FATAL_ERROR "the synthrt-otter package exports no OTTER_PLUGINS_DIR")
-endif()
-if(NOT IS_DIRECTORY "${OTTER_PLUGINS_DIR}/inferenceinterpreters")
-    message(FATAL_ERROR "OTTER_PLUGINS_DIR (${OTTER_PLUGINS_DIR}) contains no "
-                        "inferenceinterpreters directory")
-endif()
-message(STATUS "otter plugins: ${OTTER_PLUGINS_DIR}")
-if(DEFINED OTTER_PLUGINS_DIR_DEBUG)
-    message(STATUS "otter plugins (debug): ${OTTER_PLUGINS_DIR_DEBUG}")
-endif()
-
-# otter/Support contains readers private to the library and its plugins. They are compiled into a
-# static library that is not installed, so a Support header in the install tree would expose
-# declarations without definitions to a host.
+# analysisutil, onnxutil and ggmlutil contain code private to the library and its plugins. Each is
+# compiled into a static library that is not installed, so a header of one of them in the install
+# tree would expose declarations without definitions to a host.
 get_target_property(_otter_include_dirs synthrt::otter INTERFACE_INCLUDE_DIRECTORIES)
 set(_otter_found_headers OFF)
 foreach(_dir IN LISTS _otter_include_dirs)
     if(EXISTS "${_dir}/otter/Analysis/AnalysisExecutive.h")
         set(_otter_found_headers ON)
     endif()
-    if(EXISTS "${_dir}/otter/Support")
-        message(FATAL_ERROR "the otter package installs otter/Support (${_dir}/otter/Support), "
-                            "which is private to the library and its plugins")
-    endif()
+    foreach(_private IN ITEMS analysisutil onnxutil ggmlutil)
+        if(EXISTS "${_dir}/${_private}")
+            message(FATAL_ERROR "the otter package installs ${_private} (${_dir}/${_private}), "
+                                "which is private to the library and its plugins")
+        endif()
+    endforeach()
 endforeach()
 if(NOT _otter_found_headers)
     message(FATAL_ERROR "no include directory of synthrt::otter contains the public headers "
                         "(${_otter_include_dirs})")
 endif()
 
+# The package exports every installed plugin as an imported target. The plugin tree is a directory
+# rather than a link dependency, so no link step detects its absence, and the consumer checks the
+# category directory above the bundle of one exported plugin. A host that does not use CMake adds
+# lib/synthrt-otter/plugins/inferenceinterpreters of the install prefix instead.
+set(_otter_plugin "")
+foreach(_candidate IN ITEMS otterrmvpe ottergame otterhfa ottertifa ottergameggml ottertifaggml)
+    if(TARGET synthrt::${_candidate})
+        set(_otter_plugin synthrt::${_candidate})
+        break()
+    endif()
+endforeach()
+if(NOT _otter_plugin)
+    message(FATAL_ERROR "the synthrt-otter package exports no plugin target")
+endif()
+
 add_executable(otter_package_consumer main.cpp)
 target_link_libraries(otter_package_consumer PRIVATE synthrt::otter)
+target_compile_definitions(otter_package_consumer PRIVATE
+    OTTER_CONSUMER_PLUGIN_DIR="$<TARGET_FILE_DIR:${_otter_plugin}>/.."
+)

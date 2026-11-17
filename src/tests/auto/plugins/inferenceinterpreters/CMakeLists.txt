@@ -9,7 +9,7 @@
 # loaded.
 
 # The plugin that the analysis tests use in place of a model, one directory per plugin
-
+add_subdirectory(stub)
 
 # otter_add_interpreter_test(<source> <directory> [<libraries>...])
 #

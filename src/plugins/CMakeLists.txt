@@ -1,9 +1,7 @@
-# A plugin's library file name is the name field of its plugin.json, and the bundle loader adds
-# only the platform's prefix and suffix to that name. The debug postfix of library targets would
-# turn otterrmvpe.dll into otterrmvped.dll and make every plugin undiscoverable in a Debug build;
-# therefore every plugin removes the postfix immediately after its declaration.
-function(otter_drop_plugin_postfix _target)
-    set_target_properties(${_target} PROPERTIES DEBUG_POSTFIX "")
-endfunction()
+# Every plugin is declared by otter_add_interpreter_plugin(), which combines otter_add_plugin()
+# with the building blocks of AddPlugin.cmake in the synthrt package: the sources but main.cpp are
+# compiled into the object library <target>_objects that the tests link. AddPlugin.cmake
+# describes the layout and the include namespace.
+include("${SYNTHRT_MODULES_DIR}/AddPlugin.cmake")
 
 add_subdirectory(inferenceinterpreters)

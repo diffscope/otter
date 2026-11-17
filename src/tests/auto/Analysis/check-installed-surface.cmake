@@ -1,10 +1,10 @@
 # Installs the build into a scratch prefix and asserts the shape of what lands there.
 #
 # The installed tree is what a host builds against, so its contents are part of the interface. Part of
-# that promise is a promise of absence: the readers under include/otter/Support are compiled into a
-# private static library, and a header becomes public by accident as soon as it is installed. The
-# expectations name the paths that have to be there rather than every file, so a new public header
-# does not fail the check while a private one does.
+# that promise is a promise of absence: analysisutil, onnxutil and ggmlutil under src/util are
+# private static libraries, and a header or an archive of one of them becomes public by accident as
+# soon as it is installed. The expectations name the paths that have to be there rather than every
+# file, so a new public header does not fail the check while a private one does.
 #
 # The check also holds the promise that one version serves the library, the packages and the release
 # to the artifact a host actually reads: the CMake package version file advertises the version the
@@ -55,10 +55,11 @@ foreach(_required IN ITEMS
     endif()
 endforeach()
 
-# The private headers, which a host must not be able to include.
+# The private libraries, which a host must not be able to include or link.
 foreach(_installed_path IN LISTS _installed)
-    if(_installed_path MATCHES "^include/otter/Support/")
-        list(APPEND _problems "the private header ${_installed_path} is installed")
+    if(_installed_path MATCHES "(^|/)(lib)?(analysisutil|onnxutil|ggmlutil)(/|[^/]*\\.(lib|a)$)")
+        list(APPEND _problems
+            "the private library ${CMAKE_MATCH_3} is installed: ${_installed_path}")
     endif()
     if(_installed_path MATCHES "\\.(cpp|cc|hpp|py)$")
         list(APPEND _problems "the source file ${_installed_path} is installed")
@@ -82,14 +83,31 @@ endif()
 if(OTTER_EXPECT_PLUGINS)
     set(_plugin_count 0)
     foreach(_installed_path IN LISTS _installed)
-        if(_installed_path MATCHES "^lib/plugins/synthrt-otter/inferenceinterpreters/.+\\.(dll|so|dylib)$")
+        if(_installed_path MATCHES "^lib/synthrt-otter/plugins/inferenceinterpreters/.+\\.(dll|so|dylib)$")
             math(EXPR _plugin_count "${_plugin_count} + 1")
         endif()
     endforeach()
     if(_plugin_count EQUAL 0)
         list(APPEND _problems
-             "no inference interpreter is installed under lib/plugins/synthrt-otter, and a build "
+             "no inference interpreter is installed under lib/synthrt-otter/plugins, and a build "
              "with dsinfer is expected to install them")
+    endif()
+endif()
+
+# The plugins enter the CMake package as imported targets, so a CMake project reads the plugin
+# tree from the package.
+if(OTTER_EXPECT_PLUGINS)
+    set(_exported_plugin FALSE)
+    foreach(_installed_path IN LISTS _installed)
+        if(_installed_path MATCHES "synthrt-otter-targets-[a-z]+\\.cmake$")
+            file(READ "${OTTER_TEST_PREFIX}/${_installed_path}" _targets_file)
+            if(_targets_file MATCHES "/lib/synthrt-otter/plugins/inferenceinterpreters/")
+                set(_exported_plugin TRUE)
+            endif()
+        endif()
+    endforeach()
+    if(NOT _exported_plugin)
+        list(APPEND _problems "the CMake package exports no installed plugin as a target")
     endif()
 endif()
 

@@ -48,6 +48,9 @@ endif()
 # ----------------------------------
 set(OTTER_INSTALL_NAME ${PROJECT_NAME})
 set(OTTER_INSTALL_NAMESPACE synthrt)
+# A plugin is loaded at run time and never linked, so it is a module library, which has no
+# import library to install.
+set(OTTER_PLUGIN_TYPE MODULE)
 set(OTTER_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 
 # ----------------------------------
@@ -81,43 +84,9 @@ if(NOT OTTER_DISABLE_DSINFER)
 endif()
 
 if(TARGET synthrt::dsinfer)
+    # The ONNX driver is a plugin of dsinfer, which the dsinfer package exports as the imported
+    # target synthrt::onnxdriver. The tests read its directory from that target.
     set(OTTER_HAS_DSINFER ON)
-    # The ONNX driver is installed as a plugin under lib/plugins/dsinfer beside the library, not
-    # as a link target. The dsinfer package reports the location of that tree in
-    # DSINFER_PLUGINS_DIR. For an older package without that variable, the tree is searched for
-    # above the config file, which is share/dsinfer in a vcpkg tree and lib/cmake/dsinfer in a
-    # plain install. The location is not derived from the library path, because Windows installs
-    # the library under bin while the plugin tree remains under lib. A vcpkg tree keeps its Debug
-    # build under debug/, which a multi-configuration generator selects per build, so that part of
-    # the path is a generator expression. A plugin search path contains one subdirectory per
-    # plugin, so the result is the parent of the onnx directory. Tests pass it to the driver
-    # factory at run time.
-    set(_otter_dsinfer_plugins "")
-    if(DEFINED DSINFER_PLUGINS_DIR AND IS_DIRECTORY "${DSINFER_PLUGINS_DIR}")
-        set(_otter_dsinfer_plugins "${DSINFER_PLUGINS_DIR}")
-    else()
-        set(_otter_dsinfer_prefix "${synthrt-dsinfer_DIR}")
-        foreach(_step RANGE 3)
-            get_filename_component(_otter_dsinfer_prefix "${_otter_dsinfer_prefix}" DIRECTORY)
-            if(IS_DIRECTORY "${_otter_dsinfer_prefix}/lib/plugins/dsinfer")
-                set(_otter_dsinfer_plugins "${_otter_dsinfer_prefix}/lib/plugins/dsinfer")
-                break()
-            endif()
-        endforeach()
-    endif()
-    set(OTTER_DSINFER_DRIVER_DIR "")
-    if(_otter_dsinfer_plugins)
-        get_filename_component(_otter_dsinfer_prefix "${_otter_dsinfer_plugins}/../../.." ABSOLUTE)
-        if(IS_DIRECTORY "${_otter_dsinfer_prefix}/debug/lib/plugins/dsinfer")
-            set(OTTER_DSINFER_DRIVER_DIR
-                "${_otter_dsinfer_prefix}/$<$<CONFIG:Debug>:debug/>lib/plugins/dsinfer/inferencedrivers")
-        else()
-            set(OTTER_DSINFER_DRIVER_DIR "${_otter_dsinfer_plugins}/inferencedrivers")
-        endif()
-    else()
-        message(WARNING "dsinfer was found but its plugin tree was not; the model tests will "
-                        "be skipped because no driver is available")
-    endif()
     message(STATUS "dsinfer: ${synthrt-dsinfer_DIR}")
 else()
     set(OTTER_HAS_DSINFER OFF)

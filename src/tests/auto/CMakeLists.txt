@@ -1,4 +1,3 @@
-set(OTTER_TEST_SKIP_EXIT_CODE 77)
 include("${SYNTHRT_MODULES_DIR}/AddAutoTest.cmake")
 
 # The tests load the library under test, synthrt, its stdcorelib dependencies and, if present,
@@ -29,15 +28,18 @@ foreach(_var IN ITEMS PATH LD_LIBRARY_PATH DYLD_LIBRARY_PATH)
     endforeach()
 endforeach()
 
+# The exit status with which a test reports that it did not run, which ctest reports as a skip.
+# The value is defined once because the tests and ctest must agree on it.
+set(OTTER_TEST_SKIP_EXIT_CODE 77)
+
+# TestSupport.h beside this file serves the tests of every directory below.
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
-add_subdirectory(plugins/inferenceinterpreters/stub)
-
+# The tests of the analysis domain, of the private libraries under src/util, and of the plugins,
+# with the plugins that the tests use in place of a model.
 add_subdirectory(Analysis)
 add_subdirectory(util)
-
-add_subdirectory(Api)
-
 add_subdirectory(plugins)
+add_subdirectory(Api)
 
 add_subdirectory(Core)
