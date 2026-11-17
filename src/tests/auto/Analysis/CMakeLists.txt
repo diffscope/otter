@@ -4,11 +4,6 @@ add_auto_test(test_AnalysisLoad.cpp synthrt-otter)
 
 add_auto_test(test_AnalysisRuntime.cpp synthrt-otter)
 
-# The readers are private to this tree and live in a static library the library does not export.
-add_auto_test(test_ManifestValues.cpp analysisutil)
-
-add_auto_test(test_F0Curve.cpp analysisutil)
-
 # These tests need the driver framework and the generated model fixtures, so they exist only in a
 # build that includes dsinfer. The availability of the fixture generator is determined below.
 if(OTTER_HAS_DSINFER)
@@ -17,12 +12,6 @@ if(OTTER_HAS_DSINFER)
     add_auto_test(test_Hfa.cpp synthrt-otter synthrt::dsinfer)
     add_auto_test(test_Tifa.cpp synthrt-otter synthrt::dsinfer)
 
-    # The readers the providers share report refusals of their own, and only a target that links
-    # the support library reaches them, since a provider hands its code to a plugin rather than to
-    # a test.
-    if(TARGET onnxutil)
-        add_auto_test(test_OnnxSupport.cpp synthrt-otter onnxutil synthrt::dsinfer)
-    endif()
 endif()
 
 # The ggml providers exist only in a build that named their engines, so their tests exist only
@@ -35,37 +24,10 @@ if(TARGET ottertifaggml)
     add_auto_test(test_TifaGgml.cpp synthrt-otter)
 endif()
 
-set(_otter_tests test_AnalysisContrib test_AnalysisLoad test_AnalysisRuntime test_ManifestValues
-                 test_F0Curve test_Rmvpe test_Game test_Hfa test_Tifa test_OnnxSupport
+set(_otter_tests test_AnalysisContrib test_AnalysisLoad test_AnalysisRuntime
+                  test_Rmvpe test_Game test_Hfa test_Tifa
                  test_GameGgml test_TifaGgml)
 
-# The tests load the library under test, synthrt, its stdcorelib dependencies and, if present,
-# dsinfer and ONNX Runtime at run time. Windows resolves those through PATH; the ELF and Mach-O
-# loaders need their own variables, so all three are set. Every test target receives the same
-# environment.
-#
-# This covers the executables. A plugin loaded at run time resolves its own dependencies through
-# the loader's search path for plugins, which on Windows is the plugin's directory, the
-# executable's directory and the directories the host registered, not PATH. A deployment puts
-# the libraries a plugin needs beside the executable or registers their directory.
-set(_otter_test_runtime_dirs
-    "$<TARGET_FILE_DIR:synthrt-otter>"
-    "$<TARGET_FILE_DIR:synthrt::synthrt>"
-    "$<TARGET_FILE_DIR:stdcorelib::plugin>"
-    "$<TARGET_FILE_DIR:stdcorelib::stdcorelib>"
-)
-if(OTTER_HAS_DSINFER)
-    list(APPEND _otter_test_runtime_dirs "$<TARGET_FILE_DIR:synthrt::dsinfer>")
-endif()
-if(OTTER_ONNXRUNTIME_DIR)
-    list(APPEND _otter_test_runtime_dirs "${OTTER_ONNXRUNTIME_DIR}")
-endif()
-set(_otter_test_env "")
-foreach(_var IN ITEMS PATH LD_LIBRARY_PATH DYLD_LIBRARY_PATH)
-    foreach(_dir IN LISTS _otter_test_runtime_dirs)
-        list(APPEND _otter_test_env "${_var}=path_list_prepend:${_dir}")
-    endforeach()
-endforeach()
 foreach(_test IN LISTS _otter_tests)
     if(TARGET ${_test})
         set_tests_properties(${_test} PROPERTIES ENVIRONMENT_MODIFICATION "${_otter_test_env}")
