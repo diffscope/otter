@@ -8,6 +8,8 @@ otter_init_buildsystem()
 set(OTTER_BUILD_PLUGINS_DIR ${OTTER_BUILD_LIBRARY_DIR}/plugins/${OTTER_INSTALL_NAME})
 set(OTTER_INSTALL_PLUGINS_DIR ${OTTER_INSTALL_LIBRARY_DIR}/plugins/${OTTER_INSTALL_NAME})
 
+add_subdirectory(util)
+
 add_subdirectory(lib)
 
 add_subdirectory(plugins)
@@ -18,7 +20,7 @@ endif()
 
 # This file installs the headers, because the helper installs everything under include/, and
 # otter/Support is not part of the public interface: its readers are compiled into the private
-# static library otter_support, which the library and each plugin in this tree link individually.
+# static library analysisutil, which the library and each plugin in this tree link individually.
 # The installed headers are those of Analysis, Api and otter_global.h.
 otter_install(NO_INCLUDE)
 

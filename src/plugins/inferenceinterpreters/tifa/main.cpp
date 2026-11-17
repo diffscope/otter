@@ -39,11 +39,11 @@
 #include <otter/Analysis/Provider/AnalysisInput.h>
 #include <otter/Analysis/Provider/AnalysisInterpreter.h>
 #include <otter/Api/Align/1/AlignApiL1.h>
-#include <otter/Support/ManifestValues.h>
+#include <analysisutil/ManifestValues.h>
 
 #include "Decode.h"
 #include "Grid.h"
-#include "OnnxSupport.h"
+#include <onnxutil/OnnxSupport.h>
 #include "Scoring.h"
 
 namespace AlignApi = otter::Api::Align::L1;

@@ -12,7 +12,7 @@
 #include <dsinfer/Inference/InferenceDriver.h>
 #include <dsinfer/Inference/InferenceDriverPlugin.h>
 
-#include <otter/Support/ManifestValues.h>
+#include <analysisutil/ManifestValues.h>
 
 namespace otter::onnx {
 

@@ -68,38 +68,25 @@ endfunction()
 # built: packages still load, and only analyzer execution is unavailable. synthrt degrades in the
 # same way without its own driver.
 if(OTTER_HAS_DSINFER)
-    # otter_onnx_support contains the code shared by the four ONNX providers, as a static library
-    # that each provider links. The code cannot reside in the otter library because the otter
-    # library does not depend on dsinfer. Hidden visibility prevents a plugin from re-exporting it.
-    add_library(otter_onnx_support STATIC onnx/OnnxSupport.h onnx/OnnxSupport.cpp)
-    target_link_libraries(otter_onnx_support PUBLIC synthrt-otter otter_support synthrt::dsinfer)
-    target_include_directories(otter_onnx_support PUBLIC onnx)
-    target_compile_features(otter_onnx_support PUBLIC cxx_std_17)
-    set_target_properties(otter_onnx_support PROPERTIES
-        POSITION_INDEPENDENT_CODE ON
-        CXX_VISIBILITY_PRESET hidden
-        VISIBILITY_INLINES_HIDDEN ON
-    )
-
     otter_add_interpreter_plugin(otterrmvpe rmvpe
         SOURCES rmvpe/main.cpp
-        LINKS synthrt-otter otter_support otter_onnx_support synthrt::dsinfer
+        LINKS synthrt-otter analysisutil onnxutil synthrt::dsinfer
     )
     otter_add_interpreter_plugin(ottergame game
         SOURCES game/main.cpp
-        LINKS synthrt-otter otter_support otter_onnx_support synthrt::dsinfer
+        LINKS synthrt-otter analysisutil onnxutil synthrt::dsinfer
     )
     otter_add_interpreter_plugin(otterhfa hfa
         SOURCES hfa/main.cpp hfa/Aligner.h hfa/Aligner.cpp hfa/G2p.h hfa/G2p.cpp hfa/NonSpeech.h
                 hfa/NonSpeech.cpp
-        LINKS synthrt-otter otter_support otter_onnx_support synthrt::dsinfer
+        LINKS synthrt-otter analysisutil onnxutil synthrt::dsinfer
     )
     # The aligner that reads the five exported graphs: the spectrogram front end, the acoustic
     # model, the scoring inputs, the word scores and the selection that turns them into frames.
     otter_add_interpreter_plugin(ottertifa tifa
         SOURCES tifa/main.cpp tifa/Decode.h tifa/Decode.cpp tifa/Grid.h tifa/Grid.cpp
                 tifa/Scoring.h tifa/Scoring.cpp
-        LINKS synthrt-otter otter_support otter_onnx_support synthrt::dsinfer
+        LINKS synthrt-otter analysisutil onnxutil synthrt::dsinfer
     )
 endif()
 
@@ -116,7 +103,7 @@ option(OTTER_BUILD_TIFA_GGML "Build the tifa-ggml interpreter, which drives the 
 # hands its engine, and the scratch directory of one execution. Hidden visibility prevents a plugin
 # from re-exporting it.
 add_library(otter_cli_support STATIC external/CliProcess.h external/CliProcess.cpp)
-target_link_libraries(otter_cli_support PUBLIC synthrt-otter otter_support)
+target_link_libraries(otter_cli_support PUBLIC synthrt-otter analysisutil)
 target_include_directories(otter_cli_support PUBLIC external)
 target_compile_features(otter_cli_support PUBLIC cxx_std_17)
 set_target_properties(otter_cli_support PROPERTIES
@@ -128,14 +115,14 @@ set_target_properties(otter_cli_support PROPERTIES
 if(OTTER_BUILD_GAME_GGML)
     otter_add_interpreter_plugin(ottergameggml game-ggml
         SOURCES game-ggml/main.cpp
-        LINKS synthrt-otter otter_support otter_cli_support
+        LINKS synthrt-otter analysisutil otter_cli_support
     )
 endif()
 
 if(OTTER_BUILD_TIFA_GGML)
     otter_add_interpreter_plugin(ottertifaggml tifa-ggml
         SOURCES tifa-ggml/main.cpp
-        LINKS synthrt-otter otter_support otter_cli_support
+        LINKS synthrt-otter analysisutil otter_cli_support
     )
 endif()
 
@@ -144,6 +131,6 @@ endif()
 if(OTTER_BUILD_TESTS)
     otter_add_interpreter_plugin(otterstub stub NO_INSTALL
         SOURCES stub/main.cpp
-        LINKS synthrt-otter otter_support
+        LINKS synthrt-otter analysisutil
     )
 endif()

@@ -39,10 +39,10 @@
 #include <otter/Analysis/Provider/AnalysisInput.h>
 #include <otter/Analysis/Provider/AnalysisInterpreter.h>
 #include <otter/Api/Note/1/NoteApiL1.h>
-#include <otter/Support/KnownNotes.h>
-#include <otter/Support/ManifestValues.h>
+#include <analysisutil/KnownNotes.h>
+#include <analysisutil/ManifestValues.h>
 
-#include "OnnxSupport.h"
+#include <onnxutil/OnnxSupport.h>
 
 namespace NoteApi = otter::Api::Note::L1;
 namespace CommonApi = otter::Api::Common::L1;

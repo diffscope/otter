@@ -39,9 +39,9 @@
 #include <otter/Api/Align/1/AlignApiL1.h>
 #include <otter/Api/F0/1/F0ApiL1.h>
 #include <otter/Api/Note/1/NoteApiL1.h>
-#include <otter/Support/F0Curve.h>
-#include <otter/Support/KnownNotes.h>
-#include <otter/Support/ManifestValues.h>
+#include <analysisutil/F0Curve.h>
+#include <analysisutil/KnownNotes.h>
+#include <analysisutil/ManifestValues.h>
 
 namespace AlignApi = otter::Api::Align::L1;
 namespace F0Api = otter::Api::F0::L1;

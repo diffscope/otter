@@ -5,9 +5,9 @@ add_auto_test(test_AnalysisLoad.cpp synthrt-otter)
 add_auto_test(test_AnalysisRuntime.cpp synthrt-otter)
 
 # The readers are private to this tree and live in a static library the library does not export.
-add_auto_test(test_ManifestValues.cpp otter_support)
+add_auto_test(test_ManifestValues.cpp analysisutil)
 
-add_auto_test(test_F0Curve.cpp otter_support)
+add_auto_test(test_F0Curve.cpp analysisutil)
 
 # These tests need the driver framework and the generated model fixtures, so they exist only in a
 # build that includes dsinfer. The availability of the fixture generator is determined below.
@@ -20,8 +20,8 @@ if(OTTER_HAS_DSINFER)
     # The readers the providers share report refusals of their own, and only a target that links
     # the support library reaches them, since a provider hands its code to a plugin rather than to
     # a test.
-    if(TARGET otter_onnx_support)
-        add_auto_test(test_OnnxSupport.cpp synthrt-otter otter_onnx_support synthrt::dsinfer)
+    if(TARGET onnxutil)
+        add_auto_test(test_OnnxSupport.cpp synthrt-otter onnxutil synthrt::dsinfer)
     endif()
 endif()
 

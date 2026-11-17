@@ -6,7 +6,7 @@
 
 #include <synthrt/Support/Json.h>
 
-#include <otter/Support/ManifestValues.h>
+#include <analysisutil/ManifestValues.h>
 
 namespace otter::Api::Align::L1 {
 

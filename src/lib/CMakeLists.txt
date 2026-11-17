@@ -1,23 +1,4 @@
-# The manifest readers are shared by the library and the plugins, and they are not part of what a
-# host is offered: their header is not installed, and the library does not export them. They are
-# therefore a private static library that every module of this tree links individually. The
-# readers hold no state, so a separate copy in each module is equivalent to a shared copy, and no
-# code outside this tree can depend on them. The objects are compiled with hidden visibility so
-# that a module linking them does not export them in turn.
-file(GLOB_RECURSE _support_src CONFIGURE_DEPENDS "Support/*.cpp")
-
-add_library(otter_support STATIC ${_support_src})
-target_link_libraries(otter_support PUBLIC synthrt::synthrt)
-target_include_directories(otter_support PUBLIC "${OTTER_SOURCE_DIR}/include")
-target_compile_features(otter_support PUBLIC cxx_std_17)
-set_target_properties(otter_support PROPERTIES
-    POSITION_INDEPENDENT_CODE ON
-    CXX_VISIBILITY_PRESET hidden
-    VISIBILITY_INLINES_HIDDEN ON
-)
-
 file(GLOB_RECURSE _src CONFIGURE_DEPENDS "*.cpp")
-list(FILTER _src EXCLUDE REGEX "/Support/")
 
 # The export macros would take their prefix from the target name, SYNTHRT_OTTER, while
 # otter_global.h tests OTTER_LIBRARY and OTTER_STATIC.
@@ -25,7 +6,7 @@ otter_add_library(${PROJECT_NAME} SHARED
     MACRO_PREFIX OTTER
     SOURCES ${_src}
     LINKS synthrt::synthrt
-    LINKS_PRIVATE otter_support
+    LINKS_PRIVATE analysisutil
     INCLUDE_PRIVATE ../../include/** **
 )
 

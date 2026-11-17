@@ -18,10 +18,10 @@
 #include <otter/Analysis/Provider/AnalysisInput.h>
 #include <otter/Analysis/Provider/AnalysisInterpreter.h>
 #include <otter/Api/F0/1/F0ApiL1.h>
-#include <otter/Support/F0Curve.h>
-#include <otter/Support/ManifestValues.h>
+#include <analysisutil/F0Curve.h>
+#include <analysisutil/ManifestValues.h>
 
-#include "OnnxSupport.h"
+#include <onnxutil/OnnxSupport.h>
 
 namespace F0Api = otter::Api::F0::L1;
 

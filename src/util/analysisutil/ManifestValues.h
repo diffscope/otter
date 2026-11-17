@@ -1,5 +1,5 @@
-#ifndef OTTER_SUPPORT_MANIFESTVALUES_H
-#define OTTER_SUPPORT_MANIFESTVALUES_H
+#ifndef OTTER_ANALYSISUTIL_MANIFESTVALUES_H
+#define OTTER_ANALYSISUTIL_MANIFESTVALUES_H
 
 #include <filesystem>
 #include <initializer_list>
@@ -19,7 +19,7 @@
 /// by \a what.
 ///
 /// This header is not part of the public API. It is not installed, and its functions are compiled
-/// into the private static library otter_support, which the library and each plugin in this tree
+/// into the private static library analysisutil, which the library and each plugin in this tree
 /// link individually. The readers hold no state, so a separate copy in each module behaves
 /// identically to a shared copy. The readers may change together with the code in this tree
 /// without notice.
@@ -94,4 +94,4 @@ namespace otter::manifest {
                                           std::string_view what);
 }
 
-#endif // OTTER_SUPPORT_MANIFESTVALUES_H
+#endif // OTTER_ANALYSISUTIL_MANIFESTVALUES_H

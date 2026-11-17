@@ -3,7 +3,7 @@
 
 #include <synthrt/Support/Json.h>
 
-#include <otter/Support/ManifestValues.h>
+#include <analysisutil/ManifestValues.h>
 
 #define BOOST_TEST_MAIN
 #include <boost/test/unit_test.hpp>

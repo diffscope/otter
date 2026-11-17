@@ -5,7 +5,7 @@
 #include <cstdint>
 #include <vector>
 
-#include <otter/Support/F0Curve.h>
+#include <analysisutil/F0Curve.h>
 
 #define BOOST_TEST_MAIN
 #include <boost/test/unit_test.hpp>

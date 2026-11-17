@@ -1,4 +1,4 @@
-#include <otter/Support/KnownNotes.h>
+#include "KnownNotes.h"
 
 namespace otter::support {
 

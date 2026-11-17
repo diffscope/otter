@@ -40,12 +40,12 @@
 #include <otter/Analysis/Provider/AnalysisInput.h>
 #include <otter/Analysis/Provider/AnalysisInterpreter.h>
 #include <otter/Api/Align/1/AlignApiL1.h>
-#include <otter/Support/ManifestValues.h>
+#include <analysisutil/ManifestValues.h>
 
 #include "Aligner.h"
 #include "G2p.h"
 #include "NonSpeech.h"
-#include "OnnxSupport.h"
+#include <onnxutil/OnnxSupport.h>
 
 namespace AlignApi = otter::Api::Align::L1;
 namespace CommonApi = otter::Api::Common::L1;

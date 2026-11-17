@@ -1,4 +1,4 @@
-#include <otter/Support/ManifestValues.h>
+#include "ManifestValues.h"
 
 #include <algorithm>
 #include <set>

@@ -1,5 +1,5 @@
-#ifndef OTTER_SUPPORT_KNOWNNOTES_H
-#define OTTER_SUPPORT_KNOWNNOTES_H
+#ifndef OTTER_ANALYSISUTIL_KNOWNNOTES_H
+#define OTTER_ANALYSISUTIL_KNOWNNOTES_H
 
 #include <vector>
 
@@ -35,4 +35,4 @@ namespace otter::support {
 
 }
 
-#endif // OTTER_SUPPORT_KNOWNNOTES_H
+#endif // OTTER_ANALYSISUTIL_KNOWNNOTES_H

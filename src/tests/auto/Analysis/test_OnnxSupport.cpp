@@ -9,7 +9,7 @@
 
 #include <otter/Analysis/AnalysisError.h>
 
-#include "OnnxSupport.h"
+#include <onnxutil/OnnxSupport.h>
 
 #define BOOST_TEST_MAIN
 #include <boost/test/unit_test.hpp>

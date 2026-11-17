@@ -39,7 +39,7 @@
 #include <otter/Analysis/Provider/AnalysisInput.h>
 #include <otter/Analysis/Provider/AnalysisInterpreter.h>
 #include <otter/Api/Align/1/AlignApiL1.h>
-#include <otter/Support/ManifestValues.h>
+#include <analysisutil/ManifestValues.h>
 
 #include "../external/CliProcess.h"
 
