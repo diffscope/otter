@@ -84,14 +84,14 @@ BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_Load_ReadsBothContracts) {
 
     auto f0 = package.contribution(srt::InferenceCategory::NAME, "f0");
     BOOST_REQUIRE(f0 != nullptr);
-    BOOST_CHECK_EQUAL(f0->triplet().interfaceId(), F0Api::API_INTERFACE);
-    BOOST_CHECK_EQUAL(f0->triplet().level(), F0Api::API_LEVEL);
+    BOOST_CHECK_EQUAL(f0->triplet().interfaceId(), F0Api::Contract.interfaceId());
+    BOOST_CHECK_EQUAL(f0->triplet().level(), F0Api::Contract.level());
     BOOST_CHECK_EQUAL(f0->triplet().variant(), "stub");
     BOOST_CHECK_EQUAL(f0->name().text(), "Stub F0");
 
     // The values that the host reads before it creates an analyzer: the audio format to produce,
     // and the knobs that this module honors.
-    auto schema = f0->exports()->as<F0Api::F0Schema>();
+    auto schema = f0->exports()->as<F0Api::Schema>();
     BOOST_REQUIRE(schema != nullptr);
     BOOST_CHECK_EQUAL(schema->sampleRate, 16000);
     BOOST_CHECK_EQUAL(schema->channelCount, 1);
@@ -103,8 +103,8 @@ BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_Load_ReadsBothContracts) {
 
     auto note = package.contribution(srt::InferenceCategory::NAME, "note");
     BOOST_REQUIRE(note != nullptr);
-    BOOST_CHECK_EQUAL(note->triplet().interfaceId(), NoteApi::API_INTERFACE);
-    auto noteSchema = note->exports()->as<NoteApi::NoteSchema>();
+    BOOST_CHECK_EQUAL(note->triplet().interfaceId(), NoteApi::Contract.interfaceId());
+    auto noteSchema = note->exports()->as<NoteApi::Schema>();
     BOOST_REQUIRE(noteSchema != nullptr);
     BOOST_CHECK(noteSchema->supportsKnownNotes);
     BOOST_REQUIRE_EQUAL(noteSchema->languages.size(), 1u);
@@ -133,7 +133,7 @@ BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_Load_DataOnlyStopsBeforeTheProvider)
 
     auto f0 = package.contribution(srt::InferenceCategory::NAME, "f0");
     BOOST_REQUIRE(f0 != nullptr);
-    BOOST_CHECK_EQUAL(f0->triplet().interfaceId(), F0Api::API_INTERFACE);
+    BOOST_CHECK_EQUAL(f0->triplet().interfaceId(), F0Api::Contract.interfaceId());
     BOOST_CHECK_EQUAL(f0->triplet().variant(), "stub");
     BOOST_CHECK(f0->exports() == nullptr);
     // The raw exports block of the declaration remains available to a host that reads it without
@@ -223,7 +223,7 @@ BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_Load_ReadsTheAlignContract) {
     auto package = opened.take();
     auto align = package.contribution(srt::InferenceCategory::NAME, "align");
     BOOST_REQUIRE(align != nullptr);
-    auto schema = align->exports()->as<AlignApi::AlignSchema>();
+    auto schema = align->exports()->as<AlignApi::Schema>();
     BOOST_REQUIRE(schema != nullptr);
     BOOST_CHECK_EQUAL(schema->sampleRate, 16000);
     BOOST_REQUIRE_EQUAL(schema->languages.size(), 3u);

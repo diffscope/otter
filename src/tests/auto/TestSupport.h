@@ -115,7 +115,7 @@ namespace otter::test {
             std::vector<std::filesystem::path> driverPaths = {
                 std::filesystem::path(OTTER_TEST_DRIVER_PLUGIN_DIR)};
             factory.setPluginPaths(driverPaths);
-            auto loader = factory.find(ds::Api::Onnx::API_NAME);
+            auto loader = factory.find(ds::Api::Onnx::Name);
             BOOST_REQUIRE_MESSAGE(loader != nullptr, "the ONNX driver plugin should be present");
             auto created = factory.create(loader);
             BOOST_REQUIRE_MESSAGE(static_cast<bool>(created), why(created));

@@ -17,7 +17,7 @@ BOOST_AUTO_TEST_CASE(test_TifaGgmlInterpreter_AlignsLyricsWithTheRealEngine) {
     BOOST_REQUIRE_MESSAGE(static_cast<bool>(made), why(made));
     const auto analyzer = made.take();
 
-    AlignApi::AlignStartInput input;
+    AlignApi::StartInput input;
     input.audio = tone(1.0, 3.0);
     input.lyrics = "ni hao";
     std::vector<double> reported;

@@ -6,7 +6,7 @@ BOOST_AUTO_TEST_CASE(test_TifaGgmlInterpreter_ReportsWhatTheDeclarationExports) 
     Host host;
     host.write();
     auto spec = host.load();
-    auto schema = spec->exports()->as<AlignApi::AlignSchema>();
+    auto schema = spec->exports()->as<AlignApi::Schema>();
     BOOST_REQUIRE(schema != nullptr);
 
     BOOST_CHECK_EQUAL(schema->sampleRate, RATE);
@@ -84,7 +84,7 @@ BOOST_AUTO_TEST_CASE(test_TifaGgmlInterpreter_AlignsAgainstTheFakeCli) {
     // The fake tool aligns a leading gap and two words over one second: "ni" from 0.2 to 0.6 and
     // "hao" from 0.6 to 1, each with two phones. Against a one-second span the leading gap is the
     // only silence, and against a two-second span the second half is another.
-    AlignApi::AlignStartInput input;
+    AlignApi::StartInput input;
     input.audio = tone(1.0, 3.0);
     input.lyrics = "ni hao";
     std::vector<double> reported;
@@ -139,7 +139,7 @@ BOOST_AUTO_TEST_CASE(test_TifaGgmlInterpreter_AlignsAgainstTheFakeCli) {
 
     // The stretch the decode attributed to no word becomes a word of the silence label, so the
     // result of a longer span still covers it.
-    AlignApi::AlignStartInput over;
+    AlignApi::StartInput over;
     over.audio = tone(2.0);
     over.lyrics = "ni hao";
     auto padded = analyzer->start(over);
@@ -160,7 +160,7 @@ BOOST_AUTO_TEST_CASE(test_TifaGgmlInterpreter_StopKillsAToolThatDoesNotFinish) {
     host.write();
     auto analyzer = host.open();
 
-    auto input = std::make_shared<AlignApi::AlignStartInput>();
+    auto input = std::make_shared<AlignApi::StartInput>();
     input->audio = tone(1.0);
     input->lyrics = "ni hao";
 
@@ -172,7 +172,7 @@ BOOST_AUTO_TEST_CASE(test_TifaGgmlInterpreter_StopKillsAToolThatDoesNotFinish) {
     {
         const otter::test::HangingEngine hanging(host.root / "hanging");
         auto started = analyzer->startAsync(
-            input, [&](srt::Expected<std::unique_ptr<AlignApi::AlignResult>> result) {
+            input, [&](srt::Expected<std::unique_ptr<AlignApi::Result>> result) {
                 std::lock_guard guard(mutex);
                 succeeded = static_cast<bool>(result);
                 if (!result) {
@@ -192,7 +192,7 @@ BOOST_AUTO_TEST_CASE(test_TifaGgmlInterpreter_StopKillsAToolThatDoesNotFinish) {
     BOOST_CHECK(code == otter::AnalysisError::Cancelled);
     BOOST_CHECK(analyzer->waitForFinished());
 
-    AlignApi::AlignStartInput again;
+    AlignApi::StartInput again;
     again.audio = tone(1.0);
     again.lyrics = "ni hao";
     auto second = analyzer->start(again);

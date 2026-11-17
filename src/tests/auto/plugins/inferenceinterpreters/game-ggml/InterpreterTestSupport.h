@@ -55,12 +55,14 @@ namespace {
     public:
         srt::Expected<std::unique_ptr<srt::ContribInterpreter>>
             create(const srt::ContribContractTriplet &triplet) override {
-            if (triplet != srt::ContribContractTriplet(NoteApi::API_INTERFACE, NoteApi::API_LEVEL,
-                                                       otter::gameGgml::VARIANT)) {
-                return srt::Error(srt::Error::FeatureNotSupported,
-                                  "this plugin serves the " + std::string(NoteApi::API_INTERFACE) +
-                                      " contract at level " + std::to_string(NoteApi::API_LEVEL) +
-                                      " only, in the variant " + otter::gameGgml::VARIANT);
+            if (triplet != srt::ContribContractTriplet(NoteApi::Contract.interfaceId(),
+                                                       NoteApi::Contract.level(),
+                                                       otter::gameGgml::Triplet.variant())) {
+                return srt::Error(
+                    srt::Error::FeatureNotSupported,
+                    "this plugin serves the " + std::string(NoteApi::Contract.interfaceId()) +
+                        " contract at level " + std::to_string(NoteApi::Contract.level()) +
+                        " only, in the variant " + otter::gameGgml::Triplet.variant());
             }
             return std::unique_ptr<srt::ContribInterpreter>(
                 new otter::gameGgml::GameGgmlInterpreter());
@@ -221,7 +223,7 @@ namespace {
             return opened.error().rootCause().message();
         }
 
-        std::unique_ptr<NoteApi::NoteExecutive> open() {
+        std::unique_ptr<NoteApi::Executive> open() {
             auto spec = load();
             auto made = NoteApi::createAnalyzer(*spec->as<srt::InferenceSpec>());
             BOOST_REQUIRE_MESSAGE(static_cast<bool>(made), why(made));

@@ -96,8 +96,7 @@ namespace otter::game {
         /// identifiers and the knobs are contract facts and are declared in exports.
         class GameConfiguration : public srt::ContribConfiguration {
         public:
-            GameConfiguration()
-                : srt::ContribConfiguration({NoteApi::API_INTERFACE, NoteApi::API_LEVEL, VARIANT}) {
+            GameConfiguration() : srt::ContribConfiguration(Triplet) {
             }
 
             std::filesystem::path encoder;
@@ -221,10 +220,10 @@ namespace otter::game {
 
         using OpenedModels = Models<std::unique_ptr<ds::InferenceSession>>;
 
-        class GameExecutive : public otter::onnx::OnnxExecutive<NoteApi::NoteExecutive> {
+        class GameExecutive : public otter::onnx::OnnxExecutive<NoteApi::Executive> {
         public:
             GameExecutive(srt::InferenceSpec &spec, OpenedModels models,
-                          const NoteApi::NoteSchema &schema, const GameConfiguration &configuration)
+                          const NoteApi::Schema &schema, const GameConfiguration &configuration)
                 : OnnxExecutive(spec), m_schema(schema), m_configuration(configuration) {
                 m_models.encoder = own(std::move(models.encoder));
                 m_models.segmenter = own(std::move(models.segmenter));
@@ -238,8 +237,8 @@ namespace otter::game {
             }
 
         protected:
-            srt::Expected<std::unique_ptr<NoteApi::NoteResult>>
-                run(const NoteApi::NoteStartInput &input) override {
+            srt::Expected<std::unique_ptr<NoteApi::Result>>
+                run(const NoteApi::StartInput &input) override {
                 const auto &audio = input.audio;
                 auto prepared = otter::prepareSamples(
                     audio, m_schema.sampleRate, m_schema.channelCount, m_schema.maxSegmentDuration);
@@ -397,7 +396,7 @@ namespace otter::game {
             // The language is checked against the exports before the configuration is consulted:
             // the exports define the languages that the package offers, and the configuration may
             // number a language that the model supports but the package does not declare.
-            srt::Expected<std::int64_t> chooseLanguage(const NoteApi::NoteStartInput &input) const {
+            srt::Expected<std::int64_t> chooseLanguage(const NoteApi::StartInput &input) const {
                 const auto &wanted = input.language.value_or(m_schema.defaultLanguage);
                 if (wanted.empty()) {
                     if (!m_configuration.languages.empty()) {
@@ -429,7 +428,7 @@ namespace otter::game {
             // produced an empty schedule tensor before the check existed.
             //
             // \return The settings, or the error of the first knob outside its declared range.
-            srt::Expected<Settings> chooseSettings(const NoteApi::NoteStartInput &input) const {
+            srt::Expected<Settings> chooseSettings(const NoteApi::StartInput &input) const {
                 double boundaryThreshold = 0;
                 double noteThreshold = 0;
                 double radiusSeconds = 0;
@@ -667,7 +666,7 @@ namespace otter::game {
             // The model produces the durations in seconds, so the placement is a running sum. The
             // original implementation converted each duration to ticks at a single tempo, which
             // quantized the durations and misplaced every note in a score with tempo changes.
-            static srt::Expected<std::unique_ptr<NoteApi::NoteResult>>
+            static srt::Expected<std::unique_ptr<NoteApi::Result>>
                 layOut(const std::vector<float> &durations, const Estimated &estimated,
                        double startTime, double cutoff) {
                 // The two outputs of the estimator belong to the durations one for one: a shorter
@@ -682,7 +681,7 @@ namespace otter::game {
                             " keys and " + std::to_string(estimated.confidences.size()) +
                             " confidences for " + std::to_string(durations.size()) + " durations");
                 }
-                auto result = std::make_unique<NoteApi::NoteResult>();
+                auto result = std::make_unique<NoteApi::Result>();
                 double at = 0;
                 for (std::size_t i = 0; i < durations.size(); ++i) {
                     const double length = durations[i];
@@ -750,7 +749,7 @@ namespace otter::game {
             Models<ds::InferenceSession *> m_models;
 
             // Owned by the spec, which outlives every executive created from it.
-            const NoteApi::NoteSchema &m_schema;
+            const NoteApi::Schema &m_schema;
             const GameConfiguration &m_configuration;
         };
 
@@ -828,7 +827,7 @@ namespace otter::game {
 
     srt::Expected<std::unique_ptr<srt::ContribExports>>
         GameInterpreter::createExports(const srt::ContribSpec &spec) const {
-        auto schema = NoteApi::readNoteSchema(spec, VARIANT);
+        auto schema = NoteApi::readNoteSchema(spec);
         if (!schema) {
             return schema.takeError();
         }
@@ -899,7 +898,7 @@ namespace otter::game {
                                          const srt::InferenceRuntimeOptions &) {
         const auto configuration =
             spec.configuration() ? spec.configuration()->as<GameConfiguration>() : nullptr;
-        const auto schema = spec.exports() ? spec.exports()->as<NoteApi::NoteSchema>() : nullptr;
+        const auto schema = spec.exports() ? spec.exports()->as<NoteApi::Schema>() : nullptr;
         if (configuration == nullptr || schema == nullptr) {
             return srt::Error(otter::AnalysisError::Internal,
                               "this declaration carries no game configuration");

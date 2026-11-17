@@ -19,11 +19,8 @@
 
 namespace otter::Api::Align::L1 {
 
-    /// Identifies the forced alignment contract.
-    inline constexpr char API_INTERFACE[] = "org.openvpi.otter.inference.Align";
-
-    /// Identifies Level 1 of the contract.
-    inline constexpr int API_LEVEL = 1;
+    /// Identifies the Align interface contract.
+    inline const srt::ContribContract Contract{"org.openvpi.otter.inference.Align", 1};
 
     /// Written form of the lyrics of a language.
     enum class LyricsForm {
@@ -50,11 +47,11 @@ namespace otter::Api::Align::L1 {
         /// The scheme of the phonemes in a result, such as pinyin or arpabet.
         std::string scheme;
 
-        /// The written form of \c AlignStartInput::lyrics for this language.
+        /// The written form of \c StartInput::lyrics for this language.
         LyricsForm lyrics = LyricsForm::Scheme;
 
         /// Every phoneme label that a result in this language can contain, excluding
-        /// \c AlignSchema::silenceLabel and \c AlignSchema::nonSpeechPhonemes.
+        /// \c Schema::silenceLabel and \c Schema::nonSpeechPhonemes.
         std::vector<std::string> phonemes;
     };
 
@@ -73,7 +70,7 @@ namespace otter::Api::Align::L1 {
 
     /// Describes one word the aligner placed.
     ///
-    /// A word is either a word of \c AlignStartInput::lyrics or a word that the module inserted.
+    /// A word is either a word of \c StartInput::lyrics or a word that the module inserted.
     /// Inserted words report silence and detected non-speech sounds to the host: an inserted word
     /// carries the label of the segment it covers, which is the declared \c silenceLabel for
     /// silence or one of the declared \c nonSpeechPhonemes for a breath.
@@ -96,10 +93,9 @@ namespace otter::Api::Align::L1 {
     /// This is the contract's \c exports block, read by the host before it prepares any audio.
     /// Its syntax belongs to the interface and level, not to a variant. The machine readable
     /// schema is docs/schemas/align-1-exports.schema.json.
-    class AlignSchema : public srt::ContribExports {
+    class Schema : public srt::ContribExports {
     public:
-        inline explicit AlignSchema(std::string variant)
-            : srt::ContribExports({API_INTERFACE, API_LEVEL, std::move(variant)}) {
+        inline Schema() : srt::ContribExports(Contract) {
         }
 
         /// Input sample rate in hertz. The host resamples its audio to this rate.
@@ -159,7 +155,6 @@ namespace otter::Api::Align::L1 {
     /// Every provider of this contract reads its declaration through this function, so two
     /// variants cannot differ in the interpretation of a key or in the reporting of an invalid
     /// value. A variant then checks the result against the capabilities of its own model.
-    /// \a variant is recorded in the schema so that a host can identify the implementation.
     ///
     /// \c sampleRate is required. \c channelCount defaults to 1, \c maxSegmentDuration to no
     /// limit, \c languages and \c nonSpeechPhonemes to none, \c silenceLabel to empty, and a knob
@@ -169,38 +164,35 @@ namespace otter::Api::Align::L1 {
     /// declared, and the default non-speech labels must be among the declared labels.
     ///
     /// \return The schema, or an \c InvalidFormat error that describes the first invalid value.
-    OTTER_EXPORT srt::Expected<std::unique_ptr<AlignSchema>>
-        readAlignSchema(const srt::ContribSpec &spec, std::string variant);
+    OTTER_EXPORT srt::Expected<std::unique_ptr<Schema>>
+        readAlignSchema(const srt::ContribSpec &spec);
 
     /// Contains the import options of an Align analysis module, which identify only the contract.
     ///
     /// A host creating an analyzer at top level passes these to
     /// \c srt::InferenceSpec::createInference together with the runtime options.
-    class AlignImportOptions : public otter::AnalysisImportOptions {
+    class ImportOptions : public otter::AnalysisImportOptions {
     public:
-        inline explicit AlignImportOptions(std::string variant)
-            : otter::AnalysisImportOptions({API_INTERFACE, API_LEVEL, std::move(variant)}) {
+        inline ImportOptions() : otter::AnalysisImportOptions(Contract) {
         }
     };
 
     /// Contains runtime options used when creating an aligner.
-    class AlignRuntimeOptions : public otter::AnalysisRuntimeOptions {
+    class RuntimeOptions : public otter::AnalysisRuntimeOptions {
     public:
-        inline explicit AlignRuntimeOptions(std::string variant)
-            : otter::AnalysisRuntimeOptions({API_INTERFACE, API_LEVEL, std::move(variant)}) {
+        inline RuntimeOptions() : otter::AnalysisRuntimeOptions(Contract) {
         }
     };
 
     /// Supplies audio, the text to align it against, and knob values, for one execution.
-    class AlignStartInput : public srt::TaskStartInput {
+    class StartInput : public srt::TaskStartInput {
     public:
         /// Payload type and version of this class. The task interface compares the type() and
         /// version() of an untyped input with these values before it converts the input to this
         /// class.
-        static constexpr const char *API_INTERFACE = L1::API_INTERFACE;
-        static constexpr int API_LEVEL = L1::API_LEVEL;
+        inline static const auto &Contract = L1::Contract;
 
-        inline AlignStartInput() : srt::TaskStartInput(API_INTERFACE, API_LEVEL) {
+        inline StartInput() : srt::TaskStartInput(Contract.interfaceId(), Contract.level()) {
         }
 
         /// Audio to align.
@@ -210,7 +202,7 @@ namespace otter::Api::Align::L1 {
         Common::L1::ProgressCallback progress;
 
         /// Language identifier, which the module must declare. If unset, the declared
-        /// \c AlignSchema::defaultLanguage applies.
+        /// \c Schema::defaultLanguage applies.
         std::optional<std::string> language;
 
         /// Scheme of \c language. An unset scheme is accepted if the module declares the language
@@ -226,7 +218,7 @@ namespace otter::Api::Align::L1 {
         std::string lyrics;
 
         /// The declared non-speech labels to detect. If empty, the declared
-        /// \c AlignSchema::defaultNonSpeechPhonemes apply. An undeclared label is rejected rather
+        /// \c Schema::defaultNonSpeechPhonemes apply. An undeclared label is rejected rather
         /// than ignored: the module cannot produce the requested label, and an empty result would
         /// be indistinguishable from a result without detections.
         std::vector<std::string> nonSpeechPhonemes;
@@ -243,15 +235,14 @@ namespace otter::Api::Align::L1 {
     };
 
     /// Contains the words aligned over one span.
-    class AlignResult : public srt::TaskResult {
+    class Result : public srt::TaskResult {
     public:
         /// Payload type and version of this class. The task interface compares the type() and
         /// version() of an untyped result with these values before it converts the result to
         /// this class.
-        static constexpr const char *API_INTERFACE = L1::API_INTERFACE;
-        static constexpr int API_LEVEL = L1::API_LEVEL;
+        inline static const auto &Contract = L1::Contract;
 
-        inline AlignResult() : srt::TaskResult(API_INTERFACE, API_LEVEL) {
+        inline Result() : srt::TaskResult(Contract.interfaceId(), Contract.level()) {
         }
 
         /// The language of the execution, and the scheme of its phonemes.
@@ -260,10 +251,10 @@ namespace otter::Api::Align::L1 {
 
         /// Words in ascending order of start time, in seconds on the host's timeline.
         ///
-        /// The words cover the span without gaps when \c AlignSchema::silenceLabel is not empty:
+        /// The words cover the span without gaps when \c Schema::silenceLabel is not empty:
         /// the first word starts at the start of the audio, each word ends at the start of the
         /// next word, and the last word ends at the end of the audio. A gap that the aligner did
-        /// not attribute to a word becomes a word labelled \c AlignSchema::silenceLabel. A module
+        /// not attribute to a word becomes a word labelled \c Schema::silenceLabel. A module
         /// whose label is empty does not report silence as a word, so its words may leave part of
         /// the span uncovered and the host pads that part from the audio boundaries. A module that
         /// does not support an empty label rejects the declaration or the execution instead of
@@ -273,10 +264,9 @@ namespace otter::Api::Align::L1 {
     };
 
     /// Executes one forced alignment model using Level 1 typed payloads.
-    class AlignExecutive : public otter::AnalysisExecutive {
+    class Executive : public otter::AnalysisExecutive {
     public:
-        using AsyncCallback =
-            std::function<void(srt::Expected<std::unique_ptr<AlignResult>> result)>;
+        using AsyncCallback = std::function<void(srt::Expected<std::unique_ptr<Result>> result)>;
 
         /// Executes one alignment synchronously.
         ///
@@ -286,7 +276,7 @@ namespace otter::Api::Align::L1 {
         ///
         /// \return The result of the execution, or the error that the execution reports. The
         /// error code is \c AnalysisError::Cancelled if the execution detected a stop request.
-        srt::Expected<std::unique_ptr<AlignResult>> start(const AlignStartInput &input) {
+        srt::Expected<std::unique_ptr<Result>> start(const StartInput &input) {
             return m_task.run(input);
         }
 
@@ -296,7 +286,7 @@ namespace otter::Api::Align::L1 {
         ///
         /// \return An empty value if the execution started, or the error that prevented the
         /// start.
-        srt::Expected<void> startAsync(std::shared_ptr<const AlignStartInput> input,
+        srt::Expected<void> startAsync(std::shared_ptr<const StartInput> input,
                                        AsyncCallback callback) {
             return m_task.runAsync(std::move(input), std::move(callback));
         }
@@ -326,49 +316,48 @@ namespace otter::Api::Align::L1 {
         /// startAsync(). It polls cancelled() at the granularity at which it can stop, and returns
         /// cancelledError() if a stop was requested. The provider's destructor must call stop()
         /// and waitForFinished() before it destroys any object that the body reads.
-        virtual srt::Expected<std::unique_ptr<AlignResult>> run(const AlignStartInput &input) = 0;
+        virtual srt::Expected<std::unique_ptr<Result>> run(const StartInput &input) = 0;
 
         /// Returns whether a stop has been requested for the current execution.
         bool cancelled() const noexcept {
             return m_task.cancelled();
         }
 
-        explicit AlignExecutive(srt::InferenceSpec &spec)
+        explicit Executive(srt::InferenceSpec &spec)
             : otter::AnalysisExecutive(spec),
-              m_task([this](const AlignStartInput &input) { return run(input); }) {
+              m_task([this](const StartInput &input) { return run(input); }) {
         }
 
     private:
         // Declared last because the body captures this object.
-        otter::AnalysisTask<AlignStartInput, AlignResult> m_task;
+        otter::AnalysisTask<StartInput, Result> m_task;
     };
 
     /// Creates the analyzer of a loaded Align module.
     ///
     /// A host creates an analyzer through this function without importing the module first. The
-    /// options identify only the contract and the module's variant.
+    /// options identify only the interface contract and its level.
     ///
     /// The type of the executive is checked rather than assumed, because a third-party variant
     /// may supply the interpreter. An executive of another contract is rejected with
     /// \c AnalysisError::ContractViolation instead of being converted.
     ///
     /// \return The analyzer, the error of \c srt::InferenceSpec::createInference, or an
-    /// \c AnalysisError::ContractViolation error if the executive is not an AlignExecutive.
-    inline srt::Expected<std::unique_ptr<AlignExecutive>> createAnalyzer(srt::InferenceSpec &spec) {
-        auto made = spec.createInference(AlignImportOptions(spec.triplet().variant()),
-                                         AlignRuntimeOptions(spec.triplet().variant()));
+    /// \c AnalysisError::ContractViolation error if the executive is not an Executive.
+    inline srt::Expected<std::unique_ptr<Executive>> createAnalyzer(srt::InferenceSpec &spec) {
+        auto made = spec.createInference(ImportOptions(), RuntimeOptions());
         if (!made) {
             return made.takeError();
         }
         auto executive = made.take();
-        auto typed = dynamic_cast<AlignExecutive *>(executive.get());
+        auto typed = dynamic_cast<Executive *>(executive.get());
         if (typed == nullptr) {
             return srt::Error(AnalysisError::ContractViolation,
                               "the interpreter of " + spec.triplet().variant() +
-                                  " created an executive that is not an AlignExecutive");
+                                  " created an executive that is not an Executive");
         }
         (void) executive.release();
-        return std::unique_ptr<AlignExecutive>(typed);
+        return std::unique_ptr<Executive>(typed);
     }
 
 }

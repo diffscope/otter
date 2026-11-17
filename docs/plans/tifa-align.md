@@ -46,7 +46,7 @@ ALIGN 的语言表文案也按 variant 取名（`:553`）；`make-model-fixtures
 | 编号 | 决策点 | 推荐 | 备选与取舍 |
 | :-- | :-- | :-- | :-- |
 | **D1** | 「TIFA 全部功能」的边界与分期 | **按 §3.4 的 P1–P6 分期，全部功能都做，但契约相关的部分单独成期**（③诊断/④G2P 完整版不与主干混提交） | 一次性全做：单批过大、与远端重构相撞；只做对齐主干、其余不做：与用户"全部功能"口径不符 |
-| **D2** | 诊断指标（agreement/confidence/determinacy/monotonicity）与「发音候选+分数」的**契约承载** | **先不动 Align L1**：主干期把它们算在变体内部、作为**可选出口**（先只写进记录与未决），**待远端重构落地后再提 A 系条目扩契约** | ①本轮直接扩 Align L1（`AlignResult` 加 `diagnostics`、`PhoneInfo/WordInfo` 加候选与分数）：同步面大（头文件、读取器、`docs/schemas`、lint、测试、远端合并冲突）；②永不外露：等于砍掉 TIFA 的两个卖点 |
+| **D2** | 诊断指标（agreement/confidence/determinacy/monotonicity）与「发音候选+分数」的**契约承载** | **先不动 Align L1**：主干期把它们算在变体内部、作为**可选出口**（先只写进记录与未决），**待远端重构落地后再提 A 系条目扩契约** | ①本轮直接扩 Align L1（`Result` 加 `diagnostics`、`PhoneInfo/WordInfo` 加候选与分数）：同步面大（头文件、读取器、`docs/schemas`、lint、测试、远端合并冲突）；②永不外露：等于砍掉 TIFA 的两个卖点 |
 | **D3** | 歌词形式与 G2P 归属 | **`lyrics="scheme"`**：宿主给 scheme 写法（拼音/粤拼/romaji/arpabet），变体自带 **「书写单位→音素」四本词典**（release 内随包，共约 3.4 MB）；**不移植** cpp-pinyin / MeCab / LSTM 三套 text→scheme 转换器 | ①变体自带完整 G2P：要到 MeCab+UniDic 与 LSTM ONNX beam search，依赖与工作量最大，且与 wolf 的分工重复；②只声明 cmn：覆盖面倒退 |
 | **D4** | 实测通道与素材 | **以「真实素材 + TIFA Python oracle 逐音素比对」为门禁**；ds-editor-lite 无头合成作为**可选**补充（当前合成声库不在本机，且 lite 尚无 Align 通道，`docs/lite-integration.md`） | 只用合成音频：需先解决声库与 lite 侧新接口，链路长；只用真实素材：覆盖面受素材限制 |
 | **D5** | 模型与图产物是否入库 / 是否发布 | **（历史）当时的决定：声明入库、权重不入库**（当时做法：`packages/.gitignore` 只忽略 `*.onnx`，见 §5.3），本轮只本地装配、不发布。**现行口径：声明亦不入库**——包（声明 + 模型）随模型发布，装配读 `make-package.py --declarations <声明目录>`（一变体一子目录）；现行版本 `0.1.0.0`、发布标签 `models-v0.1`（四包 + 4 项 manifest） | 入库权重：仓库膨胀（五图约 160 MB）；发布：远端重构期不做 |
@@ -79,7 +79,7 @@ ALIGN 的语言表文案也按 variant 取名（`:553`）；`make-model-fixtures
 | 结果类型只有 `language`/`scheme`/`words[{text,start,duration,phones[{text,start,duration}]}]`；结果必须**铺满整段**（未归属的间隔成为 `silenceLabel` 的词） | `AlignApiL1.h:261-271`；`silenceLabel` 为空则「不命名静音、不保证铺满」（`otter-design.md:467`） |
 | 声明面：`sampleRate` 必填，`channelCount`/`maxSegmentDuration`/`languages[]`/`defaultLanguage`/`nonSpeechPhonemes`/`defaultNonSpeechPhonemes`/`silenceLabel`/knobs 可选 | `AlignApiL1.h:99-154`、`AlignApiL1.h:164-169`（必填/可选语义）；`src/lib/Api/Align/1/AlignApiL1.cpp:205-207`（knobs 白名单） |
 | Align 目前只有三个 knob：`nonSpeechThreshold` / `nonSpeechMinDuration` / `gapFill`（白名单硬编码） | `AlignApiL1.h:145-154`；`scripts/check-declarations.py:190-191` |
-| 变体形状（hfa 为唯一先例）：`plugin.json` 的 `interpreters[].variant`、解释器构造、声明的 `variant`、`AlignSchema` 构造四处一致；插件 IID 为 `org.openvpi.synthrt.plugin.InferenceInterpreter` | `src/plugins/inferenceinterpreters/hfa/plugin.json:1-9`；`docs/otter-design.md:607-620` |
+| 变体形状（hfa 为唯一先例）：`plugin.json` 的 `interpreters[].variant`、解释器构造、声明的 `variant`、变体 `Triplet` 四处一致；插件 IID 为 `org.openvpi.synthrt.plugin.InferenceInterpreter` | `src/plugins/inferenceinterpreters/hfa/plugin.json:1-9`；`docs/otter-design.md:607-620` |
 | ONNX 不直连 onnxruntime：经 dsinfer 驱动 `spec.package().synthUnit().runtimeService(ds::InferenceDriverPlugin::IID, "onnx")` → `createSession()` → `SessionOpenArgs` | `src/plugins/inferenceinterpreters/onnx/OnnxSupport.cpp:33-61`；`otter-design.md:A3` |
 | 会话输入输出名在 C++ 侧硬编码；hfa 用 `waveform` 入，`ph_frame_logits`/`ph_edge_logits`/`cvnt_logits` 出 | `src/plugins/inferenceinterpreters/hfa/main.cpp:64-69` |
 | 模型自带文件的键名、采样率、帧移**来自模型文件**，声明只做一致性对撞（不一致即拒载） | `src/plugins/inferenceinterpreters/hfa/main.cpp:160-163`（模型 `config.json` 的 `sample_rate`/`hop_size`）、`src/plugins/inferenceinterpreters/hfa/main.cpp:742-833`（加载期对撞） |
@@ -231,7 +231,7 @@ knobs           <按 §3.3 决定>
 | :-- | :-- | :-- | :-- |
 | a | **发音书写层**（TextGrid `words` tier） | `WordInfo` 只有 `text`/`start`/`duration`/`phones` | ①接受丢失（宿主/变体各自 G2P 可复现）；②扩 `WordInfo` 增 `script`；③扩成"词→发音组"两层 |
 | b | **发音候选与分数**（`scores.json`） | 同上 | ①只在变体内部使用（选择结果影响对齐，这已足够）；②扩契约回传候选与分数 |
-| c | **四个诊断指标** | `AlignResult` 只有 `language`/`scheme`/`words`；`docs/otter-design.md` §11 未决 · 「`Align` 的置信度」已明确「Level 1 不含置信度，凭空加字段等于猜语义」 | ①先记录、后扩；②本轮就扩（`AlignResult` 加可选 `diagnostics`） |
+| c | **四个诊断指标** | `Result` 只有 `language`/`scheme`/`words`；`docs/otter-design.md` §11 未决 · 「`Align` 的置信度」已明确「Level 1 不含置信度，凭空加字段等于猜语义」 | ①先记录、后扩；②本轮就扩（`Result` 加可选 `diagnostics`） |
 | d | **解码/打分 knob**（`skipPenalty`/`skipHandling`/`scoreUnit`） | knobs 白名单硬编码三键（`AlignApiL1.h:145-154`；`scripts/check-declarations.py:190-191`） | ①不暴露（写死默认：`skipPenalty=0.5`、`skipHandling=omit`、`scoreUnit=levenshtein`，与 Python 默认一致）；②扩契约暴露 |
 
 > **推荐**：a/b/d 走 ①，c 走「①先记录、后扩」，即**主干期不动契约**（D2）。

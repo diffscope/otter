@@ -98,7 +98,7 @@ namespace otter::stub {
         /// variant.
         class StubConfiguration : public srt::ContribConfiguration {
         public:
-            StubConfiguration(const char *interfaceName, int level, StubSettings settings)
+            StubConfiguration(const std::string &interfaceName, int level, StubSettings settings)
                 : srt::ContribConfiguration({interfaceName, level, VARIANT}), settings(settings) {
             }
 
@@ -141,13 +141,13 @@ namespace otter::stub {
             StubSettings m_settings;
         };
 
-        class StubF0Executive : public StubExecutive<F0Api::F0Executive, F0Api::F0Schema> {
+        class StubF0Executive : public StubExecutive<F0Api::Executive, F0Api::Schema> {
         public:
             using StubExecutive::StubExecutive;
 
         protected:
-            srt::Expected<std::unique_ptr<F0Api::F0Result>>
-                run(const F0Api::F0StartInput &input) override {
+            srt::Expected<std::unique_ptr<F0Api::Result>>
+                run(const F0Api::StartInput &input) override {
                 if (auto checked = validate(input.audio); !checked) {
                     return checked.takeError();
                 }
@@ -168,7 +168,7 @@ namespace otter::stub {
 
                 const auto frames =
                     static_cast<std::size_t>(input.audio.duration() / m_schema.interval);
-                auto result = std::make_unique<F0Api::F0Result>();
+                auto result = std::make_unique<F0Api::Result>();
                 result->startTime = input.audio.startTime;
                 result->interval = m_schema.interval;
                 result->f0.resize(frames);
@@ -192,14 +192,13 @@ namespace otter::stub {
             }
         };
 
-        class StubNoteExecutive
-            : public StubExecutive<NoteApi::NoteExecutive, NoteApi::NoteSchema> {
+        class StubNoteExecutive : public StubExecutive<NoteApi::Executive, NoteApi::Schema> {
         public:
             using StubExecutive::StubExecutive;
 
         protected:
-            srt::Expected<std::unique_ptr<NoteApi::NoteResult>>
-                run(const NoteApi::NoteStartInput &input) override {
+            srt::Expected<std::unique_ptr<NoteApi::Result>>
+                run(const NoteApi::StartInput &input) override {
                 if (auto checked = validate(input.audio); !checked) {
                     return checked.takeError();
                 }
@@ -247,7 +246,7 @@ namespace otter::stub {
                     return otter::cancelledError();
                 }
 
-                auto result = std::make_unique<NoteApi::NoteResult>();
+                auto result = std::make_unique<NoteApi::Result>();
                 if (!input.knownNotes.empty() && !m_schema.supportsKnownNotes) {
                     return srt::Error(srt::Error::InvalidArgument,
                                       "this model cannot be conditioned on known notes");
@@ -288,14 +287,13 @@ namespace otter::stub {
             }
         };
 
-        class StubAlignExecutive
-            : public StubExecutive<AlignApi::AlignExecutive, AlignApi::AlignSchema> {
+        class StubAlignExecutive : public StubExecutive<AlignApi::Executive, AlignApi::Schema> {
         public:
             using StubExecutive::StubExecutive;
 
         protected:
-            srt::Expected<std::unique_ptr<AlignApi::AlignResult>>
-                run(const AlignApi::AlignStartInput &input) override {
+            srt::Expected<std::unique_ptr<AlignApi::Result>>
+                run(const AlignApi::StartInput &input) override {
                 if (auto checked = validate(input.audio); !checked) {
                     return checked.takeError();
                 }
@@ -380,7 +378,7 @@ namespace otter::stub {
                     return srt::Error(srt::Error::InvalidArgument,
                                       "none of the lyrics is in this language's dictionary");
                 }
-                auto result = std::make_unique<AlignApi::AlignResult>();
+                auto result = std::make_unique<AlignApi::Result>();
                 if (entry != nullptr) {
                     result->language = entry->language;
                     result->scheme = entry->scheme;
@@ -490,7 +488,7 @@ namespace otter::stub {
 
     srt::Expected<std::unique_ptr<srt::ContribExports>>
         StubF0Interpreter::createExports(const srt::ContribSpec &spec) const {
-        auto schema = F0Api::readF0Schema(spec, VARIANT);
+        auto schema = F0Api::readF0Schema(spec);
         if (!schema) {
             return schema.takeError();
         }
@@ -503,20 +501,20 @@ namespace otter::stub {
         if (!settings) {
             return settings.takeError();
         }
-        return std::unique_ptr<srt::ContribConfiguration>(
-            new StubConfiguration(F0Api::API_INTERFACE, F0Api::API_LEVEL, settings.take()));
+        return std::unique_ptr<srt::ContribConfiguration>(new StubConfiguration(
+            F0Api::Contract.interfaceId(), F0Api::Contract.level(), settings.take()));
     }
 
     srt::Expected<std::unique_ptr<srt::InferenceExecutive>>
         StubF0Interpreter::createInference(srt::InferenceSpec &spec,
                                            const srt::ContribImportOptions &,
                                            const srt::InferenceRuntimeOptions &) {
-        return createStub<F0Api::F0Schema, StubF0Executive>(spec);
+        return createStub<F0Api::Schema, StubF0Executive>(spec);
     }
 
     srt::Expected<std::unique_ptr<srt::ContribExports>>
         StubNoteInterpreter::createExports(const srt::ContribSpec &spec) const {
-        auto schema = NoteApi::readNoteSchema(spec, VARIANT);
+        auto schema = NoteApi::readNoteSchema(spec);
         if (!schema) {
             return schema.takeError();
         }
@@ -529,20 +527,20 @@ namespace otter::stub {
         if (!settings) {
             return settings.takeError();
         }
-        return std::unique_ptr<srt::ContribConfiguration>(
-            new StubConfiguration(NoteApi::API_INTERFACE, NoteApi::API_LEVEL, settings.take()));
+        return std::unique_ptr<srt::ContribConfiguration>(new StubConfiguration(
+            NoteApi::Contract.interfaceId(), NoteApi::Contract.level(), settings.take()));
     }
 
     srt::Expected<std::unique_ptr<srt::InferenceExecutive>>
         StubNoteInterpreter::createInference(srt::InferenceSpec &spec,
                                              const srt::ContribImportOptions &,
                                              const srt::InferenceRuntimeOptions &) {
-        return createStub<NoteApi::NoteSchema, StubNoteExecutive>(spec);
+        return createStub<NoteApi::Schema, StubNoteExecutive>(spec);
     }
 
     srt::Expected<std::unique_ptr<srt::ContribExports>>
         StubAlignInterpreter::createExports(const srt::ContribSpec &spec) const {
-        auto schema = AlignApi::readAlignSchema(spec, VARIANT);
+        auto schema = AlignApi::readAlignSchema(spec);
         if (!schema) {
             return schema.takeError();
         }
@@ -555,15 +553,15 @@ namespace otter::stub {
         if (!settings) {
             return settings.takeError();
         }
-        return std::unique_ptr<srt::ContribConfiguration>(
-            new StubConfiguration(AlignApi::API_INTERFACE, AlignApi::API_LEVEL, settings.take()));
+        return std::unique_ptr<srt::ContribConfiguration>(new StubConfiguration(
+            AlignApi::Contract.interfaceId(), AlignApi::Contract.level(), settings.take()));
     }
 
     srt::Expected<std::unique_ptr<srt::InferenceExecutive>>
         StubAlignInterpreter::createInference(srt::InferenceSpec &spec,
                                               const srt::ContribImportOptions &,
                                               const srt::InferenceRuntimeOptions &) {
-        return createStub<AlignApi::AlignSchema, StubAlignExecutive>(spec);
+        return createStub<AlignApi::Schema, StubAlignExecutive>(spec);
     }
 
 }

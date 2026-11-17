@@ -32,7 +32,7 @@ HFA 是**强制对齐器**：输入是「音频 + 已知歌词文本」，输出
 | **D1** | 是否新立 `Align` L1 契约 | **是**（HFA 只能落在此处） | 并入 `Note`（knownNotes）：输入需要文本，输出需要音素，`Note` 均无法容纳，否决 |
 | **D2** | 发布形态 | **（历史）新 tag `models-v0.2.0.0`，三包齐全 + 全量 `manifest.json`**（rmvpe/game 从旧 release 原样搬运，SHA512 复核） | ①只发 `otter-hfa` 增量包（tag `models-v0.1.1.0`）：上传量小，但一个 bundle 拆成两个 release，安装方需要拼合；②覆盖旧 tag：**禁止**（已发布资产不可变） |
 | **D3** | 授权范围 | **下载 v0.0.7 模型 zip（256 MB）＋ 本地重建 otter＋测试 ＋ 创建 GitHub release** | 分开授权：只做前两步，发布另行授权 |
-| **D4** | 歌词与静音词的契约形态 | `AlignStartInput::lyrics` 为单个字符串；结果**覆盖整段**（现以 `silenceLabel` 非空为条件，见 `docs/otter-design.md:450-452`），静音段以 `exports.silenceLabel`（默认 `"SP"`）为文本出现 | ①歌词改为 `vector<string>` 词表：模型本身按空白切分，多一层无收益；②结果只给出对齐到的词，静音由宿主计算：少一层词汇，但失去模型自带的分区（`fill_small_gaps` 会调整词的边界） |
+| **D4** | 歌词与静音词的契约形态 | `StartInput::lyrics` 为单个字符串；结果**覆盖整段**（现以 `silenceLabel` 非空为条件，见 `docs/otter-design.md:450-452`），静音段以 `exports.silenceLabel`（默认 `"SP"`）为文本出现 | ①歌词改为 `vector<string>` 词表：模型本身按空白切分，多一层无收益；②结果只给出对齐到的词，静音由宿主计算：少一层词汇，但失去模型自带的分区（`fill_small_gaps` 会调整词的边界） |
 | **D5** | 旋钮集合 | 三个：`nonSpeechThreshold`(0–1, 0.5)、`nonSpeechMinDuration`(s, 0.1)、`gapFill`(s, 0.1) | 不提供旋钮：用户无法调节呼吸段灵敏度；提供更多（Viterbi 相关）：属模型内部参数，不进契约 |
 | **D6** | 本轮是否同时实现 lite（ds-editor-lite）的 Align 接入 | **否**（本轮只含 otter 侧、包与发布） | 同轮接入：lite 需要新的 UI 与任务（歌词来源、结果所在的层），工作量远大于本轮 |
 
@@ -93,8 +93,7 @@ HFA 是**强制对齐器**：输入是「音频 + 已知歌词文本」，输出
 ```cpp
 namespace otter::Api::Align::L1 {
 
-    inline constexpr char API_INTERFACE[] = "org.openvpi.otter.analysis.Align";
-    inline constexpr int  API_LEVEL = 1;
+    inline const srt::ContribContract Contract{"org.openvpi.otter.inference.Align", 1};
 
     struct PhoneInfo { std::string text; double start = 0; double duration = 0; };
 
@@ -103,7 +102,7 @@ namespace otter::Api::Align::L1 {
     struct WordInfo { std::string text; double start = 0; double duration = 0;
                       std::vector<PhoneInfo> phones; };
 
-    class AlignSchema : public srt::ContribExports {
+    class Schema : public srt::ContribExports {
         int sampleRate = 0;                  // 契约事实，宿主按它准备音频
         int channelCount = 1;
         double maxSegmentDuration = 0;       // hfa：60
@@ -115,12 +114,12 @@ namespace otter::Api::Align::L1 {
         Common::L1::Knob gapFill;                // 秒
     };
 
-    OTTER_EXPORT srt::Expected<std::unique_ptr<AlignSchema>>
-        readAlignSchema(const srt::ContribSpec &spec, std::string variant);
+    OTTER_EXPORT srt::Expected<std::unique_ptr<Schema>>
+        readAlignSchema(const srt::ContribSpec &spec);
 
-    class AlignRuntimeOptions : public otter::AnalysisRuntimeOptions { /* 壳 */ };
+    class RuntimeOptions : public otter::AnalysisRuntimeOptions { /* 壳 */ };
 
-    class AlignStartInput : public srt::TaskStartInput {
+    class StartInput : public srt::TaskStartInput {
         Common::L1::AudioSegment audio;
         Common::L1::ProgressCallback progress;
         std::optional<std::string> language;             // 必须是 exports.languages 之一
@@ -131,20 +130,20 @@ namespace otter::Api::Align::L1 {
         std::optional<double> gapFill;
     };
 
-    class AlignResult : public srt::TaskResult {
+    class Result : public srt::TaskResult {
         std::vector<WordInfo> words;   // 起点升序、覆盖整段、相邻不重叠不留缝
     };
 
-    class AlignExecutive : public otter::AnalysisExecutive { start / startAsync / state / stop / waitForFinished };
+    class Executive : public otter::AnalysisExecutive { start / startAsync / state / stop / waitForFinished };
 }
 
 // 扩展 ID
-template <> struct srt::ContribSpecExtensionTraits<otter::AnalysisSpec, otter::Api::Align::L1::AlignExecutive> {
+template <> struct srt::ContribSpecExtensionTraits<otter::AnalysisSpec, otter::Api::Align::L1::Executive> {
     inline static constexpr char ID[] = "org.openvpi.otter.extension.Align";
 };
 ```
 
-> 块内 `AlignResult::words` 的「覆盖整段、相邻不重叠不留缝」为草案原文（本节首行已声明），现行口径以 `silenceLabel` 非空为条件，见 `docs/otter-design.md:450-452`。
+> 块内 `Result::words` 的「覆盖整段、相邻不重叠不留缝」为草案原文（本节首行已声明），现行口径以 `silenceLabel` 非空为条件，见 `docs/otter-design.md:450-452`。
 
 **语义要点**（写入头文件注释，与既有契约口径一致）
 
@@ -192,7 +191,7 @@ template <> struct srt::ContribSpecExtensionTraits<otter::AnalysisSpec, otter::A
 6  Viterbi + 边界小数修正 → 音素区间 → 按词聚合（跳过 SP，与参考实现相同）
 7  NonLexicalDecoder：cvnt → AP/EP 区间 → 插入（保留 add_AP 的区间扣减与最短时长逻辑）
 8  fill_small_gaps（默认 0.1s）→ add_SP（整段）→ clear_language_prefix
-9  转换为 AlignResult：绝对秒 = audio.startTime + 局部秒；词/音素两级
+9  转换为 Result：绝对秒 = audio.startTime + 局部秒；词/音素两级
 10 取消检查位于步骤 4–9 的各步边界；会话 stop()/waitForFinished() 的覆写方式与 rmvpe/game 相同
 ```
 

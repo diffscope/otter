@@ -64,9 +64,7 @@ namespace otter::tifaGgml {
         /// facts and are declared in exports.
         class TifaGgmlConfiguration : public srt::ContribConfiguration {
         public:
-            TifaGgmlConfiguration()
-                : srt::ContribConfiguration(
-                      {AlignApi::API_INTERFACE, AlignApi::API_LEVEL, VARIANT}) {
+            TifaGgmlConfiguration() : srt::ContribConfiguration(Triplet) {
             }
 
             /// The engine's command line tool, as shipped in its release.
@@ -203,11 +201,11 @@ namespace otter::tifaGgml {
             return tiers;
         }
 
-        class TifaGgmlExecutive : public AlignApi::AlignExecutive {
+        class TifaGgmlExecutive : public AlignApi::Executive {
         public:
             TifaGgmlExecutive(srt::InferenceSpec &spec, const TifaGgmlConfiguration &configuration,
-                              const AlignApi::AlignSchema &schema)
-                : AlignExecutive(spec), m_configuration(configuration), m_schema(schema) {
+                              const AlignApi::Schema &schema)
+                : Executive(spec), m_configuration(configuration), m_schema(schema) {
             }
 
             ~TifaGgmlExecutive() override {
@@ -222,7 +220,7 @@ namespace otter::tifaGgml {
             /// a stopped execution is blocked on. The process is reaped by the execution thread,
             /// which is the only thread that owns it.
             srt::Expected<void> stop() override {
-                (void) AlignExecutive::stop();
+                (void) Executive::stop();
                 std::lock_guard lock(m_activeLock);
                 if (m_active) {
                     (void) m_active->kill();
@@ -231,8 +229,8 @@ namespace otter::tifaGgml {
             }
 
         protected:
-            srt::Expected<std::unique_ptr<AlignApi::AlignResult>>
-                run(const AlignApi::AlignStartInput &input) override {
+            srt::Expected<std::unique_ptr<AlignApi::Result>>
+                run(const AlignApi::StartInput &input) override {
                 const auto &audio = input.audio;
                 auto prepared = otter::prepareSamples(
                     audio, m_schema.sampleRate, m_schema.channelCount, m_schema.maxSegmentDuration);
@@ -331,7 +329,7 @@ namespace otter::tifaGgml {
                     return words.takeError();
                 }
 
-                auto result = std::make_unique<AlignApi::AlignResult>();
+                auto result = std::make_unique<AlignApi::Result>();
                 result->language = entry->language;
                 result->scheme = entry->scheme;
                 result->words = words.take();
@@ -603,7 +601,7 @@ namespace otter::tifaGgml {
 
             // Owned by the spec, which outlives every executive created from it.
             const TifaGgmlConfiguration &m_configuration;
-            const AlignApi::AlignSchema &m_schema;
+            const AlignApi::Schema &m_schema;
         };
 
         // The engine and the model are files the declaration names. A package whose files are
@@ -696,7 +694,7 @@ namespace otter::tifaGgml {
 
     srt::Expected<std::unique_ptr<srt::ContribExports>>
         TifaGgmlInterpreter::createExports(const srt::ContribSpec &spec) const {
-        auto schema = AlignApi::readAlignSchema(spec, VARIANT);
+        auto schema = AlignApi::readAlignSchema(spec);
         if (!schema) {
             return schema.takeError();
         }
@@ -754,7 +752,7 @@ namespace otter::tifaGgml {
                                              const srt::InferenceRuntimeOptions &) {
         const auto configuration =
             spec.configuration() ? spec.configuration()->as<TifaGgmlConfiguration>() : nullptr;
-        const auto schema = spec.exports() ? spec.exports()->as<AlignApi::AlignSchema>() : nullptr;
+        const auto schema = spec.exports() ? spec.exports()->as<AlignApi::Schema>() : nullptr;
         if (configuration == nullptr || schema == nullptr) {
             return srt::Error(otter::AnalysisError::Internal,
                               "this declaration carries no tifa-ggml configuration");

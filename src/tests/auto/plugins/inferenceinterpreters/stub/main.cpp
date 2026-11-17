@@ -27,16 +27,16 @@ namespace otter::stub {
                 return srt::Error(srt::Error::FeatureNotSupported,
                                   "this plugin serves only the stub variant");
             }
-            if (triplet.interfaceId() == F0Api::API_INTERFACE &&
-                triplet.level() == F0Api::API_LEVEL) {
+            if (triplet.interfaceId() == F0Api::Contract.interfaceId() &&
+                triplet.level() == F0Api::Contract.level()) {
                 return std::unique_ptr<srt::ContribInterpreter>(new StubF0Interpreter());
             }
-            if (triplet.interfaceId() == NoteApi::API_INTERFACE &&
-                triplet.level() == NoteApi::API_LEVEL) {
+            if (triplet.interfaceId() == NoteApi::Contract.interfaceId() &&
+                triplet.level() == NoteApi::Contract.level()) {
                 return std::unique_ptr<srt::ContribInterpreter>(new StubNoteInterpreter());
             }
-            if (triplet.interfaceId() == AlignApi::API_INTERFACE &&
-                triplet.level() == AlignApi::API_LEVEL) {
+            if (triplet.interfaceId() == AlignApi::Contract.interfaceId() &&
+                triplet.level() == AlignApi::Contract.level()) {
                 return std::unique_ptr<srt::ContribInterpreter>(new StubAlignInterpreter());
             }
             return srt::Error(srt::Error::FeatureNotSupported,
@@ -49,7 +49,7 @@ namespace otter::stub {
     // these sources finds the stub among the static plugins of the inference category, so a test
     // sets no plugin path and loads no library.
     stdc::json::Value manifest() {
-        const auto declaration = [](const char *interface, int level) {
+        const auto declaration = [](const std::string &interface, int level) {
             return stdc::json::Object{
                 {"interface", std::string(interface)},
                 {"level",     level                 },
@@ -57,11 +57,12 @@ namespace otter::stub {
             };
         };
         return stdc::json::Object{
-            {"name",         "otterstub"                                                 },
+            {"name",         "otterstub"                                                   },
             {"interpreters",
-             stdc::json::Array{declaration(F0Api::API_INTERFACE, F0Api::API_LEVEL),
-                               declaration(NoteApi::API_INTERFACE, NoteApi::API_LEVEL),
-                               declaration(AlignApi::API_INTERFACE, AlignApi::API_LEVEL)}},
+             stdc::json::Array{
+                 declaration(F0Api::Contract.interfaceId(), F0Api::Contract.level()),
+                 declaration(NoteApi::Contract.interfaceId(), NoteApi::Contract.level()),
+                 declaration(AlignApi::Contract.interfaceId(), AlignApi::Contract.level())}},
         };
     }
 

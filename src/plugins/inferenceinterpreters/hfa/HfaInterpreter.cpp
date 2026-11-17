@@ -249,9 +249,7 @@ namespace otter::hfa {
         /// analyzer reads only the graph.
         class HfaConfiguration : public srt::ContribConfiguration {
         public:
-            HfaConfiguration()
-                : srt::ContribConfiguration(
-                      {AlignApi::API_INTERFACE, AlignApi::API_LEVEL, VARIANT}) {
+            HfaConfiguration() : srt::ContribConfiguration(Triplet) {
             }
 
             std::filesystem::path model;
@@ -320,10 +318,10 @@ namespace otter::hfa {
             return result;
         }
 
-        class HfaExecutive : public otter::onnx::OnnxExecutive<AlignApi::AlignExecutive> {
+        class HfaExecutive : public otter::onnx::OnnxExecutive<AlignApi::Executive> {
         public:
             HfaExecutive(srt::InferenceSpec &spec, std::unique_ptr<ds::InferenceSession> session,
-                         const AlignApi::AlignSchema &schema, const HfaConfiguration &configuration)
+                         const AlignApi::Schema &schema, const HfaConfiguration &configuration)
                 : OnnxExecutive(spec), m_session(own(std::move(session))), m_schema(schema),
                   m_configuration(configuration) {
             }
@@ -333,8 +331,8 @@ namespace otter::hfa {
             }
 
         protected:
-            srt::Expected<std::unique_ptr<AlignApi::AlignResult>>
-                run(const AlignApi::AlignStartInput &input) override {
+            srt::Expected<std::unique_ptr<AlignApi::Result>>
+                run(const AlignApi::StartInput &input) override {
                 const auto &audio = input.audio;
                 auto prepared = otter::prepareSamples(
                     audio, m_schema.sampleRate, m_schema.channelCount, m_schema.maxSegmentDuration);
@@ -488,7 +486,7 @@ namespace otter::hfa {
             //         \c srt::Error::InvalidArgument if no language is specified or declared, the
             //         language or scheme is not declared, or the scheme is ambiguous;
             //         \c AnalysisError::Internal if the dictionary is missing.
-            srt::Expected<Language> chooseLanguage(const AlignApi::AlignStartInput &input) const {
+            srt::Expected<Language> chooseLanguage(const AlignApi::StartInput &input) const {
                 const std::string language = input.language.value_or(m_schema.defaultLanguage);
                 if (language.empty()) {
                     return srt::Error(
@@ -539,7 +537,7 @@ namespace otter::hfa {
             // \return The labels, or \c srt::Error::InvalidArgument if a label is not declared. An
             //         undeclared label is rejected instead of ignored.
             srt::Expected<std::vector<std::string>>
-                chooseLabels(const AlignApi::AlignStartInput &input) const {
+                chooseLabels(const AlignApi::StartInput &input) const {
                 std::vector<std::string> labels = input.nonSpeechPhonemes.empty()
                                                       ? m_schema.defaultNonSpeechPhonemes
                                                       : input.nonSpeechPhonemes;
@@ -558,7 +556,7 @@ namespace otter::hfa {
             // Chooses every knob of an execution, within the ranges that the declaration reports.
             //
             // \return The settings, or the error of the first knob outside its declared range.
-            srt::Expected<Settings> chooseSettings(const AlignApi::AlignStartInput &input) const {
+            srt::Expected<Settings> chooseSettings(const AlignApi::StartInput &input) const {
                 Settings settings;
                 const std::tuple<const std::optional<double> &, const CommonApi::Knob &, double,
                                  double *, const char *>
@@ -680,10 +678,10 @@ namespace otter::hfa {
 
             // Places the words on the host's timeline. All model output is relative to the input
             // span, and the contract's times are absolute, so the anchor is added once here.
-            static std::unique_ptr<AlignApi::AlignResult> place(std::vector<otter::hfa::Word> words,
-                                                                const AlignApi::LanguageInfo &entry,
-                                                                double anchor) {
-                auto result = std::make_unique<AlignApi::AlignResult>();
+            static std::unique_ptr<AlignApi::Result> place(std::vector<otter::hfa::Word> words,
+                                                           const AlignApi::LanguageInfo &entry,
+                                                           double anchor) {
+                auto result = std::make_unique<AlignApi::Result>();
                 result->language = entry.language;
                 result->scheme = entry.scheme;
                 result->words.reserve(words.size());
@@ -708,7 +706,7 @@ namespace otter::hfa {
             ds::InferenceSession *m_session;
 
             // Owned by the spec, which outlives every executive created from it.
-            const AlignApi::AlignSchema &m_schema;
+            const AlignApi::Schema &m_schema;
             const HfaConfiguration &m_configuration;
         };
 
@@ -725,7 +723,7 @@ namespace otter::hfa {
         //
         // \return An empty value, or \c srt::Error::InvalidFormat or \c srt::Error::FileNotFound
         //         for the first mismatch.
-        srt::Expected<void> checkAgainstModel(const AlignApi::AlignSchema &declared,
+        srt::Expected<void> checkAgainstModel(const AlignApi::Schema &declared,
                                               const HfaConfiguration &wiring) {
             const auto &model = wiring.facts;
             if (declared.sampleRate != model.sampleRate) {
@@ -828,7 +826,7 @@ namespace otter::hfa {
         }
 
         /// Reads the dictionary of every language the exports declare.
-        srt::Expected<void> loadDictionaries(const AlignApi::AlignSchema &declared,
+        srt::Expected<void> loadDictionaries(const AlignApi::Schema &declared,
                                              HfaConfiguration &wiring) {
             for (const auto &entry : declared.languages) {
                 // checkAgainstModel() has verified the code and the dictionary's name.
@@ -900,7 +898,7 @@ namespace otter::hfa {
 
     srt::Expected<std::unique_ptr<srt::ContribExports>>
         HfaInterpreter::createExports(const srt::ContribSpec &spec) const {
-        auto schema = AlignApi::readAlignSchema(spec, VARIANT);
+        auto schema = AlignApi::readAlignSchema(spec);
         if (!schema) {
             return schema.takeError();
         }
@@ -927,7 +925,7 @@ namespace otter::hfa {
         if (!configuration) {
             return configuration.takeError();
         }
-        auto schema = AlignApi::readAlignSchema(spec, VARIANT);
+        auto schema = AlignApi::readAlignSchema(spec);
         if (!schema) {
             return schema.takeError();
         }
@@ -951,7 +949,7 @@ namespace otter::hfa {
                                         const srt::InferenceRuntimeOptions &) {
         const auto configuration =
             spec.configuration() ? spec.configuration()->as<HfaConfiguration>() : nullptr;
-        const auto schema = spec.exports() ? spec.exports()->as<AlignApi::AlignSchema>() : nullptr;
+        const auto schema = spec.exports() ? spec.exports()->as<AlignApi::Schema>() : nullptr;
         if (configuration == nullptr || schema == nullptr) {
             return srt::Error(otter::AnalysisError::Internal,
                               "this declaration carries no hfa configuration");

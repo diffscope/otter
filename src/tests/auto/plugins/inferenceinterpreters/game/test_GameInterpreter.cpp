@@ -40,8 +40,9 @@ namespace {
         srt::Expected<std::unique_ptr<srt::ContribInterpreter>>
             create(const srt::ContribContractTriplet &triplet) override {
             if (auto served = otter::onnx::checkServed(
-                    triplet, srt::ContribContractTriplet(NoteApi::API_INTERFACE, NoteApi::API_LEVEL,
-                                                         otter::game::VARIANT));
+                    triplet, srt::ContribContractTriplet(NoteApi::Contract.interfaceId(),
+                                                         NoteApi::Contract.level(),
+                                                         otter::game::Triplet.variant()));
                 !served) {
                 return served.takeError();
             }
@@ -70,7 +71,7 @@ namespace {
             return ModelHost::load("fixture-note", "note");
         }
 
-        std::unique_ptr<NoteApi::NoteExecutive> open() {
+        std::unique_ptr<NoteApi::Executive> open() {
             auto spec = load();
             auto made = NoteApi::createAnalyzer(*spec->as<srt::InferenceSpec>());
             BOOST_REQUIRE_MESSAGE(static_cast<bool>(made), otter::test::why(made));
@@ -82,7 +83,7 @@ namespace {
     /// boundaries, although its exports promise no alignment on known notes. The variant accepts
     /// such a declaration, because that model is required only of a declaration that promises it.
     struct HostWithoutKnownNotes : otter::test::ModelHost {
-        std::unique_ptr<NoteApi::NoteExecutive> open() {
+        std::unique_ptr<NoteApi::Executive> open() {
             auto spec = ModelHost::load("fixture-note-no-known-notes", "note");
             auto made = NoteApi::createAnalyzer(*spec->as<srt::InferenceSpec>());
             BOOST_REQUIRE_MESSAGE(static_cast<bool>(made), otter::test::why(made));
@@ -108,7 +109,7 @@ BOOST_AUTO_TEST_SUITE(test_GameInterpreter)
 BOOST_AUTO_TEST_CASE(test_GameInterpreter_ReportsWhatTheDeclarationExports) {
     Host host;
     auto spec = host.load();
-    auto schema = spec->exports()->as<NoteApi::NoteSchema>();
+    auto schema = spec->exports()->as<NoteApi::Schema>();
     BOOST_REQUIRE(schema != nullptr);
 
     // The exports are the declaration's values, read through the contract's reader, and the
@@ -126,7 +127,7 @@ BOOST_AUTO_TEST_CASE(test_GameInterpreter_ChainsTheStagesAndPlacesNotesInSeconds
     Host host;
     auto analyzer = host.open();
 
-    NoteApi::NoteStartInput input;
+    NoteApi::StartInput input;
     input.audio = tone(2.0, 7.5);
     input.notePresenceCutoff = 0.0;
     std::vector<double> reported;
@@ -167,7 +168,7 @@ BOOST_AUTO_TEST_CASE(test_GameInterpreter_SendsTheKnobsToTheModels) {
     auto analyzer = host.open();
 
     const auto count = [&analyzer](double radius, double cutoff) {
-        NoteApi::NoteStartInput input;
+        NoteApi::StartInput input;
         input.audio = tone(2.0);
         input.boundaryRadius = radius;
         input.notePresenceCutoff = cutoff;
@@ -193,7 +194,7 @@ BOOST_AUTO_TEST_CASE(test_GameInterpreter_AlignsAgainstTheNotesTheCallerKnows) {
     // and every boundary would fall outside the available frames.
     constexpr double SPAN_START = 30.0;
 
-    NoteApi::NoteStartInput free;
+    NoteApi::StartInput free;
     free.audio = tone(2.0, SPAN_START);
     free.boundaryRadius = 0.4;
     free.notePresenceCutoff = 0.0;
@@ -204,7 +205,7 @@ BOOST_AUTO_TEST_CASE(test_GameInterpreter_AlignsAgainstTheNotesTheCallerKnows) {
     // The same audio is analyzed with known notes. The fifth model converts their durations into
     // boundaries that the segmenter keeps, so the result must change. The result could not change
     // while the segmenter received zeros, as in the original implementation.
-    NoteApi::NoteStartInput aligned;
+    NoteApi::StartInput aligned;
     aligned.audio = tone(2.0, SPAN_START);
     aligned.boundaryRadius = 0.4;
     aligned.notePresenceCutoff = 0.0;
@@ -231,21 +232,21 @@ BOOST_AUTO_TEST_CASE(test_GameInterpreter_RefusesWhatItCannotHonor) {
     Host host;
     auto analyzer = host.open();
 
-    NoteApi::NoteStartInput wrongRate;
+    NoteApi::StartInput wrongRate;
     wrongRate.audio = tone(1.0);
     wrongRate.audio.sampleRate = 16000;
     auto refusedRate = analyzer->start(wrongRate);
     BOOST_REQUIRE(!refusedRate);
     BOOST_CHECK(refusedRate.error().message().find("44100") != std::string::npos);
 
-    NoteApi::NoteStartInput unknownLanguage;
+    NoteApi::StartInput unknownLanguage;
     unknownLanguage.audio = tone(1.0);
     unknownLanguage.language = "qqq";
     BOOST_CHECK(!analyzer->start(unknownLanguage));
 
     // Known notes out of order would place every later note early instead of causing a failure,
     // so they are rejected.
-    NoteApi::NoteStartInput crossed;
+    NoteApi::StartInput crossed;
     crossed.audio = tone(1.0);
     crossed.knownNotes = {
         {0.5, 0.2},
@@ -255,7 +256,7 @@ BOOST_AUTO_TEST_CASE(test_GameInterpreter_RefusesWhatItCannotHonor) {
 
     // Known notes are on the host's timeline, so a known note before the start of the span is
     // invalid.
-    NoteApi::NoteStartInput early;
+    NoteApi::StartInput early;
     early.audio = tone(1.0, 5.0);
     early.knownNotes = {
         {0.0, 0.2}
@@ -264,7 +265,7 @@ BOOST_AUTO_TEST_CASE(test_GameInterpreter_RefusesWhatItCannotHonor) {
 
     // A known note that runs past the end of the span would be converted into boundaries the
     // frames do not have.
-    NoteApi::NoteStartInput late;
+    NoteApi::StartInput late;
     late.audio = tone(1.0, 5.0);
     late.knownNotes = {
         {5.5, 0.4},
@@ -276,7 +277,7 @@ BOOST_AUTO_TEST_CASE(test_GameInterpreter_RefusesWhatItCannotHonor) {
 
     // The configuration numbers eng, but the exports do not declare it, so the package does not
     // offer it.
-    NoteApi::NoteStartInput undeclared;
+    NoteApi::StartInput undeclared;
     undeclared.audio = tone(1.0);
     undeclared.language = "eng";
     auto refusedLanguage = analyzer->start(undeclared);
@@ -289,7 +290,7 @@ BOOST_AUTO_TEST_CASE(test_GameInterpreter_RefusesWhatItCannotHonor) {
                 std::string::npos);
 
     // A knob outside the range that the declaration reports is rejected.
-    NoteApi::NoteStartInput wrongKnob;
+    NoteApi::StartInput wrongKnob;
     wrongKnob.audio = tone(1.0);
     wrongKnob.steps = 0;
     BOOST_CHECK(!analyzer->start(wrongKnob));
@@ -306,7 +307,7 @@ BOOST_AUTO_TEST_CASE(test_GameInterpreter_RefusesKnownNotesItDidNotPromise) {
     HostWithoutKnownNotes host;
     auto analyzer = host.open();
 
-    NoteApi::NoteStartInput known;
+    NoteApi::StartInput known;
     known.audio = tone(1.0);
     known.knownNotes = {
         {0.0, 0.2},
@@ -321,7 +322,7 @@ BOOST_AUTO_TEST_CASE(test_GameInterpreter_RefusesKnownNotesItDidNotPromise) {
     // The same analyzer transcribes a span for which the caller supplies no note. The knobs are
     // the ones this variant falls back to, since the declaration promises none, so the number of
     // notes it finds is not asserted here.
-    NoteApi::NoteStartInput free;
+    NoteApi::StartInput free;
     free.audio = tone(1.0);
     auto transcribed = analyzer->start(free);
     BOOST_REQUIRE_MESSAGE(static_cast<bool>(transcribed), otter::test::why(transcribed));
@@ -379,7 +380,7 @@ BOOST_AUTO_TEST_CASE(test_GameInterpreter_ReportsACancellation) {
     // milestone there would let the execution finish and fail this case as a cancellation that did
     // not happen.
     for (const double at : {0.0, 0.3, 0.8}) {
-        NoteApi::NoteStartInput input;
+        NoteApi::StartInput input;
         input.audio = tone(1.0);
         input.progress = [&analyzer, at](double value) {
             if (value == at) {
@@ -393,7 +394,7 @@ BOOST_AUTO_TEST_CASE(test_GameInterpreter_ReportsACancellation) {
         BOOST_CHECK_EQUAL(analyzer->state(), srt::ITask::Canceled);
     }
 
-    NoteApi::NoteStartInput again;
+    NoteApi::StartInput again;
     again.audio = tone(1.0);
     auto produced = analyzer->start(again);
     BOOST_CHECK_MESSAGE(static_cast<bool>(produced), otter::test::why(produced));

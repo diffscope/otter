@@ -54,12 +54,14 @@ namespace {
     public:
         srt::Expected<std::unique_ptr<srt::ContribInterpreter>>
             create(const srt::ContribContractTriplet &triplet) override {
-            if (triplet != srt::ContribContractTriplet(AlignApi::API_INTERFACE, AlignApi::API_LEVEL,
-                                                       otter::tifaGgml::VARIANT)) {
-                return srt::Error(srt::Error::FeatureNotSupported,
-                                  "this plugin serves the " + std::string(AlignApi::API_INTERFACE) +
-                                      " contract at level " + std::to_string(AlignApi::API_LEVEL) +
-                                      " only, in the variant " + otter::tifaGgml::VARIANT);
+            if (triplet != srt::ContribContractTriplet(AlignApi::Contract.interfaceId(),
+                                                       AlignApi::Contract.level(),
+                                                       otter::tifaGgml::Triplet.variant())) {
+                return srt::Error(
+                    srt::Error::FeatureNotSupported,
+                    "this plugin serves the " + std::string(AlignApi::Contract.interfaceId()) +
+                        " contract at level " + std::to_string(AlignApi::Contract.level()) +
+                        " only, in the variant " + otter::tifaGgml::Triplet.variant());
             }
             return std::unique_ptr<srt::ContribInterpreter>(
                 new otter::tifaGgml::TifaGgmlInterpreter());
@@ -194,7 +196,7 @@ namespace {
             return opened.error().rootCause().message();
         }
 
-        std::unique_ptr<AlignApi::AlignExecutive> open() {
+        std::unique_ptr<AlignApi::Executive> open() {
             auto spec = load();
             auto made = AlignApi::createAnalyzer(*spec->as<srt::InferenceSpec>());
             BOOST_REQUIRE_MESSAGE(static_cast<bool>(made), why(made));

@@ -4,10 +4,11 @@
 #include <memory>
 
 #include <otter/Analysis/Provider/AnalysisInterpreter.h>
+#include <otter/Api/Note/1/NoteApiL1.h>
 
 namespace otter::gameGgml {
 
-    inline constexpr char VARIANT[] = "game-ggml";
+    inline const srt::ContribContractTriplet Triplet{Api::Note::L1::Contract, "game-ggml"};
 
     /// Spawns the engine on demand and hands out analyzers.
     class GameGgmlInterpreter : public otter::AnalysisInterpreter {

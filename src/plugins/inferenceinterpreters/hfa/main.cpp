@@ -18,10 +18,7 @@ namespace otter::hfa {
     public:
         srt::Expected<std::unique_ptr<srt::ContribInterpreter>>
             create(const srt::ContribContractTriplet &triplet) override {
-            if (auto served = otter::onnx::checkServed(
-                    triplet, srt::ContribContractTriplet(AlignApi::API_INTERFACE,
-                                                         AlignApi::API_LEVEL, VARIANT));
-                !served) {
+            if (auto served = otter::onnx::checkServed(triplet, Triplet); !served) {
                 return served.takeError();
             }
             return std::unique_ptr<srt::ContribInterpreter>(new HfaInterpreter());

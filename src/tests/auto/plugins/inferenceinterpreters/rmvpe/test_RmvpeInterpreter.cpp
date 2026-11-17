@@ -39,8 +39,9 @@ namespace {
         srt::Expected<std::unique_ptr<srt::ContribInterpreter>>
             create(const srt::ContribContractTriplet &triplet) override {
             if (auto served = otter::onnx::checkServed(
-                    triplet, srt::ContribContractTriplet(F0Api::API_INTERFACE, F0Api::API_LEVEL,
-                                                         otter::rmvpe::VARIANT));
+                    triplet, srt::ContribContractTriplet(F0Api::Contract.interfaceId(),
+                                                         F0Api::Contract.level(),
+                                                         otter::rmvpe::Triplet.variant()));
                 !served) {
                 return served.takeError();
             }
@@ -60,7 +61,7 @@ namespace {
     using FixturesOrSkip = otter::test::FixturesOrSkip;
 
     struct Host : otter::test::ModelHost {
-        std::unique_ptr<F0Api::F0Executive> open() {
+        std::unique_ptr<F0Api::Executive> open() {
             auto spec = load("fixture-rmvpe", "f0");
             auto made = F0Api::createAnalyzer(*spec->as<srt::InferenceSpec>());
             BOOST_REQUIRE_MESSAGE(static_cast<bool>(made), otter::test::why(made));
@@ -87,7 +88,7 @@ BOOST_AUTO_TEST_CASE(test_RmvpeInterpreter_RunsTheModelAndAnchorsTheCurve) {
     Host host;
     auto analyzer = host.open();
 
-    F0Api::F0StartInput input;
+    F0Api::StartInput input;
     input.audio = tone(1.0, 12.25);
     input.interpolateUnvoiced = false;
 
@@ -120,7 +121,7 @@ BOOST_AUTO_TEST_CASE(test_RmvpeInterpreter_SendsTheThresholdToTheModel) {
     auto analyzer = host.open();
 
     const auto voicedCount = [&analyzer](double threshold) {
-        F0Api::F0StartInput input;
+        F0Api::StartInput input;
         input.audio = tone(1.0);
         input.voicingThreshold = threshold;
         auto produced = analyzer->start(input);
@@ -142,7 +143,7 @@ BOOST_AUTO_TEST_CASE(test_RmvpeInterpreter_InterpolationFillsWhatTheFlagLeavesOu
     Host host;
     auto analyzer = host.open();
 
-    F0Api::F0StartInput raw;
+    F0Api::StartInput raw;
     raw.audio = tone(1.0);
     raw.voicingThreshold = 0.5;
     raw.interpolateUnvoiced = false;
@@ -150,7 +151,7 @@ BOOST_AUTO_TEST_CASE(test_RmvpeInterpreter_InterpolationFillsWhatTheFlagLeavesOu
     BOOST_REQUIRE(without);
     auto bare = without.take();
 
-    F0Api::F0StartInput filled;
+    F0Api::StartInput filled;
     filled.audio = tone(1.0);
     filled.voicingThreshold = 0.5;
     filled.interpolateUnvoiced = true;
@@ -179,7 +180,7 @@ BOOST_AUTO_TEST_CASE(test_RmvpeInterpreter_DownmixesButRefusesToResample) {
 
     // Averaging channels is plain arithmetic, so the provider performs it instead of requiring
     // the caller to do so.
-    F0Api::F0StartInput stereo;
+    F0Api::StartInput stereo;
     stereo.audio = tone(1.0, 0, 2);
     auto mixed = analyzer->start(stereo);
     BOOST_REQUIRE_MESSAGE(static_cast<bool>(mixed), otter::test::why(mixed));
@@ -187,7 +188,7 @@ BOOST_AUTO_TEST_CASE(test_RmvpeInterpreter_DownmixesButRefusesToResample) {
 
     // Resampling is not performed, because it changes the result, and silent resampling would hide
     // that the host prepared audio at the wrong rate.
-    F0Api::F0StartInput wrongRate;
+    F0Api::StartInput wrongRate;
     wrongRate.audio = tone(1.0);
     wrongRate.audio.sampleRate = 44100;
     auto refused = analyzer->start(wrongRate);
@@ -224,7 +225,7 @@ BOOST_AUTO_TEST_CASE(test_RmvpeInterpreter_ReportsACancellation) {
     Host host;
     auto analyzer = host.open();
 
-    F0Api::F0StartInput input;
+    F0Api::StartInput input;
     input.audio = tone(1.0);
     input.progress = [&analyzer](double value) {
         // Zero is the report that the provider makes before the model runs (the executive in
@@ -239,7 +240,7 @@ BOOST_AUTO_TEST_CASE(test_RmvpeInterpreter_ReportsACancellation) {
     BOOST_CHECK(stopped.error().code() == otter::AnalysisError::Cancelled);
     BOOST_CHECK_EQUAL(analyzer->state(), srt::ITask::Canceled);
 
-    F0Api::F0StartInput again;
+    F0Api::StartInput again;
     again.audio = tone(1.0);
     auto produced = analyzer->start(again);
     BOOST_CHECK_MESSAGE(static_cast<bool>(produced), otter::test::why(produced));

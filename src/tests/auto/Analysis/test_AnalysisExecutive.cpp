@@ -72,9 +72,9 @@ namespace {
             BOOST_REQUIRE(spec != nullptr);
             auto &inference = *spec->as<srt::InferenceSpec>();
             auto made = [&] {
-                if constexpr (std::is_same_v<Executive, F0Api::F0Executive>) {
+                if constexpr (std::is_same_v<Executive, F0Api::Executive>) {
                     return F0Api::createAnalyzer(inference);
-                } else if constexpr (std::is_same_v<Executive, AlignApi::AlignExecutive>) {
+                } else if constexpr (std::is_same_v<Executive, AlignApi::Executive>) {
                     return AlignApi::createAnalyzer(inference);
                 } else {
                     return NoteApi::createAnalyzer(inference);
@@ -111,9 +111,9 @@ BOOST_AUTO_TEST_SUITE(test_AnalysisExecutive)
 
 BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_AnchorsTheCurveWhereTheHostSaidItWas) {
     Loaded loaded("stub-analyzers");
-    auto analyzer = loaded.create<F0Api::F0Executive>("f0");
+    auto analyzer = loaded.create<F0Api::Executive>("f0");
 
-    F0Api::F0StartInput input;
+    F0Api::StartInput input;
     input.audio = silence(2.0, 30.5);
     std::vector<double> reported;
     input.progress = [&reported](double value) {
@@ -142,9 +142,9 @@ BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_AProgressCallbackCanStopTheExecution
     // execution without a separate call to stop(). The execution that the callback stopped reports
     // the cancellation the way any other stopped execution does.
     Loaded loaded("stub-analyzers");
-    auto analyzer = loaded.create<F0Api::F0Executive>("f0");
+    auto analyzer = loaded.create<F0Api::Executive>("f0");
 
-    F0Api::F0StartInput input;
+    F0Api::StartInput input;
     input.audio = silence(1.0);
     input.progress = [](double) { return false; };
 
@@ -160,9 +160,9 @@ BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_TheResultSurvivesACallbackThatDeclin
     // which is what a host that watches the progress of a finished execution depends on. This locks
     // the order of the two: reporting the end of the work comes before any check for a stop.
     Loaded loaded("stub-analyzers");
-    auto analyzer = loaded.create<F0Api::F0Executive>("f0");
+    auto analyzer = loaded.create<F0Api::Executive>("f0");
 
-    F0Api::F0StartInput input;
+    F0Api::StartInput input;
     input.audio = silence(1.0);
     std::vector<double> reported;
     input.progress = [&reported](double value) {
@@ -181,16 +181,16 @@ BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_TheResultSurvivesACallbackThatDeclin
 
 BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_LeavingAKnobEmptyTakesTheModuleDefault) {
     Loaded loaded("stub-analyzers");
-    auto analyzer = loaded.create<F0Api::F0Executive>("f0");
+    auto analyzer = loaded.create<F0Api::Executive>("f0");
 
-    F0Api::F0StartInput off;
+    F0Api::StartInput off;
     off.audio = silence(1.0);
     off.interpolateUnvoiced = false;
     auto withoutFill = analyzer->start(off);
     BOOST_REQUIRE(withoutFill);
     auto bare = withoutFill.take();
 
-    F0Api::F0StartInput implied;
+    F0Api::StartInput implied;
     implied.audio = silence(1.0);
     auto withDefault = analyzer->start(implied);
     BOOST_REQUIRE(withDefault);
@@ -211,9 +211,9 @@ BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_LeavingAKnobEmptyTakesTheModuleDefau
 
 BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_TranscribesAndHonorsTheCutoff) {
     Loaded loaded("stub-analyzers");
-    auto analyzer = loaded.create<NoteApi::NoteExecutive>("note");
+    auto analyzer = loaded.create<NoteApi::Executive>("note");
 
-    NoteApi::NoteStartInput input;
+    NoteApi::StartInput input;
     input.audio = silence(2.0, 10.0);
     auto produced = analyzer->start(input);
     BOOST_REQUIRE_MESSAGE(static_cast<bool>(produced), otter::test::why(produced));
@@ -225,7 +225,7 @@ BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_TranscribesAndHonorsTheCutoff) {
     BOOST_CHECK_CLOSE(all->notes.front().start, 10.0, 1e-9);
     BOOST_CHECK_CLOSE(all->notes.back().start + all->notes.back().duration, 12.0, 1e-9);
 
-    NoteApi::NoteStartInput picky;
+    NoteApi::StartInput picky;
     picky.audio = silence(2.0, 10.0);
     picky.notePresenceCutoff = 0.6;
     auto fewer = analyzer->start(picky);
@@ -239,12 +239,12 @@ BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_TranscribesAndHonorsTheCutoff) {
 
 BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_KeepsTheBoundariesTheCallerAlreadyKnows) {
     Loaded loaded("stub-analyzers");
-    auto analyzer = loaded.create<NoteApi::NoteExecutive>("note");
+    auto analyzer = loaded.create<NoteApi::Executive>("note");
 
     // Known notes are stated on the host's timeline, which is also the timeline of the results, and
     // the span begins at four seconds. Reading them as offsets into the span instead would put
     // every one of these four seconds early, and nothing in the result would indicate the error.
-    NoteApi::NoteStartInput input;
+    NoteApi::StartInput input;
     input.audio = silence(2.0, 4.0);
     input.knownNotes = {
         {4.0, 0.3 },
@@ -263,7 +263,7 @@ BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_KeepsTheBoundariesTheCallerAlreadyKn
     }
 
     // A note before the span is a caller mistake rather than something to clamp.
-    NoteApi::NoteStartInput early;
+    NoteApi::StartInput early;
     early.audio = silence(2.0, 4.0);
     early.knownNotes = {
         {0.0, 0.3}
@@ -273,28 +273,28 @@ BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_KeepsTheBoundariesTheCallerAlreadyKn
 
 BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_RefusesAudioItWasNotPromised) {
     Loaded loaded("stub-analyzers");
-    auto analyzer = loaded.create<F0Api::F0Executive>("f0");
+    auto analyzer = loaded.create<F0Api::Executive>("f0");
 
     // Resampling is the responsibility of the host, and an analyzer that resampled silently would
     // change the result without any indication.
-    F0Api::F0StartInput wrongRate;
+    F0Api::StartInput wrongRate;
     wrongRate.audio = silence(1.0, 0, 44100);
     BOOST_CHECK(!analyzer->start(wrongRate));
 
-    F0Api::F0StartInput empty;
+    F0Api::StartInput empty;
     empty.audio = silence(0.0);
     BOOST_CHECK(!analyzer->start(empty));
 
     // maxSegmentDuration is a hard constraint rather than a recommendation: the host slices the
     // audio, and a span longer than the model can encode fails instead of degrading.
-    F0Api::F0StartInput tooLong;
+    F0Api::StartInput tooLong;
     tooLong.audio = silence(61.0);
     BOOST_CHECK(!analyzer->start(tooLong));
 
-    NoteApi::NoteStartInput unknownLanguage;
+    NoteApi::StartInput unknownLanguage;
     unknownLanguage.audio = silence(1.0);
     unknownLanguage.language = "qqq";
-    auto note = loaded.create<NoteApi::NoteExecutive>("note");
+    auto note = loaded.create<NoteApi::Executive>("note");
     auto refusedLanguage = note->start(unknownLanguage);
     BOOST_REQUIRE(!refusedLanguage);
     BOOST_CHECK(refusedLanguage.error().code() == srt::Error::InvalidArgument);
@@ -306,25 +306,25 @@ BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_RefusesAudioItWasNotPromised) {
 
 BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_RefusesAKnobOutsideTheRangeItDeclares) {
     Loaded loaded("stub-analyzers");
-    auto analyzer = loaded.create<NoteApi::NoteExecutive>("note");
+    auto analyzer = loaded.create<NoteApi::Executive>("note");
 
     // The declaration specifies a range for every knob. A value outside the range is rejected
     // rather than clamped, so that a caller that requests an unsupported setting receives an error
     // instead of a result computed with a different setting. A negative step count previously
     // reached the model as an empty schedule tensor.
     for (const auto &wrong : {-1, 0, 100000}) {
-        NoteApi::NoteStartInput input;
+        NoteApi::StartInput input;
         input.audio = silence(1.0);
         input.steps = wrong;
         BOOST_CHECK(!analyzer->start(input));
     }
 
-    NoteApi::NoteStartInput tooLoud;
+    NoteApi::StartInput tooLoud;
     tooLoud.audio = silence(1.0);
     tooLoud.notePresenceCutoff = 5.0;
     BOOST_CHECK(!analyzer->start(tooLoud));
 
-    NoteApi::NoteStartInput fine;
+    NoteApi::StartInput fine;
     fine.audio = silence(1.0);
     fine.steps = 4;
     fine.notePresenceCutoff = 0.5;
@@ -337,9 +337,9 @@ BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_RefusesAKnobOutsideTheRangeItDeclare
 /// rejected.
 BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_IgnoresAKnobTheDeclarationDoesNotHonor) {
     Loaded loaded("unknobbed");
-    auto analyzer = loaded.create<F0Api::F0Executive>("f0");
+    auto analyzer = loaded.create<F0Api::Executive>("f0");
 
-    F0Api::F0StartInput input;
+    F0Api::StartInput input;
     input.audio = silence(1.0);
     input.voicingThreshold = 5.0;
     auto produced = analyzer->start(input);
@@ -352,9 +352,9 @@ BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_RefusesAModelItCannotFeed) {
     // would receive averaged audio in place of stereo audio. A previous version did so silently:
     // the count was read into a member that no code used.
     Loaded loaded("stereo-model");
-    auto analyzer = loaded.create<F0Api::F0Executive>("f0");
+    auto analyzer = loaded.create<F0Api::Executive>("f0");
 
-    F0Api::F0StartInput input;
+    F0Api::StartInput input;
     input.audio = silence(1.0);
     auto refused = analyzer->start(input);
     BOOST_REQUIRE(!refused);
@@ -364,11 +364,11 @@ BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_RefusesAModelItCannotFeed) {
 
 BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_RefusesAPartialFrame) {
     Loaded loaded("stub-analyzers");
-    auto analyzer = loaded.create<F0Api::F0Executive>("f0");
+    auto analyzer = loaded.create<F0Api::Executive>("f0");
 
     // Dropping the odd sample would shorten the span by a fraction of a frame and shift nothing
     // else, which appears much later as drift rather than as an error here.
-    F0Api::F0StartInput input;
+    F0Api::StartInput input;
     input.audio = silence(1.0, 0, RATE, 2);
     input.audio.samples.pop_back();
     auto refused = analyzer->start(input);
@@ -378,9 +378,9 @@ BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_RefusesAPartialFrame) {
 
 BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_RunsAsynchronouslyAndCanBeCancelled) {
     Loaded loaded("slow-analyzer");
-    auto analyzer = loaded.create<F0Api::F0Executive>("f0");
+    auto analyzer = loaded.create<F0Api::Executive>("f0");
 
-    auto input = std::make_shared<F0Api::F0StartInput>();
+    auto input = std::make_shared<F0Api::StartInput>();
     input->audio = silence(1.0);
 
     std::mutex mutex;
@@ -390,7 +390,7 @@ BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_RunsAsynchronouslyAndCanBeCancelled)
     std::error_code code;
 
     auto started =
-        analyzer->startAsync(input, [&](srt::Expected<std::unique_ptr<F0Api::F0Result>> result) {
+        analyzer->startAsync(input, [&](srt::Expected<std::unique_ptr<F0Api::Result>> result) {
             std::lock_guard guard(mutex);
             succeeded = static_cast<bool>(result);
             if (!result) {
@@ -415,7 +415,7 @@ BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_RunsAsynchronouslyAndCanBeCancelled)
 
     // A stop request applies only to the execution that it targets. A flag left set would cancel
     // the next execution, which the caller did not request.
-    F0Api::F0StartInput again;
+    F0Api::StartInput again;
     again.audio = silence(1.0);
     auto after = analyzer->start(again);
     BOOST_CHECK_MESSAGE(static_cast<bool>(after), otter::test::why(after));
@@ -425,10 +425,10 @@ BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_RunsAsynchronouslyAndCanBeCancelled)
 /// its own successor, which is possible only if the worker thread is detached rather than joined.
 BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_ACallbackMayStartTheNextExecution) {
     Loaded loaded("stub-analyzers");
-    auto analyzer = loaded.create<F0Api::F0Executive>("f0");
+    auto analyzer = loaded.create<F0Api::Executive>("f0");
     auto raw = analyzer.get();
 
-    auto input = std::make_shared<F0Api::F0StartInput>();
+    auto input = std::make_shared<F0Api::StartInput>();
     input->audio = silence(0.5);
 
     std::mutex mutex;
@@ -438,13 +438,13 @@ BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_ACallbackMayStartTheNextExecution) {
     bool firstReturned = false;
 
     auto started =
-        raw->startAsync(input, [&](srt::Expected<std::unique_ptr<F0Api::F0Result>> result) {
+        raw->startAsync(input, [&](srt::Expected<std::unique_ptr<F0Api::Result>> result) {
             {
                 std::lock_guard guard(mutex);
                 completed += result ? 1 : 0;
             }
             auto again =
-                raw->startAsync(input, [&](srt::Expected<std::unique_ptr<F0Api::F0Result>> second) {
+                raw->startAsync(input, [&](srt::Expected<std::unique_ptr<F0Api::Result>> second) {
                     std::lock_guard guard(mutex);
                     completed += second ? 1 : 0;
                     done.notify_all();
@@ -469,18 +469,18 @@ BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_ACallbackMayStartTheNextExecution) {
 /// runs, which again requires a detached thread rather than a joined thread.
 BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_ACallbackMayDestroyTheAnalyzer) {
     Loaded loaded("stub-analyzers");
-    std::shared_ptr<F0Api::F0Executive> owner(loaded.create<F0Api::F0Executive>("f0").release());
+    std::shared_ptr<F0Api::Executive> owner(loaded.create<F0Api::Executive>("f0").release());
 
-    auto input = std::make_shared<F0Api::F0StartInput>();
+    auto input = std::make_shared<F0Api::StartInput>();
     input->audio = silence(0.5);
 
     std::mutex mutex;
     std::condition_variable done;
     bool destroyed = false;
 
-    auto started =
-        owner->startAsync(input, [owner, &mutex, &done, &destroyed](
-                                     srt::Expected<std::unique_ptr<F0Api::F0Result>>) mutable {
+    auto started = owner->startAsync(
+        input,
+        [owner, &mutex, &done, &destroyed](srt::Expected<std::unique_ptr<F0Api::Result>>) mutable {
             owner.reset();
             std::lock_guard guard(mutex);
             destroyed = true;
@@ -496,10 +496,10 @@ BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_ACallbackMayDestroyTheAnalyzer) {
 /// own span. No state accumulates between calls.
 BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_AnchorsEachSegmentWhereItBegan) {
     Loaded loaded("stub-analyzers");
-    auto analyzer = loaded.create<F0Api::F0Executive>("f0");
+    auto analyzer = loaded.create<F0Api::Executive>("f0");
 
     for (const double begin : {10.0, 11.0, 25.5}) {
-        F0Api::F0StartInput input;
+        F0Api::StartInput input;
         input.audio = silence(1.0, begin);
         auto produced = analyzer->start(input);
         BOOST_REQUIRE_MESSAGE(static_cast<bool>(produced), otter::test::why(produced));
@@ -514,17 +514,17 @@ BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_RefusesOptionsOfAnotherContract) {
     BOOST_REQUIRE(spec != nullptr);
     auto &inference = *spec->as<srt::InferenceSpec>();
 
-    NoteApi::NoteRuntimeOptions wrong("stub");
-    auto made = inference.createInference(F0Api::F0ImportOptions("stub"), wrong);
+    NoteApi::RuntimeOptions wrong{};
+    auto made = inference.createInference(F0Api::ImportOptions(), wrong);
     BOOST_CHECK(!made);
 }
 
 /// Known notes must be ordered and must not overlap, here as in the shipped provider.
 BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_RefusesKnownNotesOutOfOrder) {
     Loaded loaded("stub-analyzers");
-    auto analyzer = loaded.create<NoteApi::NoteExecutive>("note");
+    auto analyzer = loaded.create<NoteApi::Executive>("note");
 
-    NoteApi::NoteStartInput input;
+    NoteApi::StartInput input;
     input.audio = silence(2.0, 4.0);
     input.knownNotes = {
         {5.0, 0.5},
@@ -532,7 +532,7 @@ BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_RefusesKnownNotesOutOfOrder) {
     };
     BOOST_CHECK(!analyzer->start(input));
 
-    NoteApi::NoteStartInput empty;
+    NoteApi::StartInput empty;
     empty.audio = silence(2.0, 4.0);
     empty.knownNotes = {
         {4.0, 0.0}
@@ -540,14 +540,14 @@ BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_RefusesKnownNotesOutOfOrder) {
     BOOST_CHECK(!analyzer->start(empty));
 
     // The span ends at six seconds, and a note may end there but not later.
-    NoteApi::NoteStartInput edge;
+    NoteApi::StartInput edge;
     edge.audio = silence(2.0, 4.0);
     edge.knownNotes = {
         {5.5, 0.5}
     };
     BOOST_CHECK_MESSAGE(static_cast<bool>(analyzer->start(edge)), "a note may end with the span");
 
-    NoteApi::NoteStartInput late;
+    NoteApi::StartInput late;
     late.audio = silence(2.0, 4.0);
     late.knownNotes = {
         {5.5, 0.75}
@@ -575,7 +575,7 @@ BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_RefusesKnownNotesAPackageDoesNotProm
     BOOST_REQUIRE_MESSAGE(static_cast<bool>(made), otter::test::why(made));
     auto analyzer = made.take();
 
-    NoteApi::NoteStartInput known;
+    NoteApi::StartInput known;
     known.audio = silence(2.0);
     known.knownNotes = {
         {0.0, 0.5}
@@ -587,7 +587,7 @@ BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_RefusesKnownNotesAPackageDoesNotProm
 
     // The same analyzer transcribes a span for which the caller supplies no note, so the refusal
     // is about the notes and not about the declaration as a whole.
-    NoteApi::NoteStartInput plain;
+    NoteApi::StartInput plain;
     plain.audio = silence(2.0);
     BOOST_CHECK_MESSAGE(static_cast<bool>(analyzer->start(plain)),
                         "a package that promises no alignment still transcribes");
@@ -596,12 +596,12 @@ BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_RefusesKnownNotesAPackageDoesNotProm
 /// The task interface without a plugin: a body that throws is an internal fault of the analyzer
 /// and is reported with the library's error code rather than as malformed input.
 BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_ABodyThatThrowsIsAnInternalFailure) {
-    using Task = otter::AnalysisTask<F0Api::F0StartInput, F0Api::F0Result>;
-    Task task([](const F0Api::F0StartInput &) -> srt::Expected<std::unique_ptr<F0Api::F0Result>> {
+    using Task = otter::AnalysisTask<F0Api::StartInput, F0Api::Result>;
+    Task task([](const F0Api::StartInput &) -> srt::Expected<std::unique_ptr<F0Api::Result>> {
         throw std::runtime_error("the body gave up");
     });
 
-    F0Api::F0StartInput input;
+    F0Api::StartInput input;
     auto failed = task.run(input);
     BOOST_REQUIRE(!failed);
     BOOST_CHECK(failed.error().code() == otter::AnalysisError::Internal);
@@ -614,19 +614,19 @@ BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_ABodyThatThrowsIsAnInternalFailure) 
 /// regardless reports its result: in both cases the state describes the outcome that the caller
 /// received.
 BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_TheStateFollowsTheErrorCode) {
-    using Task = otter::AnalysisTask<F0Api::F0StartInput, F0Api::F0Result>;
+    using Task = otter::AnalysisTask<F0Api::StartInput, F0Api::Result>;
     Task *self = nullptr;
     bool fail = true;
-    Task task([&](const F0Api::F0StartInput &) -> srt::Expected<std::unique_ptr<F0Api::F0Result>> {
+    Task task([&](const F0Api::StartInput &) -> srt::Expected<std::unique_ptr<F0Api::Result>> {
         (void) self->stop();
         if (fail) {
             return srt::Error(srt::Error::InvalidArgument, "rejected for another reason");
         }
-        return std::make_unique<F0Api::F0Result>();
+        return std::make_unique<F0Api::Result>();
     });
     self = &task;
 
-    F0Api::F0StartInput input;
+    F0Api::StartInput input;
     auto refused = task.run(input);
     BOOST_REQUIRE(!refused);
     BOOST_CHECK(refused.error().code() == srt::Error::InvalidArgument);
@@ -641,16 +641,16 @@ BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_TheStateFollowsTheErrorCode) {
 /// An exception thrown by a callback is caught at the point of delivery. The execution still
 /// releases its claim afterwards, so a waiter returns and the next execution is accepted.
 BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_ACallbackThatThrowsReleasesTheExecution) {
-    using Task = otter::AnalysisTask<F0Api::F0StartInput, F0Api::F0Result>;
-    Task task([](const F0Api::F0StartInput &) -> srt::Expected<std::unique_ptr<F0Api::F0Result>> {
-        return std::make_unique<F0Api::F0Result>();
+    using Task = otter::AnalysisTask<F0Api::StartInput, F0Api::Result>;
+    Task task([](const F0Api::StartInput &) -> srt::Expected<std::unique_ptr<F0Api::Result>> {
+        return std::make_unique<F0Api::Result>();
     });
 
     std::mutex mutex;
     std::condition_variable done;
     bool delivered = false;
-    auto started = task.runAsync(std::make_shared<F0Api::F0StartInput>(),
-                                 [&](srt::Expected<std::unique_ptr<F0Api::F0Result>>) {
+    auto started = task.runAsync(std::make_shared<F0Api::StartInput>(),
+                                 [&](srt::Expected<std::unique_ptr<F0Api::Result>>) {
                                      {
                                          std::lock_guard guard(mutex);
                                          delivered = true;
@@ -666,7 +666,7 @@ BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_ACallbackThatThrowsReleasesTheExecut
     BOOST_CHECK(task.waitForFinished());
     BOOST_CHECK_EQUAL(task.state(), srt::ITask::Succeeded);
 
-    F0Api::F0StartInput again;
+    F0Api::StartInput again;
     auto after = task.run(again);
     BOOST_CHECK_MESSAGE(static_cast<bool>(after), otter::test::why(after));
 }
@@ -675,29 +675,29 @@ BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_ACallbackThatThrowsReleasesTheExecut
 /// any contract. A payload of another contract is rejected before the claim is taken, and the
 /// state is left unchanged.
 BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_RefusesAPayloadOfAnotherContract) {
-    using Task = otter::AnalysisTask<F0Api::F0StartInput, F0Api::F0Result>;
+    using Task = otter::AnalysisTask<F0Api::StartInput, F0Api::Result>;
     bool ran = false;
-    Task task([&](const F0Api::F0StartInput &) -> srt::Expected<std::unique_ptr<F0Api::F0Result>> {
+    Task task([&](const F0Api::StartInput &) -> srt::Expected<std::unique_ptr<F0Api::Result>> {
         ran = true;
-        return std::make_unique<F0Api::F0Result>();
+        return std::make_unique<F0Api::Result>();
     });
     srt::ITask &untyped = task;
 
-    NoteApi::NoteStartInput wrong;
+    NoteApi::StartInput wrong;
     auto refused = untyped.start(wrong);
     BOOST_REQUIRE(!refused);
     BOOST_CHECK(refused.error().code() == srt::Error::InvalidArgument);
     BOOST_CHECK(!ran);
     BOOST_CHECK_EQUAL(task.state(), srt::ITask::Idle);
 
-    auto notStarted = untyped.startAsync(std::make_shared<NoteApi::NoteStartInput>(),
+    auto notStarted = untyped.startAsync(std::make_shared<NoteApi::StartInput>(),
                                          [](srt::Expected<std::unique_ptr<srt::TaskResult>>) {});
     BOOST_REQUIRE(!notStarted);
     BOOST_CHECK(notStarted.error().code() == srt::Error::InvalidArgument);
     BOOST_CHECK(task.waitForFinished());
     BOOST_CHECK(!ran);
 
-    F0Api::F0StartInput right;
+    F0Api::StartInput right;
     BOOST_CHECK(static_cast<bool>(untyped.start(right)));
     BOOST_CHECK(ran);
 }
@@ -706,18 +706,18 @@ namespace {
 
     /// A task whose untyped entry point returns a result of another contract, which the typed
     /// interface must reject rather than convert.
-    class MismatchedTask : public otter::AnalysisTask<F0Api::F0StartInput, F0Api::F0Result> {
+    class MismatchedTask : public otter::AnalysisTask<F0Api::StartInput, F0Api::Result> {
     public:
         MismatchedTask()
-            : AnalysisTask([](const F0Api::F0StartInput &)
-                               -> srt::Expected<std::unique_ptr<F0Api::F0Result>> {
-                  return std::make_unique<F0Api::F0Result>();
-              }) {
+            : AnalysisTask(
+                  [](const F0Api::StartInput &) -> srt::Expected<std::unique_ptr<F0Api::Result>> {
+                      return std::make_unique<F0Api::Result>();
+                  }) {
         }
 
         srt::Expected<std::unique_ptr<srt::TaskResult>>
             start(const srt::TaskStartInput &) override {
-            return std::unique_ptr<srt::TaskResult>(new NoteApi::NoteResult());
+            return std::unique_ptr<srt::TaskResult>(new NoteApi::Result());
         }
     };
 
@@ -725,7 +725,7 @@ namespace {
 
 BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_RefusesAResultOfAnotherContract) {
     MismatchedTask task;
-    F0Api::F0StartInput input;
+    F0Api::StartInput input;
     auto converted = task.run(input);
     BOOST_REQUIRE(!converted);
     BOOST_CHECK(converted.error().code() == otter::AnalysisError::ContractViolation);
@@ -763,13 +763,13 @@ BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_PassesAMonoSpanWithoutCopying) {
 namespace {
 
     /// A task whose worker thread cannot be started, as when the process has run out of threads.
-    class WorkerlessTask : public otter::AnalysisTask<F0Api::F0StartInput, F0Api::F0Result> {
+    class WorkerlessTask : public otter::AnalysisTask<F0Api::StartInput, F0Api::Result> {
     public:
         WorkerlessTask()
-            : AnalysisTask([](const F0Api::F0StartInput &)
-                               -> srt::Expected<std::unique_ptr<F0Api::F0Result>> {
-                  return std::make_unique<F0Api::F0Result>();
-              }) {
+            : AnalysisTask(
+                  [](const F0Api::StartInput &) -> srt::Expected<std::unique_ptr<F0Api::Result>> {
+                      return std::make_unique<F0Api::Result>();
+                  }) {
         }
 
     protected:
@@ -787,16 +787,16 @@ namespace {
 BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_ReportsAMissingWorkerAndReleasesTheClaim) {
     WorkerlessTask task;
     bool called = false;
-    auto started = task.runAsync(
-        std::make_shared<F0Api::F0StartInput>(),
-        [&called](srt::Expected<std::unique_ptr<F0Api::F0Result>>) { called = true; });
+    auto started =
+        task.runAsync(std::make_shared<F0Api::StartInput>(),
+                      [&called](srt::Expected<std::unique_ptr<F0Api::Result>>) { called = true; });
     BOOST_REQUIRE(!started);
     BOOST_CHECK(started.error().code() == otter::AnalysisError::NoWorker);
     BOOST_CHECK_EQUAL(task.state(), srt::ITask::Failed);
     BOOST_CHECK(task.waitForFinished());
     BOOST_CHECK(!called);
 
-    F0Api::F0StartInput input;
+    F0Api::StartInput input;
     auto after = task.run(input);
     BOOST_CHECK_MESSAGE(static_cast<bool>(after), otter::test::why(after));
 }
@@ -806,9 +806,9 @@ BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_ReportsAMissingWorkerAndReleasesTheC
 /// declared with several schemes requires the caller to name the scheme.
 BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_ChoosesTheDeclaredLanguageAndScheme) {
     Loaded loaded("stub-aligner");
-    auto analyzer = loaded.create<AlignApi::AlignExecutive>("align");
+    auto analyzer = loaded.create<AlignApi::Executive>("align");
 
-    AlignApi::AlignStartInput defaulted;
+    AlignApi::StartInput defaulted;
     defaulted.audio = silence(1.0, 2.0);
     defaulted.lyrics = "a b";
     auto produced = analyzer->start(defaulted);
@@ -820,13 +820,13 @@ BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_ChoosesTheDeclaredLanguageAndScheme)
     BOOST_CHECK_CLOSE(result->words.front().start, 2.0, 1e-9);
     BOOST_CHECK_CLOSE(result->words.back().start + result->words.back().duration, 3.0, 1e-9);
 
-    AlignApi::AlignStartInput ambiguous;
+    AlignApi::StartInput ambiguous;
     ambiguous.audio = silence(1.0);
     ambiguous.lyrics = "aa";
     ambiguous.language = "yue";
     BOOST_CHECK(!analyzer->start(ambiguous));
 
-    AlignApi::AlignStartInput named;
+    AlignApi::StartInput named;
     named.audio = silence(1.0);
     named.lyrics = "aa";
     named.language = "yue";
@@ -835,7 +835,7 @@ BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_ChoosesTheDeclaredLanguageAndScheme)
     BOOST_REQUIRE_MESSAGE(static_cast<bool>(yale), otter::test::why(yale));
     BOOST_CHECK_EQUAL(yale.take()->scheme, "yale");
 
-    AlignApi::AlignStartInput undeclared;
+    AlignApi::StartInput undeclared;
     undeclared.audio = silence(1.0);
     undeclared.lyrics = "a";
     undeclared.language = "cmn";
@@ -856,9 +856,9 @@ BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_ChoosesTheDeclaredLanguageAndScheme)
 /// own, so such lyrics are refused rather than answered with an empty result.
 BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_RefusesLyricsThatHoldNoWord) {
     Loaded loaded("stub-aligner");
-    auto analyzer = loaded.create<AlignApi::AlignExecutive>("align");
+    auto analyzer = loaded.create<AlignApi::Executive>("align");
 
-    AlignApi::AlignStartInput blank;
+    AlignApi::StartInput blank;
     blank.audio = silence(1.0, 2.0);
     blank.lyrics = "   ";
     auto refused = analyzer->start(blank);
@@ -868,7 +868,7 @@ BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_RefusesLyricsThatHoldNoWord) {
     // the message of lyrics that are empty.
     BOOST_CHECK(refused.error().message().find("none of the lyrics") != std::string::npos);
 
-    AlignApi::AlignStartInput none;
+    AlignApi::StartInput none;
     none.audio = silence(1.0, 2.0);
     none.lyrics = "";
     auto refusedNone = analyzer->start(none);
@@ -878,7 +878,7 @@ BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_RefusesLyricsThatHoldNoWord) {
 
     // The same analyzer aligns lyrics that hold a word, so the refusal is about these lyrics and
     // not about the execution.
-    AlignApi::AlignStartInput words;
+    AlignApi::StartInput words;
     words.audio = silence(1.0, 2.0);
     words.lyrics = "a b";
     auto produced = analyzer->start(words);

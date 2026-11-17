@@ -48,7 +48,7 @@ ExtractPitchTask::runTask()
 | 解码 | `srt::audio::AudioPipeline`（ffmpeg） | talcs `AudioFormatIO` |
 | 重采样 | 插件内部 | talcs `AudioFormatInputSource::open(bufferSize, rate)`，rate 取自模块声明 |
 | 静音切片 | 插件内部 | lite，一套统一参数 |
-| 帧间隔 | lite 硬编码 10ms | 读取 `F0Schema::interval` |
+| 帧间隔 | lite 硬编码 10ms | 读取 `F0::L1::Schema::interval` |
 | 秒 → tick | 插件内部，单一 tempo | lite 的 `Timeline`，逐点换算 |
 | 模型选择 | 在设置中选择 .onnx 文件路径 | 选择一个已安装的分析器贡献 |
 | 参数 | 无 UI，全部使用模型默认值 | 不变，仍全部使用模型默认值（见 §6） |
@@ -304,7 +304,7 @@ for (const auto &note : result.notes) {
 ```
 1. engine.findAnalyzer(settings.pitchAnalyzer) → AnalyzerEntry，找不到时报告「未配置分析器」
 2. spec = package.contribution(srt::InferenceCategory::NAME, id)
-3. schema = spec->exports()->as<F0Schema>()    → sampleRate、interval、maxSegmentDuration、旋钮域
+3. schema = spec->exports()->as<F0::L1::Schema>() → sampleRate、interval、maxSegmentDuration、旋钮域
 4. analyzer = F0Api::createAnalyzer(*spec->as<srt::InferenceSpec>())
 5. audio = prepare(io, visibleStartMs, visibleEndMs, schema.sampleRate, cancelled, error)
 6. slices = SlicingProfile::slice(audio, schema.maxSegmentDuration)

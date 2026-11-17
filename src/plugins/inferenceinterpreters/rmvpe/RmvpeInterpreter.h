@@ -4,11 +4,12 @@
 #include <memory>
 
 #include <otter/Analysis/Provider/AnalysisInterpreter.h>
+#include <otter/Api/F0/1/F0ApiL1.h>
 
 namespace otter::rmvpe {
 
     /// The variant this provider implements.
-    inline constexpr char VARIANT[] = "rmvpe";
+    inline const srt::ContribContractTriplet Triplet{Api::F0::L1::Contract, "rmvpe"};
 
     /// Reads the declaration and creates analyzers.
     class RmvpeInterpreter : public otter::AnalysisInterpreter {

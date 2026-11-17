@@ -16,7 +16,7 @@ namespace otter {
     ///
     /// Analysis contracts define no import options, so the options of each contract identify only
     /// that contract. A host that creates an analyzer at top level passes the subclass that its
-    /// contract declares, such as \c F0ImportOptions, to \c srt::InferenceSpec::createInference.
+    /// contract declares, such as \c ImportOptions, to \c srt::InferenceSpec::createInference.
     /// These base classes are never constructed directly, and a module that imports an analyzer
     /// declares an empty \c options object.
     class AnalysisImportOptions : public srt::ContribImportOptions {

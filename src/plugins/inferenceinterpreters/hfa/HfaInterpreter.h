@@ -4,11 +4,12 @@
 #include <memory>
 
 #include <otter/Analysis/Provider/AnalysisInterpreter.h>
+#include <otter/Api/Align/1/AlignApiL1.h>
 
 namespace otter::hfa {
 
     /// The variant this provider implements.
-    inline constexpr char VARIANT[] = "hfa";
+    inline const srt::ContribContractTriplet Triplet{Api::Align::L1::Contract, "hfa"};
 
     /// Reads the declaration and the model's own files, and creates analyzers.
     class HfaInterpreter : public otter::AnalysisInterpreter {

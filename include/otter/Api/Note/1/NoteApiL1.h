@@ -19,14 +19,11 @@
 
 namespace otter::Api::Note::L1 {
 
-    /// Identifies the note transcription contract.
-    inline constexpr char API_INTERFACE[] = "org.openvpi.otter.inference.Note";
-
-    /// Identifies Level 1 of the contract.
-    inline constexpr int API_LEVEL = 1;
+    /// Identifies the Note interface contract.
+    inline const srt::ContribContract Contract{"org.openvpi.otter.inference.Note", 1};
 
     /// Describes one transcribed note.
-    struct NoteInfo {
+    struct Info {
         /// MIDI note number.
         int key = 0;
 
@@ -52,7 +49,7 @@ namespace otter::Api::Note::L1 {
     /// an aligner, and requires the pitches for those boundaries.
     struct KnownNote {
         /// Start time in seconds on the host's timeline, which is the timeline of
-        /// \c AudioSegment::startTime and \c NoteInfo::start, not an offset into the span.
+        /// \c AudioSegment::startTime and \c Info::start, not an offset into the span.
         ///
         /// Every time in this contract is absolute. For this field, confusing an offset with an
         /// absolute time is not detectable on a span that starts at 0, and every later span would
@@ -68,10 +65,9 @@ namespace otter::Api::Note::L1 {
     /// This is the contract's \c exports block, read by the host before it prepares any audio.
     /// Its syntax belongs to the interface and level, not to a variant. The machine readable
     /// schema is docs/schemas/note-1-exports.schema.json.
-    class NoteSchema : public srt::ContribExports {
+    class Schema : public srt::ContribExports {
     public:
-        inline explicit NoteSchema(std::string variant)
-            : srt::ContribExports({API_INTERFACE, API_LEVEL, std::move(variant)}) {
+        inline Schema() : srt::ContribExports(Contract) {
         }
 
         /// Input sample rate in hertz. The host resamples its audio to this rate.
@@ -125,38 +121,35 @@ namespace otter::Api::Note::L1 {
     /// declared is not honored.
     ///
     /// \return The schema, or an \c InvalidFormat error that describes the first invalid value.
-    OTTER_EXPORT srt::Expected<std::unique_ptr<NoteSchema>>
-        readNoteSchema(const srt::ContribSpec &spec, std::string variant);
+    OTTER_EXPORT srt::Expected<std::unique_ptr<Schema>>
+        readNoteSchema(const srt::ContribSpec &spec);
 
     /// Contains the import options of a Note analysis module, which identify only the contract.
     ///
     /// A host creating an analyzer at top level passes these to
     /// \c srt::InferenceSpec::createInference together with the runtime options.
-    class NoteImportOptions : public otter::AnalysisImportOptions {
+    class ImportOptions : public otter::AnalysisImportOptions {
     public:
-        inline explicit NoteImportOptions(std::string variant)
-            : otter::AnalysisImportOptions({API_INTERFACE, API_LEVEL, std::move(variant)}) {
+        inline ImportOptions() : otter::AnalysisImportOptions(Contract) {
         }
     };
 
     /// Contains runtime options used when creating a note analyzer.
-    class NoteRuntimeOptions : public otter::AnalysisRuntimeOptions {
+    class RuntimeOptions : public otter::AnalysisRuntimeOptions {
     public:
-        inline explicit NoteRuntimeOptions(std::string variant)
-            : otter::AnalysisRuntimeOptions({API_INTERFACE, API_LEVEL, std::move(variant)}) {
+        inline RuntimeOptions() : otter::AnalysisRuntimeOptions(Contract) {
         }
     };
 
     /// Supplies audio, knob values and optional known notes for one transcription execution.
-    class NoteStartInput : public srt::TaskStartInput {
+    class StartInput : public srt::TaskStartInput {
     public:
         /// Payload type and version of this class. The task interface compares the type() and
         /// version() of an untyped input with these values before it converts the input to this
         /// class.
-        static constexpr const char *API_INTERFACE = L1::API_INTERFACE;
-        static constexpr int API_LEVEL = L1::API_LEVEL;
+        inline static const auto &Contract = L1::Contract;
 
-        inline NoteStartInput() : srt::TaskStartInput(API_INTERFACE, API_LEVEL) {
+        inline StartInput() : srt::TaskStartInput(Contract.interfaceId(), Contract.level()) {
         }
 
         /// Audio to transcribe.
@@ -190,26 +183,24 @@ namespace otter::Api::Note::L1 {
     };
 
     /// Contains the notes transcribed from one span.
-    class NoteResult : public srt::TaskResult {
+    class Result : public srt::TaskResult {
     public:
         /// Payload type and version of this class. The task interface compares the type() and
         /// version() of an untyped result with these values before it converts the result to
         /// this class.
-        static constexpr const char *API_INTERFACE = L1::API_INTERFACE;
-        static constexpr int API_LEVEL = L1::API_LEVEL;
+        inline static const auto &Contract = L1::Contract;
 
-        inline NoteResult() : srt::TaskResult(API_INTERFACE, API_LEVEL) {
+        inline Result() : srt::TaskResult(Contract.interfaceId(), Contract.level()) {
         }
 
         /// Notes in ascending order of start time, in seconds on the host's timeline.
-        std::vector<NoteInfo> notes;
+        std::vector<Info> notes;
     };
 
     /// Executes one note transcription model using Level 1 typed payloads.
-    class NoteExecutive : public otter::AnalysisExecutive {
+    class Executive : public otter::AnalysisExecutive {
     public:
-        using AsyncCallback =
-            std::function<void(srt::Expected<std::unique_ptr<NoteResult>> result)>;
+        using AsyncCallback = std::function<void(srt::Expected<std::unique_ptr<Result>> result)>;
 
         /// Executes one note transcription synchronously.
         ///
@@ -219,7 +210,7 @@ namespace otter::Api::Note::L1 {
         ///
         /// \return The result of the execution, or the error that the execution reports. The
         /// error code is \c AnalysisError::Cancelled if the execution detected a stop request.
-        srt::Expected<std::unique_ptr<NoteResult>> start(const NoteStartInput &input) {
+        srt::Expected<std::unique_ptr<Result>> start(const StartInput &input) {
             return m_task.run(input);
         }
 
@@ -229,7 +220,7 @@ namespace otter::Api::Note::L1 {
         ///
         /// \return An empty value if the execution started, or the error that prevented the
         /// start.
-        srt::Expected<void> startAsync(std::shared_ptr<const NoteStartInput> input,
+        srt::Expected<void> startAsync(std::shared_ptr<const StartInput> input,
                                        AsyncCallback callback) {
             return m_task.runAsync(std::move(input), std::move(callback));
         }
@@ -259,49 +250,48 @@ namespace otter::Api::Note::L1 {
         /// startAsync(). It polls cancelled() at the granularity at which it can stop, and returns
         /// cancelledError() if a stop was requested. The provider's destructor must call stop()
         /// and waitForFinished() before it destroys any object that the body reads.
-        virtual srt::Expected<std::unique_ptr<NoteResult>> run(const NoteStartInput &input) = 0;
+        virtual srt::Expected<std::unique_ptr<Result>> run(const StartInput &input) = 0;
 
         /// Returns whether a stop has been requested for the current execution.
         bool cancelled() const noexcept {
             return m_task.cancelled();
         }
 
-        explicit NoteExecutive(srt::InferenceSpec &spec)
+        explicit Executive(srt::InferenceSpec &spec)
             : otter::AnalysisExecutive(spec),
-              m_task([this](const NoteStartInput &input) { return run(input); }) {
+              m_task([this](const StartInput &input) { return run(input); }) {
         }
 
     private:
         // Declared last because the body captures this object.
-        otter::AnalysisTask<NoteStartInput, NoteResult> m_task;
+        otter::AnalysisTask<StartInput, Result> m_task;
     };
 
     /// Creates the analyzer of a loaded Note module.
     ///
     /// A host creates an analyzer through this function without importing the module first. The
-    /// options identify only the contract and the module's variant.
+    /// options identify only the interface contract and its level.
     ///
     /// The type of the executive is checked rather than assumed, because a third-party variant
     /// may supply the interpreter. An executive of another contract is rejected with
     /// \c AnalysisError::ContractViolation instead of being converted.
     ///
     /// \return The analyzer, the error of \c srt::InferenceSpec::createInference, or an
-    /// \c AnalysisError::ContractViolation error if the executive is not a NoteExecutive.
-    inline srt::Expected<std::unique_ptr<NoteExecutive>> createAnalyzer(srt::InferenceSpec &spec) {
-        auto made = spec.createInference(NoteImportOptions(spec.triplet().variant()),
-                                         NoteRuntimeOptions(spec.triplet().variant()));
+    /// \c AnalysisError::ContractViolation error if the executive is not a Executive.
+    inline srt::Expected<std::unique_ptr<Executive>> createAnalyzer(srt::InferenceSpec &spec) {
+        auto made = spec.createInference(ImportOptions(), RuntimeOptions());
         if (!made) {
             return made.takeError();
         }
         auto executive = made.take();
-        auto typed = dynamic_cast<NoteExecutive *>(executive.get());
+        auto typed = dynamic_cast<Executive *>(executive.get());
         if (typed == nullptr) {
             return srt::Error(AnalysisError::ContractViolation,
                               "the interpreter of " + spec.triplet().variant() +
-                                  " created an executive that is not a NoteExecutive");
+                                  " created an executive that is not a Executive");
         }
         (void) executive.release();
-        return std::unique_ptr<NoteExecutive>(typed);
+        return std::unique_ptr<Executive>(typed);
     }
 
 }

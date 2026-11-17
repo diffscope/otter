@@ -160,7 +160,7 @@ namespace otter {
     /// input and result types of the contract.
     ///
     /// \a Input and \a Result are the start input and the result of the contract, and declare
-    /// their payload type and version as the static members \c API_INTERFACE and \c API_LEVEL.
+    /// their payload identity through the static \c Contract object.
     /// The body is a callable that captures the executive. The executive therefore declares this
     /// member last, and its destructor calls stop() and waitForFinished() before any object that
     /// the body reads is destroyed.
@@ -171,7 +171,8 @@ namespace otter {
         using TypedCallback = std::function<void(srt::Expected<std::unique_ptr<Result>> result)>;
 
         explicit AnalysisTask(Body body)
-            : AnalysisTaskBase(Input::API_INTERFACE, Input::API_LEVEL), m_body(std::move(body)) {
+            : AnalysisTaskBase(Input::Contract.interfaceId().c_str(), Input::Contract.level()),
+              m_body(std::move(body)) {
         }
 
         ~AnalysisTask() override = default;
@@ -235,7 +236,8 @@ namespace otter {
             if (!result) {
                 return srt::Error(AnalysisError::Internal, "the analysis produced no result");
             }
-            if (result->type() != Result::API_INTERFACE || result->version() != Result::API_LEVEL) {
+            if (result->type() != Result::Contract.interfaceId() ||
+                result->version() != Result::Contract.level()) {
                 return srt::Error(AnalysisError::ContractViolation,
                                   "the analysis produced a " + result->type() + " level " +
                                       std::to_string(result->version()) + " result");

@@ -10,8 +10,7 @@
 
 namespace otter::Api::Note::L1 {
 
-    srt::Expected<std::unique_ptr<NoteSchema>> readNoteSchema(const srt::ContribSpec &spec,
-                                                              std::string variant) {
+    srt::Expected<std::unique_ptr<Schema>> readNoteSchema(const srt::ContribSpec &spec) {
         const auto &value = spec.manifestExports();
         if (!value.isObject()) {
             return srt::Error(srt::Error::InvalidFormat,
@@ -28,7 +27,7 @@ namespace otter::Api::Note::L1 {
             return checked.takeError();
         }
 
-        auto result = std::make_unique<NoteSchema>(std::move(variant));
+        auto result = std::make_unique<Schema>();
 
         const auto rate = object.find("sampleRate");
         if (rate == object.end()) {
@@ -103,11 +102,11 @@ namespace otter::Api::Note::L1 {
                 !checked) {
                 return checked.takeError();
             }
-            const std::pair<const char *, Common::L1::Knob NoteSchema::*> continuous[] = {
-                {"boundaryThreshold",  &NoteSchema::boundaryThreshold },
-                {"boundaryRadius",     &NoteSchema::boundaryRadius    },
-                {"noteThreshold",      &NoteSchema::noteThreshold     },
-                {"notePresenceCutoff", &NoteSchema::notePresenceCutoff},
+            const std::pair<const char *, Common::L1::Knob Schema::*> continuous[] = {
+                {"boundaryThreshold",  &Schema::boundaryThreshold },
+                {"boundaryRadius",     &Schema::boundaryRadius    },
+                {"noteThreshold",      &Schema::noteThreshold     },
+                {"notePresenceCutoff", &Schema::notePresenceCutoff},
             };
             for (const auto &[key, member] : continuous) {
                 const auto knob = knobs.find(key);

@@ -64,9 +64,9 @@ namespace {
         srt::Expected<std::unique_ptr<srt::ContribInterpreter>>
             create(const srt::ContribContractTriplet &triplet) override {
             if (auto served = otter::onnx::checkServed(
-                    triplet,
-                    srt::ContribContractTriplet(AlignApi::API_INTERFACE, AlignApi::API_LEVEL,
-                                                otter::tifa::VARIANT));
+                    triplet, srt::ContribContractTriplet(AlignApi::Contract.interfaceId(),
+                                                         AlignApi::Contract.level(),
+                                                         otter::tifa::Triplet.variant()));
                 !served) {
                 return served.takeError();
             }
@@ -122,7 +122,7 @@ namespace {
         Host() {
             std::vector<fs::path> driverPaths = {fs::path(OTTER_TEST_DRIVER_PLUGIN_DIR)};
             factory.setPluginPaths(driverPaths);
-            auto loader = factory.find(OnnxApi::API_NAME);
+            auto loader = factory.find(OnnxApi::Name);
             BOOST_REQUIRE_MESSAGE(loader != nullptr, "the ONNX driver plugin should be present");
             auto created = factory.create(loader);
             BOOST_REQUIRE_MESSAGE(static_cast<bool>(created), otter::test::why(created));
@@ -153,11 +153,11 @@ namespace {
             return spec;
         }
 
-        std::unique_ptr<AlignApi::AlignExecutive> open() {
+        std::unique_ptr<AlignApi::Executive> open() {
             return openFrom(fs::path(OTTER_TEST_FIXTURE_DIR) / PACKAGE);
         }
 
-        std::unique_ptr<AlignApi::AlignExecutive> openFrom(const fs::path &directory) {
+        std::unique_ptr<AlignApi::Executive> openFrom(const fs::path &directory) {
             auto spec = loadFrom(directory);
             auto made = AlignApi::createAnalyzer(*spec->as<srt::InferenceSpec>());
             BOOST_REQUIRE_MESSAGE(static_cast<bool>(made), otter::test::why(made));
@@ -230,7 +230,7 @@ namespace {
         }
     };
 
-    Lyrics fixtureLyrics(const AlignApi::AlignSchema &schema) {
+    Lyrics fixtureLyrics(const AlignApi::Schema &schema) {
         const auto directory = fs::path(OTTER_TEST_FIXTURE_DIR) / PACKAGE / "dictionaries";
         BOOST_REQUIRE_MESSAGE(fs::is_directory(directory),
                               "the fixture should carry its dictionaries beside the declaration");
@@ -296,13 +296,13 @@ namespace {
 
     /// One span of audio and the lyrics to align it against. The input is the caller's, because a
     /// start input is not copyable: the contract hands the provider the caller's own object.
-    void ask(AlignApi::AlignStartInput &input, const Lyrics &lyrics, double seconds = 1.0,
+    void ask(AlignApi::StartInput &input, const Lyrics &lyrics, double seconds = 1.0,
              double startTime = 0) {
         input.audio = tone(seconds, startTime);
         input.lyrics = lyrics.text();
     }
 
-    std::vector<std::string> texts(const AlignApi::AlignResult &result) {
+    std::vector<std::string> texts(const AlignApi::Result &result) {
         std::vector<std::string> out;
         for (const auto &word : result.words) {
             out.push_back(word.text);
@@ -322,7 +322,7 @@ namespace {
     /// Asserts the invariants every result owes its caller whatever the model said: words in order,
     /// each ending where the next begins, the first starting where the span does and the last
     /// ending where it ends, and no word or phone of no length.
-    void checkCoverage(const AlignApi::AlignResult &result, double startTime, double seconds) {
+    void checkCoverage(const AlignApi::Result &result, double startTime, double seconds) {
         BOOST_REQUIRE(!result.words.empty());
         BOOST_CHECK_CLOSE(result.words.front().start, startTime, 1e-6);
         for (std::size_t i = 0; i < result.words.size(); ++i) {
@@ -366,7 +366,7 @@ BOOST_AUTO_TEST_SUITE(test_TifaInterpreter)
 BOOST_AUTO_TEST_CASE(test_TifaInterpreter_ReportsWhatTheDeclarationExports) {
     Host host;
     auto spec = host.load();
-    auto schema = spec->exports()->as<AlignApi::AlignSchema>();
+    auto schema = spec->exports()->as<AlignApi::Schema>();
     BOOST_REQUIRE(schema != nullptr);
 
     // The exports are the declaration's own words, read through the contract's reader, and the
@@ -407,7 +407,7 @@ BOOST_AUTO_TEST_CASE(test_TifaInterpreter_ReportsWhatTheDeclarationExports) {
 
 BOOST_AUTO_TEST_CASE(test_TifaInterpreter_PlacesTheWordsTheLyricsName) {
     Host host;
-    auto schema = host.load()->exports()->as<AlignApi::AlignSchema>();
+    auto schema = host.load()->exports()->as<AlignApi::Schema>();
     BOOST_REQUIRE(schema != nullptr);
     const auto words = fixtureLyrics(*schema);
 
@@ -418,7 +418,7 @@ BOOST_AUTO_TEST_CASE(test_TifaInterpreter_PlacesTheWordsTheLyricsName) {
     constexpr double SPAN_START = 30.0;
     constexpr double SECONDS = 1.0;
 
-    AlignApi::AlignStartInput input;
+    AlignApi::StartInput input;
     ask(input, words, SECONDS, SPAN_START);
     std::vector<double> reported;
     input.progress = [&reported](double value) {
@@ -483,7 +483,7 @@ BOOST_AUTO_TEST_CASE(test_TifaInterpreter_PlacesTheWordsTheLyricsName) {
 /// cover the span rather than end somewhere inside it.
 BOOST_AUTO_TEST_CASE(test_TifaInterpreter_NamesWhatTheModelPlacedNoWordOver) {
     Host host;
-    auto schema = host.load()->exports()->as<AlignApi::AlignSchema>();
+    auto schema = host.load()->exports()->as<AlignApi::Schema>();
     BOOST_REQUIRE(schema != nullptr);
     const auto words = fixtureLyrics(*schema);
     auto analyzer = host.open();
@@ -492,7 +492,7 @@ BOOST_AUTO_TEST_CASE(test_TifaInterpreter_NamesWhatTheModelPlacedNoWordOver) {
     // milliseconds are left over that no frame of theirs covers.
     constexpr double SECONDS = 1.005;
 
-    AlignApi::AlignStartInput input;
+    AlignApi::StartInput input;
     ask(input, words, SECONDS);
     auto produced = analyzer->start(input);
     BOOST_REQUIRE_MESSAGE(static_cast<bool>(produced), otter::test::why(produced));
@@ -518,14 +518,14 @@ BOOST_AUTO_TEST_CASE(test_TifaInterpreter_NamesWhatTheModelPlacedNoWordOver) {
 
 BOOST_AUTO_TEST_CASE(test_TifaInterpreter_RefusesWhatItCannotHonor) {
     Host host;
-    auto schema = host.load()->exports()->as<AlignApi::AlignSchema>();
+    auto schema = host.load()->exports()->as<AlignApi::Schema>();
     BOOST_REQUIRE(schema != nullptr);
     const auto words = fixtureLyrics(*schema);
     auto analyzer = host.open();
 
     // A span at a rate the package does not declare: the host prepared the wrong audio, and
     // resampling it silently would hide that.
-    AlignApi::AlignStartInput wrongRate;
+    AlignApi::StartInput wrongRate;
     ask(wrongRate, words);
     wrongRate.audio.sampleRate = 44100;
     auto refusedRate = analyzer->start(wrongRate);
@@ -534,21 +534,21 @@ BOOST_AUTO_TEST_CASE(test_TifaInterpreter_RefusesWhatItCannotHonor) {
 
     // An aligner that is not told what to look for has nothing to align, and answering with a
     // transcription instead would be a different contract.
-    AlignApi::AlignStartInput noLyrics;
+    AlignApi::StartInput noLyrics;
     ask(noLyrics, words);
     noLyrics.lyrics = "";
     auto empty = analyzer->start(noLyrics);
     BOOST_REQUIRE(!empty);
     BOOST_CHECK(empty.error().message().find("lyrics") != std::string::npos);
 
-    AlignApi::AlignStartInput unknownLanguage;
+    AlignApi::StartInput unknownLanguage;
     ask(unknownLanguage, words);
     unknownLanguage.language = "qqq";
     BOOST_CHECK(!analyzer->start(unknownLanguage));
 
     // A scheme not declared for the language is rejected rather than ignored, because the returned
     // phonemes would otherwise be in a notation other than the requested one.
-    AlignApi::AlignStartInput unknownScheme;
+    AlignApi::StartInput unknownScheme;
     ask(unknownScheme, words);
     unknownScheme.scheme = "arpabet";
     auto wrongScheme = analyzer->start(unknownScheme);
@@ -561,7 +561,7 @@ BOOST_AUTO_TEST_CASE(test_TifaInterpreter_RefusesWhatItCannotHonor) {
 
     // A label the module did not declare is refused rather than ignored: having looked for a breath
     // and found none is a different answer from not being able to look.
-    AlignApi::AlignStartInput unknownLabel;
+    AlignApi::StartInput unknownLabel;
     ask(unknownLabel, words);
     unknownLabel.nonSpeechPhonemes = {"AP"};
     auto unheadlined = analyzer->start(unknownLabel);
@@ -575,7 +575,7 @@ BOOST_AUTO_TEST_CASE(test_TifaInterpreter_RefusesWhatItCannotHonor) {
 
     // A word the dictionary has never heard of: it would be a hole in the alignment, and where the
     // hole ends cannot be recovered from the result afterwards.
-    AlignApi::AlignStartInput unknownLyrics;
+    AlignApi::StartInput unknownLyrics;
     ask(unknownLyrics, words);
     unknownLyrics.lyrics = "zzqqx";
     auto unknown = analyzer->start(unknownLyrics);
@@ -587,12 +587,12 @@ BOOST_AUTO_TEST_CASE(test_TifaInterpreter_RefusesWhatItCannotHonor) {
 /// the next execution afterwards: a stop belongs to the execution it was aimed at.
 BOOST_AUTO_TEST_CASE(test_TifaInterpreter_ReportsAStopAsACancellation) {
     Host host;
-    auto schema = host.load()->exports()->as<AlignApi::AlignSchema>();
+    auto schema = host.load()->exports()->as<AlignApi::Schema>();
     BOOST_REQUIRE(schema != nullptr);
     const auto words = fixtureLyrics(*schema);
     auto analyzer = host.open();
 
-    AlignApi::AlignStartInput input;
+    AlignApi::StartInput input;
     ask(input, words);
     // The first progress report is the start of the execution, which is early enough that nothing
     // has been run yet: stopping there is stopping the execution before it did any work.
@@ -608,7 +608,7 @@ BOOST_AUTO_TEST_CASE(test_TifaInterpreter_ReportsAStopAsACancellation) {
     BOOST_CHECK_EQUAL(analyzer->state(), srt::ITask::Canceled);
     BOOST_CHECK(analyzer->waitForFinished());
 
-    AlignApi::AlignStartInput again;
+    AlignApi::StartInput again;
     ask(again, words);
     auto after = analyzer->start(again);
     BOOST_CHECK_MESSAGE(static_cast<bool>(after), otter::test::why(after));
@@ -721,7 +721,7 @@ BOOST_AUTO_TEST_CASE(test_TifaInterpreter_DropsAWordTheVocabularyCannotSpell) {
     // The dictionary of the language the package aligns by default, told from the others by the
     // phonemes the declaration lists for it, exactly as the lyrics are chosen above.
     Host probe;
-    auto probeSchema = probe.load()->exports()->as<AlignApi::AlignSchema>();
+    auto probeSchema = probe.load()->exports()->as<AlignApi::Schema>();
     BOOST_REQUIRE(probeSchema != nullptr);
     const auto words = fixtureLyrics(*probeSchema);
     std::set<std::string> declared;
@@ -764,7 +764,7 @@ BOOST_AUTO_TEST_CASE(test_TifaInterpreter_DropsAWordTheVocabularyCannotSpell) {
 
     // Alone, the phrase resolves to nothing at all, which is refused rather than answered with
     // silence: an empty result would read as "none of these words is in this audio".
-    AlignApi::AlignStartInput alone;
+    AlignApi::StartInput alone;
     ask(alone, words);
     alone.lyrics = UNSPELLABLE;
     auto refused = analyzer->start(alone);
@@ -773,7 +773,7 @@ BOOST_AUTO_TEST_CASE(test_TifaInterpreter_DropsAWordTheVocabularyCannotSpell) {
 
     // Beside a word the dictionary does know, the phrase keeps the word it can spell and drops the
     // one it cannot, and the drop is not reported as a stretch of silence.
-    AlignApi::AlignStartInput mixed;
+    AlignApi::StartInput mixed;
     ask(mixed, words);
     mixed.lyrics = words.text() + " " + UNSPELLABLE;
     auto produced = analyzer->start(mixed);
@@ -817,7 +817,7 @@ BOOST_AUTO_TEST_CASE(test_TifaInterpreter_PicksOneReadingOfAWordTheDictionarySpe
     // That language's dictionary is told from the other one by the phonemes the declaration lists
     // for it, exactly as the default language's dictionary is found above.
     Host probe;
-    auto schema = probe.load()->exports()->as<AlignApi::AlignSchema>();
+    auto schema = probe.load()->exports()->as<AlignApi::Schema>();
     BOOST_REQUIRE(schema != nullptr);
     std::set<std::string> declared;
     for (const auto &language : schema->languages) {
@@ -878,7 +878,7 @@ BOOST_AUTO_TEST_CASE(test_TifaInterpreter_PicksOneReadingOfAWordTheDictionarySpe
         }
         return out;
     };
-    const auto written = [schema](const AlignApi::AlignResult &result) {
+    const auto written = [schema](const AlignApi::Result &result) {
         std::vector<const AlignApi::WordInfo *> out;
         for (const auto &word : result.words) {
             if (word.text != schema->silenceLabel) {
@@ -888,7 +888,7 @@ BOOST_AUTO_TEST_CASE(test_TifaInterpreter_PicksOneReadingOfAWordTheDictionarySpe
         return out;
     };
 
-    AlignApi::AlignStartInput input;
+    AlignApi::StartInput input;
     input.audio = tone();
     input.language = LANGUAGE;
     input.lyrics = twice.written + " " + once.written;
@@ -925,7 +925,7 @@ BOOST_AUTO_TEST_CASE(test_TifaInterpreter_PicksOneReadingOfAWordTheDictionarySpe
 
     // The same phrase again: the reading is the program's own answer, and a run of it that depended
     // on the order a table arrived in would not answer twice alike.
-    AlignApi::AlignStartInput repeated;
+    AlignApi::StartInput repeated;
     repeated.audio = tone();
     repeated.language = LANGUAGE;
     repeated.lyrics = input.lyrics;

@@ -33,7 +33,7 @@ namespace otter::onnx {
         // The ONNX variant and the ONNX driver backend share a name. Therefore that driver can run
         // the variant's models.
         auto service = spec.package().synthUnit().runtimeService(ds::InferenceDriverPlugin::IID,
-                                                                 OnnxApi::API_NAME);
+                                                                 OnnxApi::Name);
         if (service == nullptr) {
             return srt::Error(srt::Error::FeatureNotSupported,
                               "the onnx inference driver is not registered on this unit");

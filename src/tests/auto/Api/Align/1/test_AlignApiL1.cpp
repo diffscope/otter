@@ -7,22 +7,21 @@
 
 namespace Api = otter::Api::Align::L1;
 
-BOOST_AUTO_TEST_CASE(variant_identity_and_task_identity_are_separate) {
-    Api::AlignSchema schema("test.variant");
-    Api::AlignImportOptions options("test.variant");
-    Api::AlignRuntimeOptions runtime("test.variant");
+BOOST_AUTO_TEST_CASE(contract_identity_and_task_identity_are_preserved) {
+    Api::Schema schema{};
+    Api::ImportOptions options{};
+    Api::RuntimeOptions runtime{};
     const srt::ContribSpecPayload *specPayloads[] = {&schema, &options, &runtime};
     for (const auto payload : specPayloads) {
-        BOOST_CHECK(payload->triplet() == srt::ContribContractTriplet(
-                                              Api::API_INTERFACE, Api::API_LEVEL, "test.variant"));
+        BOOST_CHECK(payload->contract() == Api::Contract);
     }
 
-    Api::AlignStartInput input;
-    Api::AlignResult result;
-    BOOST_CHECK_EQUAL(input.type(), Api::API_INTERFACE);
-    BOOST_CHECK_EQUAL(input.version(), Api::API_LEVEL);
-    BOOST_CHECK_EQUAL(result.type(), Api::API_INTERFACE);
-    BOOST_CHECK_EQUAL(result.version(), Api::API_LEVEL);
+    Api::StartInput input;
+    Api::Result result;
+    BOOST_CHECK_EQUAL(input.type(), Api::Contract.interfaceId());
+    BOOST_CHECK_EQUAL(input.version(), Api::Contract.level());
+    BOOST_CHECK_EQUAL(result.type(), Api::Contract.interfaceId());
+    BOOST_CHECK_EQUAL(result.version(), Api::Contract.level());
     auto moved = std::move(input);
-    BOOST_CHECK_EQUAL(moved.type(), Api::API_INTERFACE);
+    BOOST_CHECK_EQUAL(moved.type(), Api::Contract.interfaceId());
 }

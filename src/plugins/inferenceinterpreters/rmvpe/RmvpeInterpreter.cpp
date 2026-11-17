@@ -52,18 +52,17 @@ namespace otter::rmvpe {
         /// format and the knobs are contract facts and are declared in exports.
         class RmvpeConfiguration : public srt::ContribConfiguration {
         public:
-            RmvpeConfiguration()
-                : srt::ContribConfiguration({F0Api::API_INTERFACE, F0Api::API_LEVEL, VARIANT}) {
+            RmvpeConfiguration() : srt::ContribConfiguration(Triplet) {
             }
 
             std::filesystem::path model;
         };
 
         /// Runs one RMVPE model.
-        class RmvpeExecutive : public otter::onnx::OnnxExecutive<F0Api::F0Executive> {
+        class RmvpeExecutive : public otter::onnx::OnnxExecutive<F0Api::Executive> {
         public:
             RmvpeExecutive(srt::InferenceSpec &spec, std::unique_ptr<ds::InferenceSession> session,
-                           const F0Api::F0Schema &schema)
+                           const F0Api::Schema &schema)
                 : OnnxExecutive(spec), m_session(own(std::move(session))), m_schema(schema) {
             }
 
@@ -72,8 +71,8 @@ namespace otter::rmvpe {
             }
 
         protected:
-            srt::Expected<std::unique_ptr<F0Api::F0Result>>
-                run(const F0Api::F0StartInput &input) override {
+            srt::Expected<std::unique_ptr<F0Api::Result>>
+                run(const F0Api::StartInput &input) override {
                 const auto &audio = input.audio;
                 auto prepared = otter::prepareSamples(
                     audio, m_schema.sampleRate, m_schema.channelCount, m_schema.maxSegmentDuration);
@@ -123,7 +122,7 @@ namespace otter::rmvpe {
                 }
                 const auto outputs = ran.take();
 
-                auto result = std::make_unique<F0Api::F0Result>();
+                auto result = std::make_unique<F0Api::Result>();
                 result->startTime = audio.startTime;
                 result->interval = m_schema.interval;
 
@@ -176,14 +175,14 @@ namespace otter::rmvpe {
             ds::InferenceSession *m_session;
 
             /// Owned by the spec, which outlives every executive created from it.
-            const F0Api::F0Schema &m_schema;
+            const F0Api::Schema &m_schema;
         };
 
     }
 
     srt::Expected<std::unique_ptr<srt::ContribExports>>
         RmvpeInterpreter::createExports(const srt::ContribSpec &spec) const {
-        auto schema = F0Api::readF0Schema(spec, VARIANT);
+        auto schema = F0Api::readF0Schema(spec);
         if (!schema) {
             return schema.takeError();
         }
@@ -244,7 +243,7 @@ namespace otter::rmvpe {
                                           const srt::InferenceRuntimeOptions &) {
         const auto configuration =
             spec.configuration() ? spec.configuration()->as<RmvpeConfiguration>() : nullptr;
-        const auto schema = spec.exports() ? spec.exports()->as<F0Api::F0Schema>() : nullptr;
+        const auto schema = spec.exports() ? spec.exports()->as<F0Api::Schema>() : nullptr;
         if (configuration == nullptr || schema == nullptr) {
             return srt::Error(otter::AnalysisError::Internal,
                               "this declaration carries no rmvpe configuration");

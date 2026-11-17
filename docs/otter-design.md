@@ -129,10 +129,10 @@ SynthUnit::openPackage(...)                       // 装载模型包
        └─ 解释器（插件）读取 exports 与 configuration
 
 宿主:
-  F0Api::readF0Schema(spec, variant)              // 读取能力：采样率、帧间隔、旋钮域
+  F0Api::readF0Schema(spec)                       // 读取能力：采样率、帧间隔、旋钮域
   F0Api::createAnalyzer(*spec->as<InferenceSpec>())
-      // = spec.createInference(F0ImportOptions(variant), F0RuntimeOptions(variant))
-      // → unique_ptr<F0Executive>
+      // = spec.createInference(ImportOptions(), RuntimeOptions())
+      // → unique_ptr<Executive>
   executive->start(input)    /  startAsync(input, cb)
   executive->stop()          /  waitForFinished()
 ```
@@ -194,11 +194,10 @@ namespace otter::Api::Common::L1 {
 ```cpp
 namespace otter::Api::F0::L1 {
 
-    inline constexpr char API_INTERFACE[] = "org.openvpi.otter.inference.F0";
-    inline constexpr int API_LEVEL = 1;
+    inline const srt::ContribContract Contract{"org.openvpi.otter.inference.F0", 1};
 
     /// 本模块公开的能力。宿主据此准备音频、生成设置界面。
-    class F0Schema : public srt::ContribExports {
+    class Schema : public srt::ContribExports {
     public:
         /// 模型要求的输入采样率（Hz）。宿主负责重采样到该值。
         int sampleRate = 0;
@@ -217,17 +216,16 @@ namespace otter::Api::F0::L1 {
 
     /// 读取声明的 exports 块。契约语法归接口所有，每个 variant 均经此函数读取，再各自核对
     /// 自身模型能否满足。configuration 块归 variant 所有，其类型定义在各自的提供者中。
-    OTTER_EXPORT srt::Expected<std::unique_ptr<F0Schema>>
-        readF0Schema(const srt::ContribSpec &spec, std::string variant);
+    OTTER_EXPORT srt::Expected<std::unique_ptr<Schema>>
+        readF0Schema(const srt::ContribSpec &spec);
 
-    class F0ImportOptions : public otter::AnalysisImportOptions { /* 只标识契约与 variant */ };
-    class F0RuntimeOptions : public otter::AnalysisRuntimeOptions { /* 只标识契约与 variant */ };
+    class ImportOptions : public otter::AnalysisImportOptions { /* 只标识契约 */ };
+    class RuntimeOptions : public otter::AnalysisRuntimeOptions { /* 只标识契约 */ };
 
     /// 一次执行的输入。未填的旋钮取模块默认值。
-    class F0StartInput : public srt::TaskStartInput {
+    class StartInput : public srt::TaskStartInput {
     public:
-        static constexpr const char *API_INTERFACE = L1::API_INTERFACE;
-        static constexpr int API_LEVEL = L1::API_LEVEL;
+        inline static const auto &Contract = L1::Contract;
 
         Common::L1::AudioSegment audio;
         Common::L1::ProgressCallback progress;
@@ -237,10 +235,9 @@ namespace otter::Api::F0::L1 {
     };
 
     /// 一次执行的结果。覆盖整段输入，以绝对时间为锚点。
-    class F0Result : public srt::TaskResult {
+    class Result : public srt::TaskResult {
     public:
-        static constexpr const char *API_INTERFACE = L1::API_INTERFACE;
-        static constexpr int API_LEVEL = L1::API_LEVEL;
+        inline static const auto &Contract = L1::Contract;
 
         /// 第一帧对应的绝对时间（秒），等于输入的 startTime。
         double startTime = 0;
@@ -254,23 +251,23 @@ namespace otter::Api::F0::L1 {
 
     /// 执行面由库实现（AnalysisTask，A15），提供者只实现 run()。停止后 start() 返回
     /// AnalysisError::Cancelled，不返回部分结果（A18、A28）。
-    class F0Executive : public otter::AnalysisExecutive {
+    class Executive : public otter::AnalysisExecutive {
     public:
         using AsyncCallback =
-            std::function<void(srt::Expected<std::unique_ptr<F0Result>>)>;
+            std::function<void(srt::Expected<std::unique_ptr<Result>>)>;
 
-        srt::Expected<std::unique_ptr<F0Result>> start(const F0StartInput &input);
-        srt::Expected<void> startAsync(std::shared_ptr<const F0StartInput> input,
+        srt::Expected<std::unique_ptr<Result>> start(const StartInput &input);
+        srt::Expected<void> startAsync(std::shared_ptr<const StartInput> input,
                                        AsyncCallback callback);
         // state / stop / waitForFinished 转发给任务面；持有模型会话的提供者覆盖 stop / waitForFinished。
 
     protected:
-        virtual srt::Expected<std::unique_ptr<F0Result>> run(const F0StartInput &input) = 0;
+        virtual srt::Expected<std::unique_ptr<Result>> run(const StartInput &input) = 0;
         bool cancelled() const noexcept;
     };
 
     /// 创建已载入模块的分析器；以 dynamic_cast 检查执行体属于本契约（A28）。
-    srt::Expected<std::unique_ptr<F0Executive>> createAnalyzer(srt::InferenceSpec &spec);
+    srt::Expected<std::unique_ptr<Executive>> createAnalyzer(srt::InferenceSpec &spec);
 
 }
 ```
@@ -280,8 +277,7 @@ namespace otter::Api::F0::L1 {
 ```cpp
 namespace otter::Api::Note::L1 {
 
-    inline constexpr char API_INTERFACE[] = "org.openvpi.otter.inference.Note";
-    inline constexpr int API_LEVEL = 1;
+    inline const srt::ContribContract Contract{"org.openvpi.otter.inference.Note", 1};
 
     /// 转写得到的一个音符。
     struct NoteInfo {
@@ -301,7 +297,7 @@ namespace otter::Api::Note::L1 {
         double duration = 0;
     };
 
-    class NoteSchema : public srt::ContribExports {
+    class Schema : public srt::ContribExports {
     public:
         int sampleRate = 0;
         int channelCount = 1;
@@ -329,13 +325,13 @@ namespace otter::Api::Note::L1 {
 
     /// 读取声明的 exports 块，与 F0 相同。game variant 的 configuration（五个模型路径、timestep、
     /// 语言编号映射、扩散起点）是该 variant 自有的类型，宿主不读取。
-    OTTER_EXPORT srt::Expected<std::unique_ptr<NoteSchema>>
-        readNoteSchema(const srt::ContribSpec &spec, std::string variant);
+    OTTER_EXPORT srt::Expected<std::unique_ptr<Schema>>
+        readNoteSchema(const srt::ContribSpec &spec);
 
-    class NoteImportOptions : public otter::AnalysisImportOptions { /* 同 F0 */ };
-    class NoteRuntimeOptions : public otter::AnalysisRuntimeOptions { /* 同 F0 */ };
+    class ImportOptions : public otter::AnalysisImportOptions { /* 同 F0 */ };
+    class RuntimeOptions : public otter::AnalysisRuntimeOptions { /* 同 F0 */ };
 
-    class NoteStartInput : public srt::TaskStartInput {
+    class StartInput : public srt::TaskStartInput {
     public:
         Common::L1::AudioSegment audio;
         Common::L1::ProgressCallback progress;
@@ -352,13 +348,13 @@ namespace otter::Api::Note::L1 {
         std::vector<KnownNote> knownNotes;
     };
 
-    class NoteResult : public srt::TaskResult {
+    class Result : public srt::TaskResult {
     public:
         /// 按起点升序排列，时间为绝对秒。
         std::vector<NoteInfo> notes;
     };
 
-    class NoteExecutive : public otter::AnalysisExecutive {
+    class Executive : public otter::AnalysisExecutive {
         // 与 F0 同形：非虚的 start / startAsync，受保护的纯虚 run 与 cancelled；另有 createAnalyzer
     };
 
@@ -370,8 +366,7 @@ namespace otter::Api::Note::L1 {
 ```cpp
 namespace otter::Api::Align::L1 {
 
-    inline constexpr char API_INTERFACE[] = "org.openvpi.otter.inference.Align";
-    inline constexpr int API_LEVEL = 1;
+    inline const srt::ContribContract Contract{"org.openvpi.otter.inference.Align", 1};
 
     /// 某语言歌词的书写形式。
     enum class LyricsForm {
@@ -403,7 +398,7 @@ namespace otter::Api::Align::L1 {
         std::vector<PhoneInfo> phones;   ///< 按顺序排列，恰好覆盖该词
     };
 
-    class AlignSchema : public srt::ContribExports {
+    class Schema : public srt::ContribExports {
     public:
         int sampleRate = 0;
         int channelCount = 1;
@@ -426,10 +421,10 @@ namespace otter::Api::Align::L1 {
         Common::L1::Knob gapFill;               ///< 短于该值（秒）的词间空隙并入相邻词，而非留作静音
     };
 
-    OTTER_EXPORT srt::Expected<std::unique_ptr<AlignSchema>>
-        readAlignSchema(const srt::ContribSpec &spec, std::string variant);
+    OTTER_EXPORT srt::Expected<std::unique_ptr<Schema>>
+        readAlignSchema(const srt::ContribSpec &spec);
 
-    class AlignStartInput : public srt::TaskStartInput {
+    class StartInput : public srt::TaskStartInput {
     public:
         Common::L1::AudioSegment audio;
         Common::L1::ProgressCallback progress;
@@ -448,7 +443,7 @@ namespace otter::Api::Align::L1 {
         std::optional<double> gapFill;
     };
 
-    class AlignResult : public srt::TaskResult {
+    class Result : public srt::TaskResult {
     public:
         /// 本次执行实际使用的语言与音素 scheme。
         std::string language;
@@ -459,7 +454,7 @@ namespace otter::Api::Align::L1 {
         std::vector<WordInfo> words;
     };
 
-    class AlignExecutive : public otter::AnalysisExecutive {
+    class Executive : public otter::AnalysisExecutive {
         // 与 F0 / Note 同形：start / startAsync / state / stop / waitForFinished / run / cancelled
     };
 
@@ -685,7 +680,7 @@ otter 将以下三项职责明确留给宿主，三者缺一不可：
 
 ### A5 — 时间一律使用绝对秒（`double`）
 
-**决策**：所有对外时间量均为 `double` 秒，包括 `NoteInfo::start` / `duration`、`F0Result::interval` / `startTime`、`AudioSegment::startTime`、`boundaryRadius`。契约中不出现 tick，也不出现毫秒。
+**决策**：所有对外时间量均为 `double` 秒，包括 `NoteInfo::start` / `duration`、`Result::interval` / `startTime`、`AudioSegment::startTime`、`boundaryRadius`。契约中不出现 tick，也不出现毫秒。
 
 **依据**：dsinfer 的 L1 契约全部采用秒（`CommonApiL1.h` 中的 `InputNoteInfo::duration`、 `InputParameterInfo::interval`、`InputPhonemeInfo::start`）。同一宿主中并存两套时间单位会造成长期负担。此外模型本身产出秒（GAME 的 `durations` 以秒为单位），整数化会引入累加漂移，refactor 的 tick 路径正是因此产生偏移。
 
@@ -753,7 +748,7 @@ otter 将以下三项职责明确留给宿主，三者缺一不可：
 
 ### A12 — 对齐模式经 `knownNotes` 表达，补回 `dur2bd` session
 
-**决策**：`NoteStartInput::knownNotes` 非空即为对齐模式；解释器经 `dur2bd` 将已知时长转换为边界，送入 segmenter 的 `known_boundaries`。`NoteSchema::supportsKnownNotes` 声明本模块是否接受已知音符。
+**决策**：`StartInput::knownNotes` 非空即为对齐模式；解释器经 `dur2bd` 将已知时长转换为边界，送入 segmenter 的 `known_boundaries`。`Schema::supportsKnownNotes` 声明本模块是否接受已知音符。
 
 **依据**：该能力由模型提供：旧 `GameModel` 包含 `runDur2bd` 与 `InferenceInput::known_durations`； refactor 的 `GameExtractor` 迁移时遗漏了该 session，`inferSlice` 中的 `knownBoundaries` 恒为全零。移植时按旧实现补回。
 
@@ -787,7 +782,7 @@ otter 将以下三项职责明确留给宿主，三者缺一不可：
 
 **代价（已接受）**：增加一个类型。否则三个执行体须各自实现同一段并发代码，而该代码的错误不会产生任何可见症状。
 
-**补记（2026-09-13）**：最初的实现类 `AnalysisRunner` 与 `srt::ITask` 在状态、取消标志、工作线程与等待四个方面重复，现已由任务面取代。A28 之后的结构为：导出的非模板基类 `otter::AnalysisTaskBase` 派生自 `srt::ITask`，覆盖 `start()` / `startAsync()` / `stop()` / `waitForFinished()`；模板 `otter::AnalysisTask<Input, Result>` 只负责载荷类型转换。任务面保持本条决策的两条规则：认领与清除标志在调用方线程上进行；回调结束后才释放执行，回调内启动的下一次执行按代数接管 running 状态，而不是被当作并发执行拒绝。同步入口 `start()` 使用同一份 running 状态认领，因此 `waitForFinished()` 同时等待同步与异步执行。任务由契约类（`F0Executive` / `NoteExecutive` / `AlignExecutive`）持有，契约类实现 `start` / `startAsync` / `state` / `stop` / `waitForFinished`；提供者只实现受保护的 `run()`，需要同时停止模型会话的提供者覆盖 `stop()` / `waitForFinished()` 并先调用基类实现。X5 所述「建线程失败后永久拒绝执行」的缺陷在任务面中同样由 `startAsync()` 释放认领来避免。
+**补记（2026-09-13）**：最初的实现类 `AnalysisRunner` 与 `srt::ITask` 在状态、取消标志、工作线程与等待四个方面重复，现已由任务面取代。A28 之后的结构为：导出的非模板基类 `otter::AnalysisTaskBase` 派生自 `srt::ITask`，覆盖 `start()` / `startAsync()` / `stop()` / `waitForFinished()`；模板 `otter::AnalysisTask<Input, Result>` 只负责载荷类型转换。任务面保持本条决策的两条规则：认领与清除标志在调用方线程上进行；回调结束后才释放执行，回调内启动的下一次执行按代数接管 running 状态，而不是被当作并发执行拒绝。同步入口 `start()` 使用同一份 running 状态认领，因此 `waitForFinished()` 同时等待同步与异步执行。任务由契约类（`Executive` / `Executive` / `Executive`）持有，契约类实现 `start` / `startAsync` / `state` / `stop` / `waitForFinished`；提供者只实现受保护的 `run()`，需要同时停止模型会话的提供者覆盖 `stop()` / `waitForFinished()` 并先调用基类实现。X5 所述「建线程失败后永久拒绝执行」的缺陷在任务面中同样由 `startAsync()` 释放认领来避免。
 
 ### A16 — 进度回调位于 `StartInput`
 
@@ -823,7 +818,7 @@ otter 将以下三项职责明确留给宿主，三者缺一不可：
 
 ### A20 — `Align` 的输入是歌词文本，缺少歌词时不退化为转写
 
-**决策**：`AlignStartInput::lyrics` 为必填的单个字符串，为空即拒绝。文本写法由变体规定（`hfa` 要求其词典可读的写法：中文为拼音音节、英文为单词、日文为罗马字，以空格分隔；A27 起写法由 `LanguageInfo::lyrics` 声明），契约只规定这是一段传给变体的文本。
+**决策**：`StartInput::lyrics` 为必填的单个字符串，为空即拒绝。文本写法由变体规定（`hfa` 要求其词典可读的写法：中文为拼音音节、英文为单词、日文为罗马字，以空格分隔；A27 起写法由 `LanguageInfo::lyrics` 声明），契约只规定这是一段传给变体的文本。
 
 **依据**：强制对齐是在已知文本的前提下求时间，缺少文本则该次执行无意义。将其降级为「未给歌词时按 ASR 执行」相当于在同一份契约中再并入一份契约。文本写法归变体，是因为不同对齐器的词典所接受的写法本就不同，而宿主只需将其作为文本转发。
 
@@ -839,7 +834,7 @@ otter 将以下三项职责明确留给宿主，三者缺一不可：
 
 ### A22 — 静音与非语音段一律作为词返回
 
-**决策**：`AlignResult` 只有 `WordInfo` 一种段。模块检测到的静音以 `exports.silenceLabel` 为标签、非语音以 `exports.nonSpeechPhonemes` 中的标签为标签，作为没有对应歌词的 `WordInfo` 返回。`silenceLabel` 声明为空表示该模块不为静音命名，此时结果不保证覆盖整段。
+**决策**：`Result` 只有 `WordInfo` 一种段。模块检测到的静音以 `exports.silenceLabel` 为标签、非语音以 `exports.nonSpeechPhonemes` 中的标签为标签，作为没有对应歌词的 `WordInfo` 返回。`silenceLabel` 声明为空表示该模块不为静音命名，此时结果不保证覆盖整段。
 
 **依据**：宿主需要「该时段属于何种内容」这一层信息。若由宿主从词的间隙反推，就相当于丢弃对齐器的分类结果，再由每个宿主重新计算。非语音类别的集合是模型的事实，因此以声明中的标签公开，而不在契约中枚举。
 
@@ -883,7 +878,7 @@ otter 将以下三项职责明确留给宿主，三者缺一不可：
 
 **决策**：
 - Note 与 Align 的语言一律为 ISO 639-3 代码（`[a-z]{3}`），由契约的读取函数、linter 与 JSON Schema 三处强制校验。
-- Align 的 `languages` 每项为 `{language, scheme, lyrics, phonemes}`：`scheme` 采用 wolf 的命名与语法，表示结果中音素的写法；`lyrics` 取 `scheme` 或 `text`，规定宿主提供歌词的写法；`phonemes` 为结果中可能出现的音素。同一 `(language, scheme)` 只能出现一次。`AlignStartInput` 增加可选的 `scheme`，`AlignResult` 回写 `language` 与 `scheme`。hfa 在加载期将 `phonemes` 与 `vocab.json` 中带该语言前缀的音素逐一比对，存在任何多余或缺失的音素即拒绝载入。
+- Align 的 `languages` 每项为 `{language, scheme, lyrics, phonemes}`：`scheme` 采用 wolf 的命名与语法，表示结果中音素的写法；`lyrics` 取 `scheme` 或 `text`，规定宿主提供歌词的写法；`phonemes` 为结果中可能出现的音素。同一 `(language, scheme)` 只能出现一次。`StartInput` 增加可选的 `scheme`，`Result` 回写 `language` 与 `scheme`。hfa 在加载期将 `phonemes` 与 `vocab.json` 中带该语言前缀的音素逐一比对，存在任何多余或缺失的音素即拒绝载入。
 - `defaultLanguage`（Note、Align）与 `defaultNonSpeechPhonemes`（Align）从 configuration 移至 exports。列出语言时必须声明默认语言，且默认语言必须属于所列语言。该规则由 GAME 的变体规则上升为契约规则。
 
 **依据**：
@@ -901,7 +896,7 @@ otter 将以下三项职责明确留给宿主，三者缺一不可：
 - 停止语义保持不变并写入文档：执行检测到停止请求后 `start()` 返回 `AnalysisError::Cancelled`，不返回部分结果，`state()` 为 `Canceled`。这与 wolf linguist「停止后返回已完成部分、状态为 `Canceled`」有意不同。
 - 执行结束后的状态只由错误码决定：`Cancelled` 对应 `Canceled`，其他错误对应 `Failed`，有结果对应 `Succeeded`，不再参考停止标志；工作线程在回调前也不再将状态改为 `Canceled`。
 - `AnalysisError` 新增 `Internal`（执行体抛出异常、解释器在加载期建立的声明对象缺失、产出其他契约的执行体或结果）与 `ModelFailed`（模型输出缺失、元素类型不符、尺寸与输入或其他输出不一致）。这两类错误此前报 `InvalidFormat`，与「声明不合格」混为一谈。取消错误统一由 `otter::cancelledError()` 构造。
-- `srt::ITask` 的公开入口 `start()` / `startAsync()` 在类型转换前校验输入的 `type()` / `version()` 等于 `XxxStartInput::API_INTERFACE` / `API_LEVEL`（各 StartInput 与 Result 类新增这两个静态常量），不符时报 `InvalidArgument`，且在认领执行之前拒绝，不改变状态。类型化入口将结果转换回契约类型前同样校验，不符时报 `ContractViolation`，结果为空时报 `Internal`。`createAnalyzer()` 以 `dynamic_cast` 取代 `static_cast`，失败时报 `ContractViolation`：第三方变体按设计可以提供解释器，其返回的执行体不能被假定属于本契约（A30 修订：结果不符与 `dynamic_cast` 失败原报 `Internal`）。
+- `srt::ITask` 的公开入口 `start()` / `startAsync()` 在类型转换前校验输入的 `type()` / `version()` 等于 `StartInput::Contract.interfaceId()` / `StartInput::Contract.level()`（各 StartInput 与 Result 类引用同一个 Contract 对象），不符时报 `InvalidArgument`，且在认领执行之前拒绝，不改变状态。类型化入口将结果转换回契约类型前同样校验，不符时报 `ContractViolation`，结果为空时报 `Internal`。`createAnalyzer()` 以 `dynamic_cast` 取代 `static_cast`，失败时报 `ContractViolation`：第三方变体按设计可以提供解释器，其返回的执行体不能被假定属于本契约（A30 修订：结果不符与 `dynamic_cast` 失败原报 `Internal`）。
 - hfa 变体要求 `exports` 声明 `silenceLabel`，并要求它既在词表的 `silent_phonemes` 中，也是词表 `vocab` 的一个类。词典展开歌词时以它作为词间分隔符，解码时将它的类作为静音类；该类的下标从词表读取，不再像参考实现那样假定为 0。模型自带的 `config.json`、`vocab.json` 与 `exports` 所列语言的词典在加载期由 `createConfiguration` 读取一次并由 configuration 持有，创建分析器时只打开图；只为 `exports` 声明的语言装载词典，configuration 额外映射的语言不再要求有词典。音频短于模型的一帧时以 `InvalidArgument` 拒绝，不再返回空结果。
 - Note：调用方给出的语言必须属于 `exports` 声明的语言（game 先查 `exports.languages`，再查 configuration 的编号；桩变体在未声明任何语言时也拒绝，与头文件中「Must be one the module declares」一致）。`knownNotes` 除原有的三条约束外，还不得结束于片段之后；game 与桩经同一个私有检查函数（`otter::support::checkKnownNotes`），在任何模型运行之前拒绝。
 - F0 的清音插值移入私有库（`otter::support::interpolateUnvoiced`），由 rmvpe 与桩共用：锚点为频率大于 0 的浊音帧，频率为 0 Hz 的浊音帧既不作锚点也不被改写，其两侧照常插值（此前会使其后的整段清音保持模型原值）；插值单遍完成，不再对每个清音帧重新扫描整段。
@@ -928,7 +923,7 @@ otter 将以下三项职责明确留给宿主，三者缺一不可：
 - **静音与非语音如实声明**：`silenceLabel` 为 `"SP"`，但模型词表中没有这个符号——它是变体给「没有词的片段」的拼写，加载期只要求它不与声明的音素重名。`nonSpeechPhonemes` 为空：模型没有非语音检测头，因此声明「不检测」，不拿词表中那几个无前缀标签充数。
 - **五张 ONNX 图各开一个会话**（`spectrogram`、`model`、`prepare`、`score`、`select`），按「音频前端 → 候选打分 → 选择 → 取对齐特征」的顺序驱动，其中 `model` 进图两次；图外还有一层由变体自己实现的候选选择与解码。
 - **一次执行一个样本、一个 span**，没有 batch，切片仍归宿主（A7）。
-- **诊断类输出暂不提供**：发音候选与分数、四个无参考诊断指标算在变体内部但不经契约回传——Level 1 的 `AlignResult` 只有 `words`（A22），没有承载它们的通道。按迁移方案的 D2 缓办。
+- **诊断类输出暂不提供**：发音候选与分数、四个无参考诊断指标算在变体内部但不经契约回传——Level 1 的 `Result` 只有 `words`（A22），没有承载它们的通道。按迁移方案的 D2 缓办。
 - **模型词表中查不到的书写单位按未收录处理**：丢掉该候选、丢掉该词，整句没有一个可用词时才拒绝这次执行。与 `hfa`（词不在词典就跳过）相比，它多覆盖一种情形——候选中含词表拼不出来的音素。
 
 **依据**：
@@ -986,6 +981,11 @@ otter 将以下三项职责明确留给宿主，三者缺一不可：
 **代价（已接受）**：库、插件与测试的 include 路径与目标名再改一次。`stdc::Popen` 只在 `communicate()` 内防护 SIGPIPE，提供者直接写管道，所以 `ggmlutil` 自己补上这层防护。`stdc::Popen` 不能从另一个线程直接调用，所以每个提供者要自己加锁，`tifa-ggml` 的 `stop()` 最多等一个分片。ctest 中不再有测试从插件目录装载 otter 的插件，插件树的发现与装载只由消费者工程覆盖到目录本身。
 
 **来源**：用户确认。
+
+
+### A34 — 契约身份与变体配置分离
+
+2026-11-17：公开契约使用 ContribContract 对象统一 interface 与 level，类型名去掉命名空间已表达的前缀。Schema、ImportOptions、RuntimeOptions 不接收 variant，配置仍保存完整 ContribContractTriplet。契约解析函数不再接收 variant。输入与结果通过静态 Contract 引用向 AnalysisTask 提供身份。插件内部 Triplet 保存具体实现身份，库与插件及宿主须配套重建。实现与迁移说明见 [ContractApiMigration.md](codex/ContractApiMigration.md)。
 
 ## 9.5 联合审计（实施后）
 

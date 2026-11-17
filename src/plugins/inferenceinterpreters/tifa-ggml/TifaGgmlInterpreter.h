@@ -4,10 +4,11 @@
 #include <memory>
 
 #include <otter/Analysis/Provider/AnalysisInterpreter.h>
+#include <otter/Api/Align/1/AlignApiL1.h>
 
 namespace otter::tifaGgml {
 
-    inline constexpr char VARIANT[] = "tifa-ggml";
+    inline const srt::ContribContractTriplet Triplet{Api::Align::L1::Contract, "tifa-ggml"};
 
     /// Checks the files of a package and hands out analyzers.
     class TifaGgmlInterpreter : public otter::AnalysisInterpreter {

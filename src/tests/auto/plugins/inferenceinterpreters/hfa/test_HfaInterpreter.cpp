@@ -47,8 +47,9 @@ namespace {
         srt::Expected<std::unique_ptr<srt::ContribInterpreter>>
             create(const srt::ContribContractTriplet &triplet) override {
             if (auto served = otter::onnx::checkServed(
-                    triplet, srt::ContribContractTriplet(AlignApi::API_INTERFACE,
-                                                         AlignApi::API_LEVEL, otter::hfa::VARIANT));
+                    triplet, srt::ContribContractTriplet(AlignApi::Contract.interfaceId(),
+                                                         AlignApi::Contract.level(),
+                                                         otter::hfa::Triplet.variant()));
                 !served) {
                 return served.takeError();
             }
@@ -124,7 +125,7 @@ namespace {
             return ModelHost::load(name, "align");
         }
 
-        std::unique_ptr<AlignApi::AlignExecutive> open() {
+        std::unique_ptr<AlignApi::Executive> open() {
             auto spec = load();
             auto made = AlignApi::createAnalyzer(*spec->as<srt::InferenceSpec>());
             BOOST_REQUIRE_MESSAGE(static_cast<bool>(made), otter::test::why(made));
@@ -147,12 +148,12 @@ namespace {
     /// Fills \a input with one second of audio and the lyrics \a text. The function writes into
     /// the caller's input because a start input is not copyable: the contract passes the caller's
     /// own object to the provider.
-    void lyrics(AlignApi::AlignStartInput &input, const std::string &text, double startTime = 0) {
+    void lyrics(AlignApi::StartInput &input, const std::string &text, double startTime = 0) {
         input.audio = tone(1.0, startTime);
         input.lyrics = text;
     }
 
-    std::vector<std::string> texts(const AlignApi::AlignResult &result) {
+    std::vector<std::string> texts(const AlignApi::Result &result) {
         std::vector<std::string> out;
         for (const auto &word : result.words) {
             out.push_back(word.text);
@@ -169,7 +170,7 @@ BOOST_AUTO_TEST_SUITE(test_HfaInterpreter)
 BOOST_AUTO_TEST_CASE(test_HfaInterpreter_ReportsWhatTheDeclarationExports) {
     Host host;
     auto spec = host.load();
-    auto schema = spec->exports()->as<AlignApi::AlignSchema>();
+    auto schema = spec->exports()->as<AlignApi::Schema>();
     BOOST_REQUIRE(schema != nullptr);
 
     // The exports are the declaration's values, read through the contract's reader, and the
@@ -208,7 +209,7 @@ BOOST_AUTO_TEST_CASE(test_HfaInterpreter_PlacesTheWordsTheLyricsName) {
     // times were read as offsets, every boundary below would be thirty seconds early.
     constexpr double SPAN_START = 30.0;
 
-    AlignApi::AlignStartInput input;
+    AlignApi::StartInput input;
     lyrics(input, "a b", SPAN_START);
     std::vector<double> reported;
     input.progress = [&reported](double value) {
@@ -294,12 +295,12 @@ BOOST_AUTO_TEST_CASE(test_HfaInterpreter_SendsTheKnobsToTheDecoder) {
     auto analyzer = host.open();
     const auto schedule = readSchedule();
 
-    const auto run = [&analyzer](const AlignApi::AlignStartInput &input) {
+    const auto run = [&analyzer](const AlignApi::StartInput &input) {
         auto produced = analyzer->start(input);
         BOOST_REQUIRE_MESSAGE(static_cast<bool>(produced), otter::test::why(produced));
         return produced.take();
     };
-    const auto breaths = [](const AlignApi::AlignResult &result) {
+    const auto breaths = [](const AlignApi::Result &result) {
         std::size_t count = 0;
         for (const auto &word : result.words) {
             if (word.text == "AP") {
@@ -311,7 +312,7 @@ BOOST_AUTO_TEST_CASE(test_HfaInterpreter_SendsTheKnobsToTheDecoder) {
 
     // With the defaults the separator is wider than the gap fill, so it stays three spans and the
     // breath is reported.
-    AlignApi::AlignStartInput defaults;
+    AlignApi::StartInput defaults;
     lyrics(defaults, "a b");
     auto plain = run(defaults);
     BOOST_CHECK_EQUAL(plain->words.size(), 5u);
@@ -319,7 +320,7 @@ BOOST_AUTO_TEST_CASE(test_HfaInterpreter_SendsTheKnobsToTheDecoder) {
 
     // Turning the gap fill off leaves the separator and both edges of the span as silence, since
     // neither the leading nor the trailing silence is absorbed either.
-    AlignApi::AlignStartInput unfilled;
+    AlignApi::StartInput unfilled;
     lyrics(unfilled, "a b");
     unfilled.gapFill = 0.0;
     BOOST_CHECK(texts(*run(unfilled)) ==
@@ -331,7 +332,7 @@ BOOST_AUTO_TEST_CASE(test_HfaInterpreter_SendsTheKnobsToTheDecoder) {
 
     // Raising it past the separator absorbs the separator into the words around it, and the
     // leading and trailing silence with it, so no silence remains.
-    AlignApi::AlignStartInput filled;
+    AlignApi::StartInput filled;
     lyrics(filled, "a b");
     filled.gapFill = schedule.span + 0.1;
     auto absorbed = run(filled);
@@ -342,7 +343,7 @@ BOOST_AUTO_TEST_CASE(test_HfaInterpreter_SendsTheKnobsToTheDecoder) {
 
     // A breath shorter than the minimum duration is not reported at all, neither as a zero-length
     // span nor as silence, and the separator becomes one span of silence.
-    AlignApi::AlignStartInput minDuration;
+    AlignApi::StartInput minDuration;
     lyrics(minDuration, "a b");
     BOOST_REQUIRE_GT(schedule.span, schedule.breathFrames * schedule.frame);
     minDuration.nonSpeechMinDuration = schedule.span;
@@ -353,7 +354,7 @@ BOOST_AUTO_TEST_CASE(test_HfaInterpreter_SendsTheKnobsToTheDecoder) {
     // The fixture's breath lies above the declared default threshold, and this threshold lies
     // above the breath, so the result changes if the threshold reaches the classifier.
     BOOST_REQUIRE_GT(schedule.breathProbability, 0.5);
-    AlignApi::AlignStartInput threshold;
+    AlignApi::StartInput threshold;
     lyrics(threshold, "a b");
     threshold.nonSpeechThreshold = (schedule.breathProbability + 1.0) / 2;
     BOOST_CHECK_EQUAL(breaths(*run(threshold)), 0u);
@@ -363,7 +364,7 @@ BOOST_AUTO_TEST_CASE(test_HfaInterpreter_RefusesWhatItCannotHonor) {
     Host host;
     auto analyzer = host.open();
 
-    AlignApi::AlignStartInput wrongRate;
+    AlignApi::StartInput wrongRate;
     lyrics(wrongRate, "a b");
     wrongRate.audio.sampleRate = 16000;
     auto refusedRate = analyzer->start(wrongRate);
@@ -372,20 +373,20 @@ BOOST_AUTO_TEST_CASE(test_HfaInterpreter_RefusesWhatItCannotHonor) {
 
     // An alignment without lyrics has nothing to align, and returning a transcription instead
     // would implement a different contract.
-    AlignApi::AlignStartInput noLyrics;
+    AlignApi::StartInput noLyrics;
     lyrics(noLyrics, "");
     auto empty = analyzer->start(noLyrics);
     BOOST_REQUIRE(!empty);
     BOOST_CHECK(empty.error().message().find("lyrics") != std::string::npos);
 
-    AlignApi::AlignStartInput unknownLanguage;
+    AlignApi::StartInput unknownLanguage;
     lyrics(unknownLanguage, "a b");
     unknownLanguage.language = "qqq";
     BOOST_CHECK(!analyzer->start(unknownLanguage));
 
     // A scheme not declared for the language is rejected rather than ignored, because the
     // returned phonemes would otherwise be in a notation other than the requested one.
-    AlignApi::AlignStartInput unknownScheme;
+    AlignApi::StartInput unknownScheme;
     lyrics(unknownScheme, "a b");
     unknownScheme.scheme = "jyutping";
     auto wrongScheme = analyzer->start(unknownScheme);
@@ -398,7 +399,7 @@ BOOST_AUTO_TEST_CASE(test_HfaInterpreter_RefusesWhatItCannotHonor) {
 
     // A label that the module does not declare is rejected instead of ignored, because silence in
     // its place would be indistinguishable from "none found".
-    AlignApi::AlignStartInput unknownLabel;
+    AlignApi::StartInput unknownLabel;
     lyrics(unknownLabel, "a b");
     unknownLabel.nonSpeechPhonemes = {"XX"};
     auto refusedLabel = analyzer->start(unknownLabel);
@@ -409,7 +410,7 @@ BOOST_AUTO_TEST_CASE(test_HfaInterpreter_RefusesWhatItCannotHonor) {
 
     // Lyrics of which no word is in the dictionary would yield a result consisting only of
     // silence, so they are rejected before the model runs.
-    AlignApi::AlignStartInput unknownLyrics;
+    AlignApi::StartInput unknownLyrics;
     lyrics(unknownLyrics, "zzz");
     auto refusedLyrics = analyzer->start(unknownLyrics);
     BOOST_REQUIRE(!refusedLyrics);
@@ -417,7 +418,7 @@ BOOST_AUTO_TEST_CASE(test_HfaInterpreter_RefusesWhatItCannotHonor) {
     BOOST_CHECK(refusedLyrics.error().message().find("none of the lyrics") != std::string::npos);
 
     // A knob outside the range that the declaration reports is rejected.
-    AlignApi::AlignStartInput wrongKnob;
+    AlignApi::StartInput wrongKnob;
     lyrics(wrongKnob, "a b");
     wrongKnob.gapFill = 5.0;
     BOOST_CHECK(!analyzer->start(wrongKnob));
@@ -492,7 +493,7 @@ BOOST_AUTO_TEST_CASE(test_HfaInterpreter_FindsTheSeparatorThroughTheVocabulary) 
     BOOST_REQUIRE_MESSAGE(static_cast<bool>(made), otter::test::why(made));
     auto analyzer = made.take();
 
-    AlignApi::AlignStartInput input;
+    AlignApi::StartInput input;
     lyrics(input, "a b");
     auto produced = analyzer->start(input);
     BOOST_REQUIRE_MESSAGE(static_cast<bool>(produced), otter::test::why(produced));
@@ -512,7 +513,7 @@ BOOST_AUTO_TEST_CASE(test_HfaInterpreter_RefusesAudioShorterThanAFrame) {
     Host host;
     auto analyzer = host.open();
 
-    AlignApi::AlignStartInput input;
+    AlignApi::StartInput input;
     lyrics(input, "a b");
     input.audio.samples.resize(100);
     auto refused = analyzer->start(input);
@@ -533,7 +534,7 @@ BOOST_AUTO_TEST_CASE(test_HfaInterpreter_ReportsACancellation) {
     // non-speech insert (the executive in hfa/HfaInterpreter.cpp). A milestone that moves makes the
     // run succeed, so the case fails on the missing cancellation instead of passing silently.
     for (const double at : {0.0, 0.5, 0.85}) {
-        AlignApi::AlignStartInput input;
+        AlignApi::StartInput input;
         lyrics(input, "a b");
         input.progress = [&analyzer, at](double value) {
             if (value == at) {
@@ -547,7 +548,7 @@ BOOST_AUTO_TEST_CASE(test_HfaInterpreter_ReportsACancellation) {
         BOOST_CHECK_EQUAL(analyzer->state(), srt::ITask::Canceled);
     }
 
-    AlignApi::AlignStartInput again;
+    AlignApi::StartInput again;
     lyrics(again, "a b");
     auto produced = analyzer->start(again);
     BOOST_CHECK_MESSAGE(static_cast<bool>(produced), otter::test::why(produced));

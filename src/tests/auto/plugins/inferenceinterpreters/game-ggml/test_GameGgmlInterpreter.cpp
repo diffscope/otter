@@ -6,7 +6,7 @@ BOOST_AUTO_TEST_CASE(test_GameGgmlInterpreter_ReportsWhatTheDeclarationExports) 
     Host host;
     host.write();
     auto spec = host.load();
-    auto schema = spec->exports()->as<NoteApi::NoteSchema>();
+    auto schema = spec->exports()->as<NoteApi::Schema>();
     BOOST_REQUIRE(schema != nullptr);
 
     BOOST_CHECK_EQUAL(schema->sampleRate, RATE);
@@ -83,7 +83,7 @@ BOOST_AUTO_TEST_CASE(test_GameGgmlInterpreter_TranscribesAgainstTheFakeCli) {
     host.write();
     auto analyzer = host.open();
 
-    NoteApi::NoteStartInput input;
+    NoteApi::StartInput input;
     input.audio = tone(2.0, 7.5);
     std::vector<double> reported;
     input.progress = [&reported](double value) {
@@ -110,7 +110,7 @@ BOOST_AUTO_TEST_CASE(test_GameGgmlInterpreter_TranscribesAgainstTheFakeCli) {
     BOOST_CHECK_CLOSE(reported.back(), 1.0, 1e-9);
 
     // A second execution reuses the same analyzer, whose engine process is still warm.
-    NoteApi::NoteStartInput again;
+    NoteApi::StartInput again;
     again.audio = tone(1.0, 1.0);
     auto second = analyzer->start(again);
     BOOST_REQUIRE_MESSAGE(static_cast<bool>(second), why(second));
@@ -122,7 +122,7 @@ BOOST_AUTO_TEST_CASE(test_GameGgmlInterpreter_RefusesKnownNotes) {
     host.write();
     auto analyzer = host.open();
 
-    NoteApi::NoteStartInput input;
+    NoteApi::StartInput input;
     input.audio = tone(2.0);
     input.knownNotes = {
         {0.5, 0.5}
@@ -141,7 +141,7 @@ BOOST_AUTO_TEST_CASE(test_GameGgmlInterpreter_StopKillsAnEngineThatDoesNotAnswer
     host.write();
     auto analyzer = host.open();
 
-    auto input = std::make_shared<NoteApi::NoteStartInput>();
+    auto input = std::make_shared<NoteApi::StartInput>();
     input->audio = tone(1.0);
 
     std::mutex mutex;
@@ -152,7 +152,7 @@ BOOST_AUTO_TEST_CASE(test_GameGgmlInterpreter_StopKillsAnEngineThatDoesNotAnswer
     {
         const otter::test::HangingEngine hanging(host.root / "hanging");
         auto started = analyzer->startAsync(
-            input, [&](srt::Expected<std::unique_ptr<NoteApi::NoteResult>> result) {
+            input, [&](srt::Expected<std::unique_ptr<NoteApi::Result>> result) {
                 std::lock_guard guard(mutex);
                 succeeded = static_cast<bool>(result);
                 if (!result) {
@@ -172,7 +172,7 @@ BOOST_AUTO_TEST_CASE(test_GameGgmlInterpreter_StopKillsAnEngineThatDoesNotAnswer
     BOOST_CHECK(code == otter::AnalysisError::Cancelled);
     BOOST_CHECK(analyzer->waitForFinished());
 
-    NoteApi::NoteStartInput again;
+    NoteApi::StartInput again;
     again.audio = tone(1.0);
     auto second = analyzer->start(again);
     BOOST_REQUIRE_MESSAGE(static_cast<bool>(second), why(second));

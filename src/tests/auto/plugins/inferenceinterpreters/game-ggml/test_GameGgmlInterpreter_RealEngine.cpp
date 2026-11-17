@@ -14,7 +14,7 @@ BOOST_AUTO_TEST_CASE(test_GameGgmlInterpreter_TranscribesAToneWithTheRealEngine)
     BOOST_REQUIRE_MESSAGE(static_cast<bool>(made), why(made));
     const auto analyzer = made.take();
 
-    NoteApi::NoteStartInput input;
+    NoteApi::StartInput input;
     input.audio = tone(2.0, 7.5);
     std::vector<double> reported;
     input.progress = [&reported](double value) {

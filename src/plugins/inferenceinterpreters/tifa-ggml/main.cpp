@@ -18,12 +18,12 @@ namespace otter::tifaGgml {
     public:
         srt::Expected<std::unique_ptr<srt::ContribInterpreter>>
             create(const srt::ContribContractTriplet &triplet) override {
-            if (triplet != srt::ContribContractTriplet(AlignApi::API_INTERFACE, AlignApi::API_LEVEL,
-                                                       VARIANT)) {
-                return srt::Error(srt::Error::FeatureNotSupported,
-                                  "this plugin serves the " + std::string(AlignApi::API_INTERFACE) +
-                                      " contract at level " + std::to_string(AlignApi::API_LEVEL) +
-                                      " only, in the variant " + VARIANT);
+            if (triplet != Triplet) {
+                return srt::Error(
+                    srt::Error::FeatureNotSupported,
+                    "this plugin serves the " + std::string(AlignApi::Contract.interfaceId()) +
+                        " contract at level " + std::to_string(AlignApi::Contract.level()) +
+                        " only, in the variant " + Triplet.variant());
             }
             return std::unique_ptr<srt::ContribInterpreter>(new TifaGgmlInterpreter());
         }

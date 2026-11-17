@@ -91,8 +91,7 @@ namespace otter::Api::Align::L1 {
 
     }
 
-    srt::Expected<std::unique_ptr<AlignSchema>> readAlignSchema(const srt::ContribSpec &spec,
-                                                                std::string variant) {
+    srt::Expected<std::unique_ptr<Schema>> readAlignSchema(const srt::ContribSpec &spec) {
         const auto &value = spec.manifestExports();
         if (!value.isObject()) {
             return srt::Error(srt::Error::InvalidFormat,
@@ -109,7 +108,7 @@ namespace otter::Api::Align::L1 {
             return checked.takeError();
         }
 
-        auto result = std::make_unique<AlignSchema>(std::move(variant));
+        auto result = std::make_unique<Schema>();
 
         const auto rate = object.find("sampleRate");
         if (rate == object.end()) {
@@ -207,10 +206,10 @@ namespace otter::Api::Align::L1 {
                 !checked) {
                 return checked.takeError();
             }
-            const std::pair<const char *, Common::L1::Knob AlignSchema::*> continuous[] = {
-                {"nonSpeechThreshold",   &AlignSchema::nonSpeechThreshold  },
-                {"nonSpeechMinDuration", &AlignSchema::nonSpeechMinDuration},
-                {"gapFill",              &AlignSchema::gapFill             },
+            const std::pair<const char *, Common::L1::Knob Schema::*> continuous[] = {
+                {"nonSpeechThreshold",   &Schema::nonSpeechThreshold  },
+                {"nonSpeechMinDuration", &Schema::nonSpeechMinDuration},
+                {"gapFill",              &Schema::gapFill             },
             };
             for (const auto &[key, member] : continuous) {
                 const auto knob = knobs.find(key);

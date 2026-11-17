@@ -220,9 +220,7 @@ namespace otter::tifa {
         /// exports.
         class TifaConfiguration : public srt::ContribConfiguration {
         public:
-            TifaConfiguration()
-                : srt::ContribConfiguration(
-                      {AlignApi::API_INTERFACE, AlignApi::API_LEVEL, VARIANT}) {
+            TifaConfiguration() : srt::ContribConfiguration(Triplet) {
             }
 
             std::filesystem::path spectrogram;
@@ -435,10 +433,10 @@ namespace otter::tifa {
             return shape;
         }
 
-        class TifaExecutive : public otter::onnx::OnnxExecutive<AlignApi::AlignExecutive> {
+        class TifaExecutive : public otter::onnx::OnnxExecutive<AlignApi::Executive> {
         public:
             TifaExecutive(srt::InferenceSpec &spec, OpenedModels opened,
-                          const AlignApi::AlignSchema &schema, ModelFiles files)
+                          const AlignApi::Schema &schema, ModelFiles files)
                 : OnnxExecutive(spec), m_schema(schema), m_files(std::move(files)) {
                 m_models.spectrogram = own(std::move(opened.spectrogram));
                 m_models.model = own(std::move(opened.model));
@@ -454,8 +452,8 @@ namespace otter::tifa {
             }
 
         protected:
-            srt::Expected<std::unique_ptr<AlignApi::AlignResult>>
-                run(const AlignApi::AlignStartInput &input) override {
+            srt::Expected<std::unique_ptr<AlignApi::Result>>
+                run(const AlignApi::StartInput &input) override {
                 const auto &audio = input.audio;
                 auto prepared = otter::prepareSamples(
                     audio, m_schema.sampleRate, m_schema.channelCount, m_schema.maxSegmentDuration);
@@ -630,7 +628,7 @@ namespace otter::tifa {
                     return words.takeError();
                 }
 
-                auto result = std::make_unique<AlignApi::AlignResult>();
+                auto result = std::make_unique<AlignApi::Result>();
                 result->language = entry->language;
                 result->scheme = entry->scheme;
                 result->words = words.take();
@@ -1399,7 +1397,7 @@ namespace otter::tifa {
             }
 
             Models m_models;
-            const AlignApi::AlignSchema &m_schema;
+            const AlignApi::Schema &m_schema;
             ModelFiles m_files;
         };
 
@@ -1494,7 +1492,7 @@ namespace otter::tifa {
         // with the vocabulary, would otherwise surface as a failed execution long after the
         // package loaded, or, worse, as a result whose phonemes are in a notation the host was
         // not told to expect.
-        srt::Expected<void> checkDeclaration(const AlignApi::AlignSchema &declared,
+        srt::Expected<void> checkDeclaration(const AlignApi::Schema &declared,
                                              const TifaConfiguration &wiring) {
             auto facts = readModelFacts(wiring.config);
             if (!facts) {
@@ -1654,7 +1652,7 @@ namespace otter::tifa {
 
     srt::Expected<std::unique_ptr<srt::ContribExports>>
         TifaInterpreter::createExports(const srt::ContribSpec &spec) const {
-        auto schema = AlignApi::readAlignSchema(spec, VARIANT);
+        auto schema = AlignApi::readAlignSchema(spec);
         if (!schema) {
             return schema.takeError();
         }
@@ -1684,7 +1682,7 @@ namespace otter::tifa {
                                          const srt::InferenceRuntimeOptions &) {
         const auto configuration =
             spec.configuration() ? spec.configuration()->as<TifaConfiguration>() : nullptr;
-        const auto schema = spec.exports() ? spec.exports()->as<AlignApi::AlignSchema>() : nullptr;
+        const auto schema = spec.exports() ? spec.exports()->as<AlignApi::Schema>() : nullptr;
         if (configuration == nullptr || schema == nullptr) {
             return srt::Error(otter::AnalysisError::Internal,
                               "this declaration carries no tifa configuration");

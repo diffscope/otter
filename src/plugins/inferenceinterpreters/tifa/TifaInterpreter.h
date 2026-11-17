@@ -4,11 +4,12 @@
 #include <memory>
 
 #include <otter/Analysis/Provider/AnalysisInterpreter.h>
+#include <otter/Api/Align/1/AlignApiL1.h>
 
 namespace otter::tifa {
 
     /// The variant this provider implements.
-    inline constexpr char VARIANT[] = "tifa";
+    inline const srt::ContribContractTriplet Triplet{Api::Align::L1::Contract, "tifa"};
 
     /// Opens the five graphs on demand and hands out analyzers.
     class TifaInterpreter : public otter::AnalysisInterpreter {
