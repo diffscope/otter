@@ -1,5 +1,5 @@
-#ifndef OTTER_TESTS_ANALYSIS_TESTSUPPORT_H
-#define OTTER_TESTS_ANALYSIS_TESTSUPPORT_H
+#ifndef OTTER_TESTS_TESTSUPPORT_H
+#define OTTER_TESTS_TESTSUPPORT_H
 
 #include <cstdlib>
 #include <filesystem>
@@ -107,10 +107,13 @@ namespace otter::test {
     };
 
     /// Test fixture that performs the setup of a host: it finds the ONNX driver, initializes the
-    /// driver against a runtime directory named by the host, registers the driver as the backend
-    /// shared by the whole unit, and points the inference category at otter's interpreters.
+    /// driver against a runtime directory named by the host, and registers the driver as the
+    /// backend shared by the whole unit. The interpreter is the static plugin that the test
+    /// registers, so the unit searches no plugin directory of the inference category.
     struct ModelHost {
         ModelHost() {
+            std::vector<std::filesystem::path> pluginPaths = {std::filesystem::path(OTTER_TEST_PLUGIN_DIR)};
+            unit.setPluginPaths(srt::InferenceCategory::NAME, pluginPaths);
             std::vector<std::filesystem::path> driverPaths = {
                 std::filesystem::path(OTTER_TEST_DRIVER_PLUGIN_DIR)};
             factory.setPluginPaths(driverPaths);
@@ -126,10 +129,6 @@ namespace otter::test {
             BOOST_REQUIRE_MESSAGE(static_cast<bool>(initialized), why(initialized));
             BOOST_REQUIRE_MESSAGE(unit.addRuntimeService(std::move(driver)),
                                   "the driver should have been registered");
-
-            std::vector<std::filesystem::path> pluginPaths = {
-                std::filesystem::path(OTTER_TEST_PLUGIN_DIR)};
-            unit.setPluginPaths(srt::InferenceCategory::NAME, pluginPaths);
         }
 
         ~ModelHost() {
@@ -174,4 +173,94 @@ namespace otter::test {
 
 #endif // OTTER_TEST_FIXTURE_DIR
 
-#endif // OTTER_TESTS_ANALYSIS_TESTSUPPORT_H
+// The manifest of the plugin whose interpreter a test of tests/auto/plugins registers as a static
+// plugin. The build defines OTTER_TEST_PLUGIN_MANIFEST for those tests only.
+#ifdef OTTER_TEST_PLUGIN_MANIFEST
+
+#  include <fstream>
+#  include <iterator>
+
+#  include <stdcorelib/support/json.h>
+
+namespace otter::test {
+
+    /// Returns the plugin.json of the plugin under test, or a null value if the file does not
+    /// parse. Discovery selects no interpreter for a null manifest, so a broken manifest fails the
+    /// loads of the test.
+    inline stdc::json::Value pluginManifest() {
+        std::ifstream file(std::filesystem::path(OTTER_TEST_PLUGIN_MANIFEST), std::ios::binary);
+        const std::string text((std::istreambuf_iterator<char>(file)),
+                               std::istreambuf_iterator<char>());
+        return stdc::json::Value::fromJson(text, false);
+    }
+
+}
+
+#endif // OTTER_TEST_PLUGIN_MANIFEST
+
+// The fake engine that the tests of the ggml providers run in place of the command line tools of
+// the engines. The build defines OTTER_TEST_FAKE_CLI for those tests only.
+#ifdef OTTER_TEST_FAKE_CLI
+
+#  include <chrono>
+#  include <stdlib.h>
+#  include <system_error>
+#  include <thread>
+#  include <utility>
+
+namespace otter::test {
+
+    /// Makes the fake engines started while this object lives hang. Such an engine takes a request
+    /// and never answers, after it has created the marker file that the environment variable
+    /// OTTER_FAKE_CLI_HANG names, from which the test learns that the engine hangs. An engine reads
+    /// the environment that it inherits at its start.
+    class HangingEngine {
+    public:
+        explicit HangingEngine(std::filesystem::path marker) : m_marker(std::move(marker)) {
+            std::error_code ignored;
+            std::filesystem::remove(m_marker, ignored);
+            set(m_marker.string().c_str());
+        }
+
+        ~HangingEngine() {
+            set(nullptr);
+            std::error_code ignored;
+            std::filesystem::remove(m_marker, ignored);
+        }
+
+        HangingEngine(const HangingEngine &) = delete;
+        HangingEngine &operator=(const HangingEngine &) = delete;
+
+        /// Waits at most \a timeout for an engine to hang and returns whether one does.
+        bool waitUntilHanging(std::chrono::milliseconds timeout) const {
+            const auto deadline = std::chrono::steady_clock::now() + timeout;
+            while (!std::filesystem::exists(m_marker)) {
+                if (std::chrono::steady_clock::now() >= deadline) {
+                    return false;
+                }
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            }
+            return true;
+        }
+
+    private:
+        static void set(const char *value) {
+#  ifdef _WIN32
+            (void) _putenv_s("OTTER_FAKE_CLI_HANG", value ? value : "");
+#  else
+            if (value) {
+                (void) setenv("OTTER_FAKE_CLI_HANG", value, 1);
+            } else {
+                (void) unsetenv("OTTER_FAKE_CLI_HANG");
+            }
+#  endif
+        }
+
+        std::filesystem::path m_marker;
+    };
+
+}
+
+#endif // OTTER_TEST_FAKE_CLI
+
+#endif // OTTER_TESTS_TESTSUPPORT_H

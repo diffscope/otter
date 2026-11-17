@@ -61,19 +61,19 @@ namespace {
     }
 }
 
-BOOST_AUTO_TEST_SUITE(test_AnalysisLoad)
+BOOST_AUTO_TEST_SUITE(test_AnalysisExecutive_Load)
 
 /// The unit searches no directory for interpreters, so the stub that serves the packages below can
 /// only be the static plugin that this binary links. A stub library left in a plugin directory of
 /// the build is never loaded.
-BOOST_AUTO_TEST_CASE(test_AnalysisLoad_ServesTheStubAsAStaticPlugin) {
+BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_Load_ServesTheStubAsAStaticPlugin) {
     Unit host;
     BOOST_CHECK(host.unit.pluginPaths(srt::InferenceCategory::NAME).empty());
     auto opened = host.unit.openPackage(packages() / "stub-analyzers", srt::SynthUnit::Load);
     BOOST_REQUIRE_MESSAGE(static_cast<bool>(opened), otter::test::why(opened));
 }
 
-BOOST_AUTO_TEST_CASE(test_AnalysisLoad_ReadsBothContracts) {
+BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_Load_ReadsBothContracts) {
     Unit host;
     auto opened = host.unit.openPackage(packages() / "stub-analyzers", srt::SynthUnit::Load);
     BOOST_REQUIRE_MESSAGE(static_cast<bool>(opened), otter::test::why(opened));
@@ -122,7 +122,7 @@ BOOST_AUTO_TEST_CASE(test_AnalysisLoad_ReadsBothContracts) {
     BOOST_CHECK_MESSAGE(static_cast<bool>(noteAnalyzer), otter::test::why(noteAnalyzer));
 }
 
-BOOST_AUTO_TEST_CASE(test_AnalysisLoad_DataOnlyStopsBeforeTheProvider) {
+BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_Load_DataOnlyStopsBeforeTheProvider) {
     // A host that lists installed analyzers in a settings page requires the name, the contract
     // and the variant, and none of these requires an interpreter. Reading the audio format of the
     // model requires the interpreter.
@@ -147,7 +147,7 @@ BOOST_AUTO_TEST_CASE(test_AnalysisLoad_DataOnlyStopsBeforeTheProvider) {
 /// One reader reads the exports block for every variant, so every variant rejects the same
 /// declarations: a missing audio format, a key the contract does not define, and a knob whose
 /// default lies outside its range.
-BOOST_AUTO_TEST_CASE(test_AnalysisLoad_RefusesExportsWithoutTheAudioFormat) {
+BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_Load_RefusesExportsWithoutTheAudioFormat) {
     Unit host;
     auto opened =
         host.unit.openPackage(packages() / "bad-exports-missing-rate", srt::SynthUnit::Load);
@@ -155,7 +155,7 @@ BOOST_AUTO_TEST_CASE(test_AnalysisLoad_RefusesExportsWithoutTheAudioFormat) {
     BOOST_CHECK(opened.error().rootCause().message().find("sampleRate") != std::string::npos);
 }
 
-BOOST_AUTO_TEST_CASE(test_AnalysisLoad_RefusesAnUnknownExportsKey) {
+BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_Load_RefusesAnUnknownExportsKey) {
     Unit host;
     auto opened =
         host.unit.openPackage(packages() / "bad-exports-unknown-key", srt::SynthUnit::Load);
@@ -163,7 +163,7 @@ BOOST_AUTO_TEST_CASE(test_AnalysisLoad_RefusesAnUnknownExportsKey) {
     BOOST_CHECK(opened.error().rootCause().message().find("frameRate") != std::string::npos);
 }
 
-BOOST_AUTO_TEST_CASE(test_AnalysisLoad_RefusesAKnobWhoseDefaultLeavesItsRange) {
+BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_Load_RefusesAKnobWhoseDefaultLeavesItsRange) {
     Unit host;
     auto opened =
         host.unit.openPackage(packages() / "bad-exports-knob-range", srt::SynthUnit::Load);
@@ -171,7 +171,7 @@ BOOST_AUTO_TEST_CASE(test_AnalysisLoad_RefusesAKnobWhoseDefaultLeavesItsRange) {
     BOOST_CHECK(opened.error().rootCause().message().find("voicingThreshold") != std::string::npos);
 }
 
-BOOST_AUTO_TEST_CASE(test_AnalysisLoad_RejectsAnUnknownConfigurationKey) {
+BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_Load_RejectsAnUnknownConfigurationKey) {
     // A misspelt key leaves the intended value silently absent, and for a threshold the result is
     // a working model that produces wrong results.
     Unit host;
@@ -180,7 +180,7 @@ BOOST_AUTO_TEST_CASE(test_AnalysisLoad_RejectsAnUnknownConfigurationKey) {
     BOOST_CHECK(opened.error().rootCause().message().find("frequencey") != std::string::npos);
 }
 
-BOOST_AUTO_TEST_CASE(test_AnalysisLoad_LetsAnotherModuleReferenceAnAnalyzer) {
+BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_Load_LetsAnotherModuleReferenceAnAnalyzer) {
     // The upper specification permits a category without an Executive Factory, and the Loader
     // accepts a null factory, so a package that references an analyzer is valid and must load.
     // Rejecting the import, as an earlier version of this category did, turns a valid third-party
@@ -196,7 +196,7 @@ BOOST_AUTO_TEST_CASE(test_AnalysisLoad_LetsAnotherModuleReferenceAnAnalyzer) {
     package.reset();
 }
 
-BOOST_AUTO_TEST_CASE(test_AnalysisLoad_RejectsImportOptionsNothingWillRead) {
+BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_Load_RejectsImportOptionsNothingWillRead) {
     // Absent options are accepted. Written options express an intent that the author expects to
     // take effect, and no contract in this category defines import options.
     Unit host;
@@ -207,7 +207,7 @@ BOOST_AUTO_TEST_CASE(test_AnalysisLoad_RejectsImportOptionsNothingWillRead) {
                 std::string::npos);
 }
 
-BOOST_AUTO_TEST_CASE(test_AnalysisLoad_RejectsAnEntryWithoutADeclaration) {
+BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_Load_RejectsAnEntryWithoutADeclaration) {
     Unit host;
     auto opened = host.unit.openPackage(packages() / "no-declaration", srt::SynthUnit::Load);
     BOOST_CHECK(!opened);
@@ -216,7 +216,7 @@ BOOST_AUTO_TEST_CASE(test_AnalysisLoad_RejectsAnEntryWithoutADeclaration) {
 /// The Align reader belongs to the library and requires no model, so the stub is sufficient to
 /// test it: each language declares the scheme of its phonemes, the form of its lyrics and the
 /// phonemes that a result can contain.
-BOOST_AUTO_TEST_CASE(test_AnalysisLoad_ReadsTheAlignContract) {
+BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_Load_ReadsTheAlignContract) {
     Unit host;
     auto opened = host.unit.openPackage(packages() / "stub-aligner", srt::SynthUnit::Load);
     BOOST_REQUIRE_MESSAGE(static_cast<bool>(opened), otter::test::why(opened));
@@ -242,7 +242,7 @@ BOOST_AUTO_TEST_CASE(test_AnalysisLoad_ReadsTheAlignContract) {
 
 /// Each of these exports blocks violates one rule of the Align reader, through which every
 /// variant reads its declaration, so each block is rejected at load regardless of the variant.
-BOOST_AUTO_TEST_CASE(test_AnalysisLoad_RefusesMalformedAlignExports) {
+BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_Load_RefusesMalformedAlignExports) {
     Unit host;
     const std::string languages = ALIGN_LANGUAGES;
     const std::pair<const char *, std::string> cases[] = {

@@ -28,6 +28,8 @@ foreach(_var IN ITEMS PATH LD_LIBRARY_PATH DYLD_LIBRARY_PATH)
     endforeach()
 endforeach()
 
+include_directories(${CMAKE_CURRENT_SOURCE_DIR})
+
 add_subdirectory(plugins/stub)
 
 add_subdirectory(Analysis)

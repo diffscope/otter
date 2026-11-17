@@ -56,7 +56,8 @@ namespace {
     /// is a static plugin of this binary, which the inference category finds without a plugin path.
     struct Loaded {
         explicit Loaded(const char *name) {
-            auto opened = unit.openPackage(otter::test::packagesRoot() / name, srt::SynthUnit::Load);
+            auto opened =
+                unit.openPackage(otter::test::packagesRoot() / name, srt::SynthUnit::Load);
             BOOST_REQUIRE_MESSAGE(static_cast<bool>(opened), otter::test::why(opened));
             package = opened.take();
         }
@@ -100,16 +101,15 @@ namespace {
         std::ofstream(root / "inferences" / "note" / "inference.json")
             << R"({"interface": "org.openvpi.otter.inference.Note", "level": 1, "variant": "stub",)"
             << R"( "name": "Note", "exports": {"sampleRate": 16000)"
-            << (exports.empty() ? "" : ", ") << exports
-            << R"(}, "configuration": {"beat": 0.25}})";
+            << (exports.empty() ? "" : ", ") << exports << R"(}, "configuration": {"beat": 0.25}})";
         return root;
     }
 
 }
 
-BOOST_AUTO_TEST_SUITE(test_AnalysisRuntime)
+BOOST_AUTO_TEST_SUITE(test_AnalysisExecutive)
 
-BOOST_AUTO_TEST_CASE(test_AnalysisRuntime_AnchorsTheCurveWhereTheHostSaidItWas) {
+BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_AnchorsTheCurveWhereTheHostSaidItWas) {
     Loaded loaded("stub-analyzers");
     auto analyzer = loaded.create<F0Api::F0Executive>("f0");
 
@@ -137,7 +137,7 @@ BOOST_AUTO_TEST_CASE(test_AnalysisRuntime_AnchorsTheCurveWhereTheHostSaidItWas) 
     BOOST_CHECK_CLOSE(reported.back(), 1.0, 1e-9);
 }
 
-BOOST_AUTO_TEST_CASE(test_AnalysisRuntime_AProgressCallbackCanStopTheExecution) {
+BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_AProgressCallbackCanStopTheExecution) {
     // The callback answers whether the execution continues, so a host that returns false stops the
     // execution without a separate call to stop(). The execution that the callback stopped reports
     // the cancellation the way any other stopped execution does.
@@ -154,11 +154,11 @@ BOOST_AUTO_TEST_CASE(test_AnalysisRuntime_AProgressCallbackCanStopTheExecution) 
     BOOST_CHECK_EQUAL(analyzer->state(), srt::ITask::Canceled);
 }
 
-BOOST_AUTO_TEST_CASE(test_AnalysisRuntime_TheResultSurvivesACallbackThatDeclinesTheLastReport) {
-    // The callback can decline the last report as well, which asks for a stop once the work is done.
-    // A stop that arrives after the execution produced its result leaves the result in place, which
-    // is what a host that watches the progress of a finished execution depends on. This locks the
-    // order of the two: reporting the end of the work comes before any check for a stop.
+BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_TheResultSurvivesACallbackThatDeclinesTheLastReport) {
+    // The callback can decline the last report as well, which asks for a stop once the work is
+    // done. A stop that arrives after the execution produced its result leaves the result in place,
+    // which is what a host that watches the progress of a finished execution depends on. This locks
+    // the order of the two: reporting the end of the work comes before any check for a stop.
     Loaded loaded("stub-analyzers");
     auto analyzer = loaded.create<F0Api::F0Executive>("f0");
 
@@ -179,7 +179,7 @@ BOOST_AUTO_TEST_CASE(test_AnalysisRuntime_TheResultSurvivesACallbackThatDeclines
     BOOST_CHECK_CLOSE(reported.back(), 1.0, 1e-9);
 }
 
-BOOST_AUTO_TEST_CASE(test_AnalysisRuntime_LeavingAKnobEmptyTakesTheModuleDefault) {
+BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_LeavingAKnobEmptyTakesTheModuleDefault) {
     Loaded loaded("stub-analyzers");
     auto analyzer = loaded.create<F0Api::F0Executive>("f0");
 
@@ -209,7 +209,7 @@ BOOST_AUTO_TEST_CASE(test_AnalysisRuntime_LeavingAKnobEmptyTakesTheModuleDefault
     BOOST_CHECK(sawUnvoiced);
 }
 
-BOOST_AUTO_TEST_CASE(test_AnalysisRuntime_TranscribesAndHonorsTheCutoff) {
+BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_TranscribesAndHonorsTheCutoff) {
     Loaded loaded("stub-analyzers");
     auto analyzer = loaded.create<NoteApi::NoteExecutive>("note");
 
@@ -237,7 +237,7 @@ BOOST_AUTO_TEST_CASE(test_AnalysisRuntime_TranscribesAndHonorsTheCutoff) {
     }
 }
 
-BOOST_AUTO_TEST_CASE(test_AnalysisRuntime_KeepsTheBoundariesTheCallerAlreadyKnows) {
+BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_KeepsTheBoundariesTheCallerAlreadyKnows) {
     Loaded loaded("stub-analyzers");
     auto analyzer = loaded.create<NoteApi::NoteExecutive>("note");
 
@@ -271,7 +271,7 @@ BOOST_AUTO_TEST_CASE(test_AnalysisRuntime_KeepsTheBoundariesTheCallerAlreadyKnow
     BOOST_CHECK(!analyzer->start(early));
 }
 
-BOOST_AUTO_TEST_CASE(test_AnalysisRuntime_RefusesAudioItWasNotPromised) {
+BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_RefusesAudioItWasNotPromised) {
     Loaded loaded("stub-analyzers");
     auto analyzer = loaded.create<F0Api::F0Executive>("f0");
 
@@ -304,7 +304,7 @@ BOOST_AUTO_TEST_CASE(test_AnalysisRuntime_RefusesAudioItWasNotPromised) {
                 std::string::npos);
 }
 
-BOOST_AUTO_TEST_CASE(test_AnalysisRuntime_RefusesAKnobOutsideTheRangeItDeclares) {
+BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_RefusesAKnobOutsideTheRangeItDeclares) {
     Loaded loaded("stub-analyzers");
     auto analyzer = loaded.create<NoteApi::NoteExecutive>("note");
 
@@ -335,7 +335,7 @@ BOOST_AUTO_TEST_CASE(test_AnalysisRuntime_RefusesAKnobOutsideTheRangeItDeclares)
 /// A knob that the declaration does not honor has no range to check against, and the declaration
 /// excludes the knob from the caller's control, so a supplied value is ignored rather than
 /// rejected.
-BOOST_AUTO_TEST_CASE(test_AnalysisRuntime_IgnoresAKnobTheDeclarationDoesNotHonor) {
+BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_IgnoresAKnobTheDeclarationDoesNotHonor) {
     Loaded loaded("unknobbed");
     auto analyzer = loaded.create<F0Api::F0Executive>("f0");
 
@@ -347,7 +347,7 @@ BOOST_AUTO_TEST_CASE(test_AnalysisRuntime_IgnoresAKnobTheDeclarationDoesNotHonor
     BOOST_CHECK_EQUAL(produced.take()->f0.size(), 100u);
 }
 
-BOOST_AUTO_TEST_CASE(test_AnalysisRuntime_RefusesAModelItCannotFeed) {
+BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_RefusesAModelItCannotFeed) {
     // The declaration specifies two channels, and the library cannot widen a span, so the model
     // would receive averaged audio in place of stereo audio. A previous version did so silently:
     // the count was read into a member that no code used.
@@ -362,7 +362,7 @@ BOOST_AUTO_TEST_CASE(test_AnalysisRuntime_RefusesAModelItCannotFeed) {
     BOOST_CHECK(refused.error().message().find("one channel") != std::string::npos);
 }
 
-BOOST_AUTO_TEST_CASE(test_AnalysisRuntime_RefusesAPartialFrame) {
+BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_RefusesAPartialFrame) {
     Loaded loaded("stub-analyzers");
     auto analyzer = loaded.create<F0Api::F0Executive>("f0");
 
@@ -376,7 +376,7 @@ BOOST_AUTO_TEST_CASE(test_AnalysisRuntime_RefusesAPartialFrame) {
     BOOST_CHECK(refused.error().message().find("whole number") != std::string::npos);
 }
 
-BOOST_AUTO_TEST_CASE(test_AnalysisRuntime_RunsAsynchronouslyAndCanBeCancelled) {
+BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_RunsAsynchronouslyAndCanBeCancelled) {
     Loaded loaded("slow-analyzer");
     auto analyzer = loaded.create<F0Api::F0Executive>("f0");
 
@@ -423,7 +423,7 @@ BOOST_AUTO_TEST_CASE(test_AnalysisRuntime_RunsAsynchronouslyAndCanBeCancelled) {
 
 /// A callback may start the next execution. The worker that delivers the callback then starts
 /// its own successor, which is possible only if the worker thread is detached rather than joined.
-BOOST_AUTO_TEST_CASE(test_AnalysisRuntime_ACallbackMayStartTheNextExecution) {
+BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_ACallbackMayStartTheNextExecution) {
     Loaded loaded("stub-analyzers");
     auto analyzer = loaded.create<F0Api::F0Executive>("f0");
     auto raw = analyzer.get();
@@ -467,7 +467,7 @@ BOOST_AUTO_TEST_CASE(test_AnalysisRuntime_ACallbackMayStartTheNextExecution) {
 /// A callback may hold the last reference to the analyzer, so destroying the analyzer inside the
 /// callback must work. The worker that delivers the callback then destroys the task on which it
 /// runs, which again requires a detached thread rather than a joined thread.
-BOOST_AUTO_TEST_CASE(test_AnalysisRuntime_ACallbackMayDestroyTheAnalyzer) {
+BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_ACallbackMayDestroyTheAnalyzer) {
     Loaded loaded("stub-analyzers");
     std::shared_ptr<F0Api::F0Executive> owner(loaded.create<F0Api::F0Executive>("f0").release());
 
@@ -494,7 +494,7 @@ BOOST_AUTO_TEST_CASE(test_AnalysisRuntime_ACallbackMayDestroyTheAnalyzer) {
 
 /// One analyzer serves one span after another, and each result is anchored at the start of its
 /// own span. No state accumulates between calls.
-BOOST_AUTO_TEST_CASE(test_AnalysisRuntime_AnchorsEachSegmentWhereItBegan) {
+BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_AnchorsEachSegmentWhereItBegan) {
     Loaded loaded("stub-analyzers");
     auto analyzer = loaded.create<F0Api::F0Executive>("f0");
 
@@ -508,7 +508,7 @@ BOOST_AUTO_TEST_CASE(test_AnalysisRuntime_AnchorsEachSegmentWhereItBegan) {
 }
 
 /// Options written for another contract are rejected before any value is read from them.
-BOOST_AUTO_TEST_CASE(test_AnalysisRuntime_RefusesOptionsOfAnotherContract) {
+BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_RefusesOptionsOfAnotherContract) {
     Loaded loaded("stub-analyzers");
     auto spec = loaded.package.contribution(srt::InferenceCategory::NAME, "f0");
     BOOST_REQUIRE(spec != nullptr);
@@ -520,7 +520,7 @@ BOOST_AUTO_TEST_CASE(test_AnalysisRuntime_RefusesOptionsOfAnotherContract) {
 }
 
 /// Known notes must be ordered and must not overlap, here as in the shipped provider.
-BOOST_AUTO_TEST_CASE(test_AnalysisRuntime_RefusesKnownNotesOutOfOrder) {
+BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_RefusesKnownNotesOutOfOrder) {
     Loaded loaded("stub-analyzers");
     auto analyzer = loaded.create<NoteApi::NoteExecutive>("note");
 
@@ -561,7 +561,7 @@ BOOST_AUTO_TEST_CASE(test_AnalysisRuntime_RefusesKnownNotesOutOfOrder) {
 /// ignoring them. The condition needs a declaration that promises nothing, which no package of the
 /// tree declares, so the declaration is written for this case rather than added as a fixture. The
 /// shipped provider makes the same check with the same error code.
-BOOST_AUTO_TEST_CASE(test_AnalysisRuntime_RefusesKnownNotesAPackageDoesNotPromise) {
+BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_RefusesKnownNotesAPackageDoesNotPromise) {
     srt::SynthUnit unit;
     auto opened = unit.openPackage(writeNote("no-known-notes", R"("supportsKnownNotes": false)"),
                                    srt::SynthUnit::Load);
@@ -595,7 +595,7 @@ BOOST_AUTO_TEST_CASE(test_AnalysisRuntime_RefusesKnownNotesAPackageDoesNotPromis
 
 /// The task interface without a plugin: a body that throws is an internal fault of the analyzer
 /// and is reported with the library's error code rather than as malformed input.
-BOOST_AUTO_TEST_CASE(test_AnalysisRuntime_ABodyThatThrowsIsAnInternalFailure) {
+BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_ABodyThatThrowsIsAnInternalFailure) {
     using Task = otter::AnalysisTask<F0Api::F0StartInput, F0Api::F0Result>;
     Task task([](const F0Api::F0StartInput &) -> srt::Expected<std::unique_ptr<F0Api::F0Result>> {
         throw std::runtime_error("the body gave up");
@@ -613,7 +613,7 @@ BOOST_AUTO_TEST_CASE(test_AnalysisRuntime_ABodyThatThrowsIsAnInternalFailure) {
 /// another reason after a stop request arrived reports that failure, and a body that finishes
 /// regardless reports its result: in both cases the state describes the outcome that the caller
 /// received.
-BOOST_AUTO_TEST_CASE(test_AnalysisRuntime_TheStateFollowsTheErrorCode) {
+BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_TheStateFollowsTheErrorCode) {
     using Task = otter::AnalysisTask<F0Api::F0StartInput, F0Api::F0Result>;
     Task *self = nullptr;
     bool fail = true;
@@ -640,7 +640,7 @@ BOOST_AUTO_TEST_CASE(test_AnalysisRuntime_TheStateFollowsTheErrorCode) {
 
 /// An exception thrown by a callback is caught at the point of delivery. The execution still
 /// releases its claim afterwards, so a waiter returns and the next execution is accepted.
-BOOST_AUTO_TEST_CASE(test_AnalysisRuntime_ACallbackThatThrowsReleasesTheExecution) {
+BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_ACallbackThatThrowsReleasesTheExecution) {
     using Task = otter::AnalysisTask<F0Api::F0StartInput, F0Api::F0Result>;
     Task task([](const F0Api::F0StartInput &) -> srt::Expected<std::unique_ptr<F0Api::F0Result>> {
         return std::make_unique<F0Api::F0Result>();
@@ -674,7 +674,7 @@ BOOST_AUTO_TEST_CASE(test_AnalysisRuntime_ACallbackThatThrowsReleasesTheExecutio
 /// The untyped entry point is the public interface of srt::ITask, so it may receive a payload of
 /// any contract. A payload of another contract is rejected before the claim is taken, and the
 /// state is left unchanged.
-BOOST_AUTO_TEST_CASE(test_AnalysisRuntime_RefusesAPayloadOfAnotherContract) {
+BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_RefusesAPayloadOfAnotherContract) {
     using Task = otter::AnalysisTask<F0Api::F0StartInput, F0Api::F0Result>;
     bool ran = false;
     Task task([&](const F0Api::F0StartInput &) -> srt::Expected<std::unique_ptr<F0Api::F0Result>> {
@@ -723,7 +723,7 @@ namespace {
 
 }
 
-BOOST_AUTO_TEST_CASE(test_AnalysisRuntime_RefusesAResultOfAnotherContract) {
+BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_RefusesAResultOfAnotherContract) {
     MismatchedTask task;
     F0Api::F0StartInput input;
     auto converted = task.run(input);
@@ -733,7 +733,7 @@ BOOST_AUTO_TEST_CASE(test_AnalysisRuntime_RefusesAResultOfAnotherContract) {
 
 /// An interpreter may come from a third party, so the executive it creates is checked to belong
 /// to the contract rather than assumed to.
-BOOST_AUTO_TEST_CASE(test_AnalysisRuntime_RefusesAnExecutiveOfAnotherContract) {
+BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_RefusesAnExecutiveOfAnotherContract) {
     Loaded loaded("foreign-executive");
     auto spec = loaded.package.contribution(srt::InferenceCategory::NAME, "f0");
     BOOST_REQUIRE(spec != nullptr);
@@ -744,7 +744,7 @@ BOOST_AUTO_TEST_CASE(test_AnalysisRuntime_RefusesAnExecutiveOfAnotherContract) {
 
 /// A mono span is supplied to the model without a copy of a buffer that can hold minutes of
 /// audio. A stereo span is averaged into a separate buffer.
-BOOST_AUTO_TEST_CASE(test_AnalysisRuntime_PassesAMonoSpanWithoutCopying) {
+BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_PassesAMonoSpanWithoutCopying) {
     auto mono = silence(1.0);
     auto prepared = otter::prepareSamples(mono, RATE, 1, 0);
     BOOST_REQUIRE_MESSAGE(static_cast<bool>(prepared), otter::test::why(prepared));
@@ -784,7 +784,7 @@ namespace {
 /// A failure to start a worker thread is reported as NoWorker, and the claim taken by the start
 /// is released, because without a worker no other code would release the claim and every later
 /// execution would be rejected.
-BOOST_AUTO_TEST_CASE(test_AnalysisRuntime_ReportsAMissingWorkerAndReleasesTheClaim) {
+BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_ReportsAMissingWorkerAndReleasesTheClaim) {
     WorkerlessTask task;
     bool called = false;
     auto started = task.runAsync(
@@ -804,7 +804,7 @@ BOOST_AUTO_TEST_CASE(test_AnalysisRuntime_ReportsAMissingWorkerAndReleasesTheCla
 /// The language and scheme of an alignment follow the declaration: the default applies if the
 /// caller names neither, a language declared with one scheme requires no scheme, and a language
 /// declared with several schemes requires the caller to name the scheme.
-BOOST_AUTO_TEST_CASE(test_AnalysisRuntime_ChoosesTheDeclaredLanguageAndScheme) {
+BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_ChoosesTheDeclaredLanguageAndScheme) {
     Loaded loaded("stub-aligner");
     auto analyzer = loaded.create<AlignApi::AlignExecutive>("align");
 
@@ -845,15 +845,16 @@ BOOST_AUTO_TEST_CASE(test_AnalysisRuntime_ChoosesTheDeclaredLanguageAndScheme) {
     BOOST_CHECK(refusedUndeclared.error().code() == srt::Error::InvalidArgument);
     // The stub words the refusal of a language it does not cover as this model's own gap, and it
     // echoes the scheme the caller asked for the way the hfa and tifa interpreters do.
-    BOOST_CHECK(refusedUndeclared.error().message().find("the caller asked for the language cmn with "
-                                                         "the scheme zhuyin, which this model cannot "
-                                                         "align") != std::string::npos);
+    BOOST_CHECK(
+        refusedUndeclared.error().message().find("the caller asked for the language cmn with "
+                                                 "the scheme zhuyin, which this model cannot "
+                                                 "align") != std::string::npos);
 }
 
 /// Lyrics that hold no word leave nothing to divide the span into, and a result without a word
 /// would leave the whole span uncovered although the fixture reports silence under a label of its
 /// own, so such lyrics are refused rather than answered with an empty result.
-BOOST_AUTO_TEST_CASE(test_AnalysisRuntime_RefusesLyricsThatHoldNoWord) {
+BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_RefusesLyricsThatHoldNoWord) {
     Loaded loaded("stub-aligner");
     auto analyzer = loaded.create<AlignApi::AlignExecutive>("align");
 

@@ -1,8 +1,8 @@
-add_auto_test(test_AnalysisContrib.cpp synthrt-otter)
+add_auto_test(test_AnalysisError.cpp synthrt-otter)
 
-add_auto_test(test_AnalysisLoad.cpp synthrt-otter)
+add_auto_test(test_AnalysisExecutive_Load.cpp synthrt-otter)
 
-add_auto_test(test_AnalysisRuntime.cpp synthrt-otter)
+add_auto_test(test_AnalysisExecutive.cpp synthrt-otter)
 
 # These tests need the driver framework and the generated model fixtures, so they exist only in a
 # build that includes dsinfer. The availability of the fixture generator is determined below.
@@ -24,7 +24,7 @@ if(TARGET ottertifaggml)
     add_auto_test(test_TifaGgml.cpp synthrt-otter)
 endif()
 
-set(_otter_tests test_AnalysisContrib test_AnalysisLoad test_AnalysisRuntime
+set(_otter_tests test_AnalysisError test_AnalysisExecutive_Load test_AnalysisExecutive
                   test_Rmvpe test_Game test_Hfa test_Tifa
                  test_GameGgml test_TifaGgml)
 
@@ -54,7 +54,7 @@ if(OTTER_TEST_PACKAGES_SOURCE)
             "runtime tests will fail rather than skip")
     endif()
 else()
-    message(STATUS "Test packages: not given; test_AnalysisLoad and test_AnalysisRuntime will skip "
+    message(STATUS "Test packages: not given; test_AnalysisExecutive_Load and test_AnalysisExecutive will skip "
                    "(pass -DOTTER_TEST_PACKAGES_SOURCE=<dir>)")
 endif()
 
@@ -62,7 +62,7 @@ endif()
 # they run, and the tests receive its location as a compile definition. They read the packages from
 # the environment rather than a compile definition, so that one build can be pointed at a directory
 # per run without reconfiguring.
-foreach(_needs_stub IN ITEMS test_AnalysisLoad test_AnalysisRuntime)
+foreach(_needs_stub IN ITEMS test_AnalysisExecutive_Load test_AnalysisExecutive)
     if(TARGET ${_needs_stub})
         target_link_libraries(${_needs_stub} PRIVATE otterstub)
         target_compile_definitions(${_needs_stub} PRIVATE
