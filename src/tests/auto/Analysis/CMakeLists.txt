@@ -64,10 +64,9 @@ endif()
 # per run without reconfiguring.
 foreach(_needs_stub IN ITEMS test_AnalysisLoad test_AnalysisRuntime)
     if(TARGET ${_needs_stub})
-        add_dependencies(${_needs_stub} otterstub)
+        target_link_libraries(${_needs_stub} PRIVATE otterstub)
         target_compile_definitions(${_needs_stub} PRIVATE
             OTTER_TEST_SKIP_EXIT_CODE=${OTTER_TEST_SKIP_EXIT_CODE}
-            OTTER_TEST_PLUGIN_DIR="${OTTER_BUILD_PLUGINS_DIR}/inferenceinterpreters"
         )
         set_tests_properties(${_needs_stub} PROPERTIES
             SKIP_RETURN_CODE ${OTTER_TEST_SKIP_EXIT_CODE}

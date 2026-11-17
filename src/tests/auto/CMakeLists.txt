@@ -28,5 +28,7 @@ foreach(_var IN ITEMS PATH LD_LIBRARY_PATH DYLD_LIBRARY_PATH)
     endforeach()
 endforeach()
 
+add_subdirectory(plugins/stub)
+
 add_subdirectory(Analysis)
 add_subdirectory(util)

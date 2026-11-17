@@ -125,12 +125,3 @@ if(OTTER_BUILD_TIFA_GGML)
         LINKS synthrt-otter analysisutil otter_cli_support
     )
 endif()
-
-# The stub interpreter allows the package path, interpreter discovery and the executive lifecycle
-# to be tested without any model.
-if(OTTER_BUILD_TESTS)
-    otter_add_interpreter_plugin(otterstub stub NO_INSTALL
-        SOURCES stub/main.cpp
-        LINKS synthrt-otter analysisutil
-    )
-endif()

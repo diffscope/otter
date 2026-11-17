@@ -32,14 +32,9 @@ namespace {
         return otter::test::packagesRoot();
     }
 
-    /// A unit configured as a host configures it: the stub provider on the plugin path of the
-    /// inference category.
+    /// A unit configured as a host configures it, except that the stub provider is a static plugin
+    /// of this binary, which the inference category finds without a plugin path.
     struct Unit {
-        Unit() {
-            const fs::path paths[] = {fs::path(OTTER_TEST_PLUGIN_DIR)};
-            unit.setPluginPaths(srt::InferenceCategory::NAME, paths);
-        }
-
         srt::SynthUnit unit;
     };
 
@@ -67,6 +62,16 @@ namespace {
 }
 
 BOOST_AUTO_TEST_SUITE(test_AnalysisLoad)
+
+/// The unit searches no directory for interpreters, so the stub that serves the packages below can
+/// only be the static plugin that this binary links. A stub library left in a plugin directory of
+/// the build is never loaded.
+BOOST_AUTO_TEST_CASE(test_AnalysisLoad_ServesTheStubAsAStaticPlugin) {
+    Unit host;
+    BOOST_CHECK(host.unit.pluginPaths(srt::InferenceCategory::NAME).empty());
+    auto opened = host.unit.openPackage(packages() / "stub-analyzers", srt::SynthUnit::Load);
+    BOOST_REQUIRE_MESSAGE(static_cast<bool>(opened), otter::test::why(opened));
+}
 
 BOOST_AUTO_TEST_CASE(test_AnalysisLoad_ReadsBothContracts) {
     Unit host;

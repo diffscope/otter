@@ -52,11 +52,10 @@ namespace {
         return audio;
     }
 
-    /// A loaded package plus the unit behind it, torn down in the right order.
+    /// A loaded package plus the unit behind it, torn down in the right order. The stub provider
+    /// is a static plugin of this binary, which the inference category finds without a plugin path.
     struct Loaded {
         explicit Loaded(const char *name) {
-            const fs::path paths[] = {fs::path(OTTER_TEST_PLUGIN_DIR)};
-            unit.setPluginPaths(srt::InferenceCategory::NAME, paths);
             auto opened = unit.openPackage(otter::test::packagesRoot() / name, srt::SynthUnit::Load);
             BOOST_REQUIRE_MESSAGE(static_cast<bool>(opened), otter::test::why(opened));
             package = opened.take();
@@ -563,9 +562,7 @@ BOOST_AUTO_TEST_CASE(test_AnalysisRuntime_RefusesKnownNotesOutOfOrder) {
 /// tree declares, so the declaration is written for this case rather than added as a fixture. The
 /// shipped provider makes the same check with the same error code.
 BOOST_AUTO_TEST_CASE(test_AnalysisRuntime_RefusesKnownNotesAPackageDoesNotPromise) {
-    const fs::path paths[] = {fs::path(OTTER_TEST_PLUGIN_DIR)};
     srt::SynthUnit unit;
-    unit.setPluginPaths(srt::InferenceCategory::NAME, paths);
     auto opened = unit.openPackage(writeNote("no-known-notes", R"("supportsKnownNotes": false)"),
                                    srt::SynthUnit::Load);
     BOOST_REQUIRE_MESSAGE(static_cast<bool>(opened), otter::test::why(opened));
