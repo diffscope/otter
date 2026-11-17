@@ -13,19 +13,19 @@
 #include <synthrt/Support/Error.h>
 
 #ifdef _WIN32
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif
-#include <windows.h>
+#  ifndef WIN32_LEAN_AND_MEAN
+#    define WIN32_LEAN_AND_MEAN
+#  endif
+#  ifndef NOMINMAX
+#    define NOMINMAX
+#  endif
+#  include <windows.h>
 #else
-#include <csignal>
-#include <fcntl.h>
-#include <pthread.h>
-#include <sys/wait.h>
-#include <unistd.h>
+#  include <csignal>
+#  include <fcntl.h>
+#  include <pthread.h>
+#  include <sys/wait.h>
+#  include <unistd.h>
 #endif
 
 namespace otter::cli {
@@ -163,8 +163,8 @@ namespace otter::cli {
         startup.hStdError = GetStdHandle(STD_ERROR_HANDLE);
         std::string line = commandLineOf(commandLine);
         PROCESS_INFORMATION information{};
-        if (!CreateProcessA(nullptr, line.data(), nullptr, nullptr, TRUE, CREATE_NO_WINDOW,
-                            nullptr, nullptr, &startup, &information)) {
+        if (!CreateProcessA(nullptr, line.data(), nullptr, nullptr, TRUE, CREATE_NO_WINDOW, nullptr,
+                            nullptr, &startup, &information)) {
             CloseHandle(stdinRead);
             CloseHandle(stdoutWrite);
             CloseHandle(stdinWrite);
@@ -300,7 +300,7 @@ namespace otter::cli {
             pthread_sigmask(SIG_BLOCK, &blocked, &previous);
 
             const auto finish = [&blocked, &previous] {
-#if defined(__APPLE__)
+#  if defined(__APPLE__)
                 // Darwin is the one platform here that declares neither sigtimedwait() nor
                 // sigwaitinfo(), so the pending set is read first and the signal taken with
                 // sigwait(), which is POSIX and which the platform does declare. The read cannot be
@@ -312,14 +312,14 @@ namespace otter::cli {
                 while (sigpending(&pending) == 0 && sigismember(&pending, SIGPIPE) == 1 &&
                        sigwait(&pending, &consumed) == 0) {
                 }
-#else
+#  else
                 // A zero timeout returns at once and clears one member of the set that is pending,
                 // so this drains the SIGPIPE left pending whatever the write returned, and nothing
                 // else, because SIGPIPE is the set's only member.
                 const timespec zero{0, 0};
                 while (sigtimedwait(&blocked, nullptr, &zero) == SIGPIPE) {
                 }
-#endif
+#  endif
                 pthread_sigmask(SIG_SETMASK, &previous, nullptr);
             };
 
@@ -571,8 +571,7 @@ namespace otter::cli {
         header.dataSize = dataBytes;
         bool ok = std::fwrite(&header, sizeof(header), 1, file) == 1;
         if (ok && !samples.empty()) {
-            ok = std::fwrite(samples.data(), sizeof(float), samples.size(), file) ==
-                 samples.size();
+            ok = std::fwrite(samples.data(), sizeof(float), samples.size(), file) == samples.size();
         }
         std::fclose(file);
         if (!ok) {
@@ -584,16 +583,14 @@ namespace otter::cli {
     srt::Expected<std::filesystem::path> makeScratchDirectory(const std::string &name) {
         static std::atomic<unsigned long long> counter{0};
         const auto unique =
-            std::chrono::steady_clock::now().time_since_epoch().count() * 31 +
-            counter.fetch_add(1);
+            std::chrono::steady_clock::now().time_since_epoch().count() * 31 + counter.fetch_add(1);
         auto root = std::filesystem::temp_directory_path() / name;
         root /= std::to_string(unique);
         std::error_code error;
         std::filesystem::create_directories(root, error);
         if (error) {
-            return srt::Error(srt::Error::FileNotOpen,
-                              "cannot create the scratch directory " + root.string() + ": " +
-                                  error.message());
+            return srt::Error(srt::Error::FileNotOpen, "cannot create the scratch directory " +
+                                                           root.string() + ": " + error.message());
         }
         return root;
     }

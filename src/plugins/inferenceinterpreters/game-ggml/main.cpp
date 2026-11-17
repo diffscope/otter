@@ -41,7 +41,7 @@
 #include <otter/Api/Note/1/NoteApiL1.h>
 #include <analysisutil/ManifestValues.h>
 
-#include "../external/CliProcess.h"
+#include <ggmlutil/CliProcess.h>
 
 namespace NoteApi = otter::Api::Note::L1;
 namespace CommonApi = otter::Api::Common::L1;

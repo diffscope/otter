@@ -98,30 +98,16 @@ endif()
 option(OTTER_BUILD_GAME_GGML "Build the game-ggml interpreter, which drives the game.cpp CLI" ON)
 option(OTTER_BUILD_TIFA_GGML "Build the tifa-ggml interpreter, which drives the tifa.cpp CLI" ON)
 
-# otter_cli_support contains the code the two external providers share, as a static library that
-# each provider links: the child process with its redirected streams, the float32 WAV an execution
-# hands its engine, and the scratch directory of one execution. Hidden visibility prevents a plugin
-# from re-exporting it.
-add_library(otter_cli_support STATIC external/CliProcess.h external/CliProcess.cpp)
-target_link_libraries(otter_cli_support PUBLIC synthrt-otter analysisutil)
-target_include_directories(otter_cli_support PUBLIC external)
-target_compile_features(otter_cli_support PUBLIC cxx_std_17)
-set_target_properties(otter_cli_support PROPERTIES
-    POSITION_INDEPENDENT_CODE ON
-    CXX_VISIBILITY_PRESET hidden
-    VISIBILITY_INLINES_HIDDEN ON
-)
-
 if(OTTER_BUILD_GAME_GGML)
     otter_add_interpreter_plugin(ottergameggml game-ggml
         SOURCES game-ggml/main.cpp
-        LINKS synthrt-otter analysisutil otter_cli_support
+        LINKS synthrt-otter analysisutil ggmlutil
     )
 endif()
 
 if(OTTER_BUILD_TIFA_GGML)
     otter_add_interpreter_plugin(ottertifaggml tifa-ggml
         SOURCES tifa-ggml/main.cpp
-        LINKS synthrt-otter analysisutil otter_cli_support
+        LINKS synthrt-otter analysisutil ggmlutil
     )
 endif()

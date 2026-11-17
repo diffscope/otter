@@ -41,7 +41,7 @@
 #include <otter/Api/Align/1/AlignApiL1.h>
 #include <analysisutil/ManifestValues.h>
 
-#include "../external/CliProcess.h"
+#include <ggmlutil/CliProcess.h>
 
 namespace AlignApi = otter::Api::Align::L1;
 
