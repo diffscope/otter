@@ -17,9 +17,9 @@ namespace otter::tifaGgml {
     class TifaGgmlPlugin : public srt::InferenceInterpreterPlugin {
     public:
         srt::Expected<std::unique_ptr<srt::ContribInterpreter>>
-            create(const srt::ContribTriplet &triplet) override {
-            if (triplet !=
-                srt::ContribTriplet(AlignApi::API_INTERFACE, AlignApi::API_LEVEL, VARIANT)) {
+            create(const srt::ContribContractTriplet &triplet) override {
+            if (triplet != srt::ContribContractTriplet(AlignApi::API_INTERFACE, AlignApi::API_LEVEL,
+                                                       VARIANT)) {
                 return srt::Error(srt::Error::FeatureNotSupported,
                                   "this plugin serves the " + std::string(AlignApi::API_INTERFACE) +
                                       " contract at level " + std::to_string(AlignApi::API_LEVEL) +

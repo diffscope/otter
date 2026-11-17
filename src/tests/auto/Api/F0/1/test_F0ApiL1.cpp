@@ -13,8 +13,8 @@ BOOST_AUTO_TEST_CASE(variant_identity_and_task_identity_are_separate) {
     Api::F0RuntimeOptions runtime("test.variant");
     const srt::ContribSpecPayload *specPayloads[] = {&schema, &options, &runtime};
     for (const auto payload : specPayloads) {
-        BOOST_CHECK(payload->triplet() ==
-                    srt::ContribTriplet(Api::API_INTERFACE, Api::API_LEVEL, "test.variant"));
+        BOOST_CHECK(payload->triplet() == srt::ContribContractTriplet(
+                                              Api::API_INTERFACE, Api::API_LEVEL, "test.variant"));
     }
 
     Api::F0StartInput input;

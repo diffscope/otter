@@ -11,7 +11,7 @@ namespace otter {
         // Import options of any analysis contract, which identify only the contract.
         class EmptyImportOptions : public AnalysisImportOptions {
         public:
-            explicit EmptyImportOptions(srt::ContribTriplet triplet)
+            explicit EmptyImportOptions(srt::ContribContractTriplet triplet)
                 : AnalysisImportOptions(std::move(triplet)) {
             }
         };

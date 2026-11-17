@@ -45,10 +45,10 @@ namespace {
     class HfaPlugin : public srt::InferenceInterpreterPlugin {
     public:
         srt::Expected<std::unique_ptr<srt::ContribInterpreter>>
-            create(const srt::ContribTriplet &triplet) override {
+            create(const srt::ContribContractTriplet &triplet) override {
             if (auto served = otter::onnx::checkServed(
-                    triplet, srt::ContribTriplet(AlignApi::API_INTERFACE, AlignApi::API_LEVEL,
-                                                 otter::hfa::VARIANT));
+                    triplet, srt::ContribContractTriplet(AlignApi::API_INTERFACE,
+                                                         AlignApi::API_LEVEL, otter::hfa::VARIANT));
                 !served) {
                 return served.takeError();
             }

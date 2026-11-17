@@ -37,10 +37,10 @@ namespace {
     class RmvpePlugin : public srt::InferenceInterpreterPlugin {
     public:
         srt::Expected<std::unique_ptr<srt::ContribInterpreter>>
-            create(const srt::ContribTriplet &triplet) override {
+            create(const srt::ContribContractTriplet &triplet) override {
             if (auto served = otter::onnx::checkServed(
-                    triplet, srt::ContribTriplet(F0Api::API_INTERFACE, F0Api::API_LEVEL,
-                                                 otter::rmvpe::VARIANT));
+                    triplet, srt::ContribContractTriplet(F0Api::API_INTERFACE, F0Api::API_LEVEL,
+                                                         otter::rmvpe::VARIANT));
                 !served) {
                 return served.takeError();
             }

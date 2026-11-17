@@ -54,9 +54,9 @@ namespace {
     class GameGgmlPlugin : public srt::InferenceInterpreterPlugin {
     public:
         srt::Expected<std::unique_ptr<srt::ContribInterpreter>>
-            create(const srt::ContribTriplet &triplet) override {
-            if (triplet != srt::ContribTriplet(NoteApi::API_INTERFACE, NoteApi::API_LEVEL,
-                                               otter::gameGgml::VARIANT)) {
+            create(const srt::ContribContractTriplet &triplet) override {
+            if (triplet != srt::ContribContractTriplet(NoteApi::API_INTERFACE, NoteApi::API_LEVEL,
+                                                       otter::gameGgml::VARIANT)) {
                 return srt::Error(srt::Error::FeatureNotSupported,
                                   "this plugin serves the " + std::string(NoteApi::API_INTERFACE) +
                                       " contract at level " + std::to_string(NoteApi::API_LEVEL) +

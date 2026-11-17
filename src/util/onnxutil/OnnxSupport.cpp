@@ -18,8 +18,8 @@ namespace otter::onnx {
 
     namespace OnnxApi = ds::Api::Onnx;
 
-    srt::Expected<void> checkServed(const srt::ContribTriplet &requested,
-                                    const srt::ContribTriplet &served) {
+    srt::Expected<void> checkServed(const srt::ContribContractTriplet &requested,
+                                    const srt::ContribContractTriplet &served) {
         if (requested != served) {
             return srt::Error(srt::Error::FeatureNotSupported,
                               "this plugin serves only " + served.toString());

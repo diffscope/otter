@@ -41,8 +41,8 @@ namespace otter::onnx {
     ///
     /// \return An empty value if the triplets are equal. Otherwise
     ///         \c srt::Error::FeatureNotSupported.
-    srt::Expected<void> checkServed(const srt::ContribTriplet &requested,
-                                    const srt::ContribTriplet &served);
+    srt::Expected<void> checkServed(const srt::ContribContractTriplet &requested,
+                                    const srt::ContribContractTriplet &served);
 
     /// Opens the model at \a path through the ONNX driver registered on the unit of \a spec.
     ///

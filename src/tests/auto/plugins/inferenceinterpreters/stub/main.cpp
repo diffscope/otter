@@ -22,7 +22,7 @@ namespace otter::stub {
     class StubPlugin : public srt::InferenceInterpreterPlugin {
     public:
         srt::Expected<std::unique_ptr<srt::ContribInterpreter>>
-            create(const srt::ContribTriplet &triplet) override {
+            create(const srt::ContribContractTriplet &triplet) override {
             if (triplet.variant() != VARIANT) {
                 return srt::Error(srt::Error::FeatureNotSupported,
                                   "this plugin serves only the stub variant");

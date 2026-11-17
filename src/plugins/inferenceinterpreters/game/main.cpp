@@ -17,10 +17,10 @@ namespace otter::game {
     class GamePlugin : public srt::InferenceInterpreterPlugin {
     public:
         srt::Expected<std::unique_ptr<srt::ContribInterpreter>>
-            create(const srt::ContribTriplet &triplet) override {
+            create(const srt::ContribContractTriplet &triplet) override {
             if (auto served = otter::onnx::checkServed(
-                    triplet,
-                    srt::ContribTriplet(NoteApi::API_INTERFACE, NoteApi::API_LEVEL, VARIANT));
+                    triplet, srt::ContribContractTriplet(NoteApi::API_INTERFACE, NoteApi::API_LEVEL,
+                                                         VARIANT));
                 !served) {
                 return served.takeError();
             }
