@@ -39,3 +39,5 @@ add_subdirectory(util)
 add_subdirectory(Api)
 
 add_subdirectory(plugins)
+
+add_subdirectory(Core)
