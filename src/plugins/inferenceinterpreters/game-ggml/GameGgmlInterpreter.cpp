@@ -24,6 +24,7 @@
 #include <filesystem>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -31,6 +32,7 @@
 #include <utility>
 #include <vector>
 
+#include <stdcorelib/support/popen.h>
 
 #include <synthrt/Support/Expected.h>
 #include <synthrt/Support/Json.h>
@@ -40,15 +42,14 @@
 #include <otter/Analysis/Provider/AnalysisInterpreter.h>
 #include <otter/Api/Note/1/NoteApiL1.h>
 #include <analysisutil/ManifestValues.h>
-
-#include <ggmlutil/CliProcess.h>
+#include <ggmlutil/EnginePipe.h>
 
 namespace NoteApi = otter::Api::Note::L1;
 namespace CommonApi = otter::Api::Common::L1;
 
 namespace otter::gameGgml {
-    namespace {
 
+    namespace {
 
         /// Knob values used if the declaration does not honor the corresponding knob. They are the
         /// engine's own defaults, stated in the contract's units: the radius counts frames inside
@@ -303,15 +304,18 @@ namespace otter::gameGgml {
                 // task.
                 (void) stop();
                 (void) waitForFinished();
-                m_serve.terminate();
+                terminateEngine();
             }
 
             /// Requests cancellation and also kills the engine, because the request frame in flight
-            /// is what a stopped execution is blocked on. The handle and the pipes are reaped by
+            /// is what a stopped execution is blocked on. The process and its pipes are reaped by
             /// the execution thread, which is the only thread that owns them.
             srt::Expected<void> stop() override {
                 (void) NoteExecutive::stop();
-                (void) m_serve.requestCancel();
+                std::lock_guard lock(m_serveLock);
+                if (m_serve) {
+                    (void) m_serve->kill();
+                }
                 return srt::Expected<void>();
             }
 
@@ -388,28 +392,48 @@ namespace otter::gameGgml {
             // The process of a cancelled execution is terminated, so an analyzer that was stopped
             // simply relaunches its engine here; the model load is the engine's own business.
             srt::Expected<void> ensureEngine() {
-                if (m_serve.alive()) {
-                    return srt::Expected<void>();
+                {
+                    std::lock_guard lock(m_serveLock);
+                    if (m_serve && !m_serve->poll()) {
+                        return srt::Expected<void>();
+                    }
                 }
+                terminateEngine();
                 m_ready = false;
-                auto spawned = m_serve.start(
-                    {m_configuration.cli.string(), "serve", m_configuration.model.string()});
-                if (!spawned) {
-                    return spawned.takeError();
+
+                auto process = std::make_unique<stdc::Popen>();
+                process
+                    ->args({m_configuration.cli.string(), "serve", m_configuration.model.string()})
+                    .standardInput(stdc::Popen::Pipe)
+                    .standardOutput(stdc::Popen::Pipe);
+                otter::ggml::prepareEngine(*process);
+                if (!process->start()) {
+                    return srt::Error(process->errorCode(),
+                                      "cannot spawn the game CLI: " + process->errorMessage());
                 }
-                auto line = m_serve.readLine();
-                if (!line) {
-                    m_serve.terminate();
+                {
+                    // A stop that arrived before the engine existed had nothing to kill, so the
+                    // engine of a cancelled execution is killed as soon as it is held.
+                    std::lock_guard lock(m_serveLock);
+                    m_serve = std::move(process);
+                    if (cancelled()) {
+                        (void) m_serve->kill();
+                    }
+                }
+
+                std::string line;
+                if (!otter::ggml::readLineFromEngine(m_serve->standardOutput(), line)) {
+                    terminateEngine();
                     return srt::Error(otter::AnalysisError::ModelFailed,
                                       "the game CLI closed its output before announcing readiness");
                 }
-                auto response = parseServeResponse(line.take());
+                auto response = parseServeResponse(line);
                 if (!response) {
-                    m_serve.terminate();
+                    terminateEngine();
                     return response.takeError();
                 }
                 if (!response->ready) {
-                    m_serve.terminate();
+                    terminateEngine();
                     return srt::Error(otter::AnalysisError::ModelFailed,
                                       "the game CLI failed to load its model: " +
                                           response->message);
@@ -431,18 +455,20 @@ namespace otter::gameGgml {
                     return engine.takeError();
                 }
                 const auto request = serveRequestHeader(languageId, settings, waveform.size());
-                auto written = m_serve.write(request.data(), request.size());
+                auto &input = m_serve->standardInput();
+                bool written = otter::ggml::writeToEngine(input, request.data(), request.size());
                 if (written) {
-                    written = m_serve.write(waveform.data(), waveform.size() * sizeof(float));
+                    written = otter::ggml::writeToEngine(input, waveform.data(),
+                                                         waveform.size() * sizeof(float));
                 }
                 if (!written) {
                     return processLost("cannot hand the span to the game CLI");
                 }
-                auto line = m_serve.readLine();
-                if (!line) {
+                std::string line;
+                if (!otter::ggml::readLineFromEngine(m_serve->standardOutput(), line)) {
                     return processLost("the game CLI closed its output before answering");
                 }
-                auto response = parseServeResponse(line.take());
+                auto response = parseServeResponse(line);
                 if (!response) {
                     return response.takeError();
                 }
@@ -456,7 +482,7 @@ namespace otter::gameGgml {
             // Reports the loss of the engine process, as a cancellation when one was requested and
             // as a model failure otherwise.
             srt::Error processLost(const std::string &what) {
-                m_serve.terminate();
+                terminateEngine();
                 if (cancelled()) {
                     return otter::cancelledError();
                 }
@@ -482,17 +508,31 @@ namespace otter::gameGgml {
                 return result;
             }
 
+            // Releases the engine, whose destructor kills a process still running and waits for it.
+            // The process is taken out under the lock, so a stop that follows finds nothing to
+            // kill.
+            void terminateEngine() {
+                std::unique_ptr<stdc::Popen> process;
+                {
+                    std::lock_guard lock(m_serveLock);
+                    process = std::move(m_serve);
+                }
+            }
+
             // Spawned on demand and held for the lifetime of the analyzer, so the model loads once
-            // no matter how many spans the host transcribes.
-            otter::cli::Process m_serve;
+            // no matter how many spans the host transcribes. The execution thread alone starts,
+            // replaces and releases the process and reads and writes its pipes. stop() kills it
+            // from another thread. m_serveLock serializes the calls of stdc::Popen, which
+            // synchronizes none of them, and is not held across a read or a write of a pipe, which
+            // the kill of a stop ends.
+            std::unique_ptr<stdc::Popen> m_serve;
+            std::mutex m_serveLock;
             bool m_ready = false;
 
             // Owned by the spec, which outlives every executive created from it.
             const GameGgmlConfiguration &m_configuration;
             const NoteApi::NoteSchema &m_schema;
         };
-
-        /// Spawns the engine on demand and hands out analyzers.
 
         // The engine and the model are files the declaration names. A package whose files are
         // missing is one that cannot run, however sound its declaration looks, and the refusal

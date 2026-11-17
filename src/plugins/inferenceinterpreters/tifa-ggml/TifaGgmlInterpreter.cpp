@@ -25,12 +25,15 @@
 #include <filesystem>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <system_error>
 #include <utility>
 #include <vector>
 
+#include <stdcorelib/support/popen.h>
 
 #include <synthrt/Support/Expected.h>
 #include <synthrt/Support/Json.h>
@@ -41,13 +44,14 @@
 #include <otter/Api/Align/1/AlignApiL1.h>
 #include <analysisutil/ManifestValues.h>
 
-#include <ggmlutil/CliProcess.h>
+#include <ggmlutil/EngineFiles.h>
+#include <ggmlutil/EnginePipe.h>
 
 namespace AlignApi = otter::Api::Align::L1;
 
 namespace otter::tifaGgml {
-    namespace {
 
+    namespace {
 
         /// The name the span travels under inside the scratch directory. The tool names its outputs
         /// after the audio file, so the fixed stem is what tells the provider where the TextGrid
@@ -215,11 +219,14 @@ namespace otter::tifaGgml {
             }
 
             /// Requests cancellation and also kills the running tool, because the tool call is what
-            /// a stopped execution is blocked on. The handle and the pipes are reaped by the
-            /// execution thread, which is the only thread that owns them.
+            /// a stopped execution is blocked on. The process is reaped by the execution thread,
+            /// which is the only thread that owns it.
             srt::Expected<void> stop() override {
                 (void) AlignExecutive::stop();
-                (void) m_active.requestCancel();
+                std::lock_guard lock(m_activeLock);
+                if (m_active) {
+                    (void) m_active->kill();
+                }
                 return srt::Expected<void>();
             }
 
@@ -351,15 +358,15 @@ namespace otter::tifaGgml {
             srt::Expected<GridTiers> align(const otter::PreparedSamples &waveform,
                                            const std::string &lyrics,
                                            const std::string &engineCode) {
-                auto scratch = otter::cli::makeScratchDirectory("otter-tifa-ggml");
+                auto scratch = otter::ggml::makeScratchDirectory("otter-tifa-ggml");
                 if (!scratch) {
                     return scratch.takeError();
                 }
                 const auto directory = scratch.take();
                 const auto spanFile = directory / (std::string(SPAN_STEM) + ".wav");
                 const auto lyricsFile = directory / "lyrics.txt";
-                auto wrote = otter::cli::writeWav(spanFile, {waveform.begin(), waveform.end()},
-                                                  m_schema.sampleRate);
+                auto wrote = otter::ggml::writeWav(spanFile, {waveform.begin(), waveform.end()},
+                                                   m_schema.sampleRate);
                 if (wrote) {
                     wrote = [&] {
                         std::FILE *file = std::fopen(lyricsFile.string().c_str(), "wb");
@@ -373,7 +380,7 @@ namespace otter::tifaGgml {
                     }();
                 }
                 if (!wrote) {
-                    otter::cli::removeScratchDirectory(directory);
+                    otter::ggml::removeScratchDirectory(directory);
                     return wrote.takeError();
                 }
 
@@ -391,23 +398,16 @@ namespace otter::tifaGgml {
                 commandLine.insert(commandLine.end(),
                                    {"--skip-handling", "omit", "--output-formats", "textgrid", "-o",
                                     directory.string()});
-                auto spawned = m_active.start(commandLine);
-                if (spawned) {
-                    auto code = m_active.wait();
-                    if (!code) {
-                        spawned = code.takeError();
-                    } else if (code.take() != 0) {
-                        spawned =
-                            srt::Error(otter::AnalysisError::ModelFailed,
-                                       "the tifa CLI exited with an error; its notes are on the "
-                                       "host's standard error");
-                    }
+                srt::Expected<void> spawned;
+                if (auto code = runTool(commandLine); !code) {
+                    spawned = code.takeError();
+                } else if (code.take() != 0) {
+                    spawned = srt::Error(otter::AnalysisError::ModelFailed,
+                                         "the tifa CLI exited with an error; its notes are on the "
+                                         "host's standard error");
                 }
-                // The pipes are reaped here, on the thread that owns them, whether the tool
-                // finished, failed or was killed by a stop.
-                m_active.terminate();
                 if (!spawned) {
-                    otter::cli::removeScratchDirectory(directory);
+                    otter::ggml::removeScratchDirectory(directory);
                     if (cancelled()) {
                         return otter::cancelledError();
                     }
@@ -415,7 +415,7 @@ namespace otter::tifaGgml {
                 }
 
                 auto tiers = readTextGrid(directory / (std::string(SPAN_STEM) + ".TextGrid"));
-                otter::cli::removeScratchDirectory(directory);
+                otter::ggml::removeScratchDirectory(directory);
                 return tiers;
             }
 
@@ -542,17 +542,69 @@ namespace otter::tifaGgml {
                 return placed;
             }
 
-            // The tool of the execution in flight, if any. Every execution starts it and reaps it
-            // on its own thread, and a stop from another thread reaches it through requestCancel()
-            // only.
-            otter::cli::Process m_active;
+            // Runs the tool to its end and returns its exit code, which a kill of a stop ends as
+            // well. The process is reaped on this thread, whether the tool finished, failed or was
+            // killed.
+            srt::Expected<int> runTool(const std::vector<std::string> &commandLine) {
+                auto process = std::make_unique<stdc::Popen>();
+                process->args(commandLine)
+                    .standardInput(stdc::Popen::DeviceNull)
+                    .standardOutput(stdc::Popen::DeviceNull);
+                otter::ggml::prepareEngine(*process);
+                if (!process->start()) {
+                    return srt::Error(process->errorCode(),
+                                      "cannot spawn the tifa CLI: " + process->errorMessage());
+                }
+                {
+                    // A stop that arrived before the tool existed had nothing to kill, so the tool
+                    // of a cancelled execution is killed as soon as it is held.
+                    std::lock_guard lock(m_activeLock);
+                    m_active = std::move(process);
+                    if (cancelled()) {
+                        (void) m_active->kill();
+                    }
+                }
+
+                // The wait is made in slices, each under the lock, so that a stop takes the lock
+                // between two slices to kill the tool.
+                std::optional<int> code;
+                std::error_code failure;
+                while (!code && !failure) {
+                    std::lock_guard lock(m_activeLock);
+                    if (m_active->wait(WaitSlice)) {
+                        code = m_active->returnCode();
+                    } else if (m_active->errorCode() &&
+                               m_active->errorCode() != std::errc::timed_out) {
+                        failure = m_active->errorCode();
+                    }
+                }
+
+                std::unique_ptr<stdc::Popen> finished;
+                {
+                    std::lock_guard lock(m_activeLock);
+                    finished = std::move(m_active);
+                }
+                if (!code) {
+                    return srt::Error(failure,
+                                      "cannot wait for the tifa CLI: " + finished->errorMessage());
+                }
+                return *code;
+            }
+
+            // The length in milliseconds of one slice of the wait for the tool, which bounds how
+            // long a stop waits for the lock.
+            static constexpr int WaitSlice = 50;
+
+            // The tool of the execution in flight, if any. The execution thread alone starts and
+            // reaps it. stop() kills it from another thread. m_activeLock serializes the calls of
+            // stdc::Popen, which synchronizes none of them.
+            std::unique_ptr<stdc::Popen> m_active;
+            std::mutex m_activeLock;
 
             // Owned by the spec, which outlives every executive created from it.
             const TifaGgmlConfiguration &m_configuration;
             const AlignApi::AlignSchema &m_schema;
         };
-
-        /// Checks the files of a package and hands out analyzers.
 
         // The engine and the model are files the declaration names. A package whose files are
         // missing is one that cannot run, however sound its declaration looks, and the refusal
