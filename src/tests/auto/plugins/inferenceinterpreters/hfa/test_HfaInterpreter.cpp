@@ -16,11 +16,17 @@
 #include <string>
 #include <vector>
 
+#include <stdcorelib/plugin/plugin.h>
+
 #include <synthrt/SVS/InferenceContrib.h>
 #include <synthrt/Support/Json.h>
+#include <synthrt/SVS/InferenceInterpreterPlugin.h>
 
 #include <otter/Analysis/AnalysisError.h>
 #include <otter/Api/Align/1/AlignApiL1.h>
+
+#include <onnxutil/OnnxSupport.h>
+#include <hfa/HfaInterpreter.h>
 
 #define BOOST_TEST_MAIN
 #include <boost/test/unit_test.hpp>
@@ -30,6 +36,30 @@
 namespace fs = std::filesystem;
 namespace AlignApi = otter::Api::Align::L1;
 namespace CommonApi = otter::Api::Common::L1;
+
+namespace {
+
+    /// The plugin that main.cpp of hfa declares, around the interpreter that this test
+    /// links. The test registers it as a static plugin with the plugin.json of hfa, so that
+    /// discovery selects this class rather than the library in the plugin tree.
+    class HfaPlugin : public srt::InferenceInterpreterPlugin {
+    public:
+        srt::Expected<std::unique_ptr<srt::ContribInterpreter>>
+            create(const srt::ContribTriplet &triplet) override {
+            if (auto served = otter::onnx::checkServed(
+                    triplet, srt::ContribTriplet(AlignApi::API_INTERFACE, AlignApi::API_LEVEL,
+                                                 otter::hfa::VARIANT));
+                !served) {
+                return served.takeError();
+            }
+            return std::unique_ptr<srt::ContribInterpreter>(new otter::hfa::HfaInterpreter());
+        }
+    };
+
+}
+
+STDC_EXPORT_STATIC_PLUGIN(HfaPlugin, srt::InferenceInterpreterPlugin::IID,
+                          otter::test::pluginManifest())
 
 namespace {
 
@@ -134,9 +164,9 @@ namespace {
 
 BOOST_TEST_GLOBAL_FIXTURE(FixturesOrSkip);
 
-BOOST_AUTO_TEST_SUITE(test_Hfa)
+BOOST_AUTO_TEST_SUITE(test_HfaInterpreter)
 
-BOOST_AUTO_TEST_CASE(test_Hfa_ReportsWhatTheDeclarationExports) {
+BOOST_AUTO_TEST_CASE(test_HfaInterpreter_ReportsWhatTheDeclarationExports) {
     Host host;
     auto spec = host.load();
     auto schema = spec->exports()->as<AlignApi::AlignSchema>();
@@ -169,7 +199,7 @@ BOOST_AUTO_TEST_CASE(test_Hfa_ReportsWhatTheDeclarationExports) {
     BOOST_CHECK_CLOSE(schema->gapFill.defaultValue, 0.1, 1e-9);
 }
 
-BOOST_AUTO_TEST_CASE(test_Hfa_PlacesTheWordsTheLyricsName) {
+BOOST_AUTO_TEST_CASE(test_HfaInterpreter_PlacesTheWordsTheLyricsName) {
     Host host;
     auto analyzer = host.open();
     const auto schedule = readSchedule();
@@ -259,7 +289,7 @@ BOOST_AUTO_TEST_CASE(test_Hfa_PlacesTheWordsTheLyricsName) {
     BOOST_CHECK_EQUAL(analyzer->state(), srt::ITask::Succeeded);
 }
 
-BOOST_AUTO_TEST_CASE(test_Hfa_SendsTheKnobsToTheDecoder) {
+BOOST_AUTO_TEST_CASE(test_HfaInterpreter_SendsTheKnobsToTheDecoder) {
     Host host;
     auto analyzer = host.open();
     const auto schedule = readSchedule();
@@ -329,7 +359,7 @@ BOOST_AUTO_TEST_CASE(test_Hfa_SendsTheKnobsToTheDecoder) {
     BOOST_CHECK_EQUAL(breaths(*run(threshold)), 0u);
 }
 
-BOOST_AUTO_TEST_CASE(test_Hfa_RefusesWhatItCannotHonor) {
+BOOST_AUTO_TEST_CASE(test_HfaInterpreter_RefusesWhatItCannotHonor) {
     Host host;
     auto analyzer = host.open();
 
@@ -403,7 +433,7 @@ BOOST_AUTO_TEST_CASE(test_Hfa_RefusesWhatItCannotHonor) {
 /// property that the declaration contradicts. The provider reads the model's own files at load
 /// time, so the rejection occurs where the declaration and the model's files are both available
 /// instead of after a run whose wrong result cannot be detected.
-BOOST_AUTO_TEST_CASE(test_Hfa_RefusesDeclarationsItsModelCannotHonor) {
+BOOST_AUTO_TEST_CASE(test_HfaInterpreter_RefusesDeclarationsItsModelCannotHonor) {
     Host host;
 
     const auto refused = [&host](const char *name) { return host.refusal(name); };
@@ -442,7 +472,7 @@ BOOST_AUTO_TEST_CASE(test_Hfa_RefusesDeclarationsItsModelCannotHonor) {
 /// audio that a host prepares and the provider would silently reduce. No file of the model's own
 /// can contradict the declaration here - the three the load reads are the fixture's own - so what
 /// refuses the package is the variant's own limit, checked where the declaration is read.
-BOOST_AUTO_TEST_CASE(test_Hfa_RefusesADeclarationOfTwoChannels) {
+BOOST_AUTO_TEST_CASE(test_HfaInterpreter_RefusesADeclarationOfTwoChannels) {
     Host host;
     const auto refusal = host.refusalError("fixture-align-two-channels");
     BOOST_CHECK(refusal.code() == srt::Error::InvalidFormat);
@@ -454,7 +484,7 @@ BOOST_AUTO_TEST_CASE(test_Hfa_RefusesADeclarationOfTwoChannels) {
 /// The reference assumes that the separator is class zero. The released vocabulary satisfies this
 /// assumption, but the provider reads the class from the vocabulary, so a model with a different
 /// numbering decodes identically.
-BOOST_AUTO_TEST_CASE(test_Hfa_FindsTheSeparatorThroughTheVocabulary) {
+BOOST_AUTO_TEST_CASE(test_HfaInterpreter_FindsTheSeparatorThroughTheVocabulary) {
     Host host;
     const auto schedule = readSchedule();
     auto spec = host.load("fixture-align-reordered");
@@ -478,7 +508,7 @@ BOOST_AUTO_TEST_CASE(test_Hfa_FindsTheSeparatorThroughTheVocabulary) {
 
 /// No word fits in less than one frame, and an empty result would be indistinguishable from "none
 /// of the lyrics was sung", so audio shorter than one frame is rejected as an invalid argument.
-BOOST_AUTO_TEST_CASE(test_Hfa_RefusesAudioShorterThanAFrame) {
+BOOST_AUTO_TEST_CASE(test_HfaInterpreter_RefusesAudioShorterThanAFrame) {
     Host host;
     auto analyzer = host.open();
 
@@ -495,13 +525,13 @@ BOOST_AUTO_TEST_CASE(test_Hfa_RefusesAudioShorterThanAFrame) {
 /// result, and it does not carry over to the next execution. The stop is requested from the
 /// progress callback, which the provider calls on the executing thread, so the timing is not left
 /// to a race with a model that takes milliseconds.
-BOOST_AUTO_TEST_CASE(test_Hfa_ReportsACancellation) {
+BOOST_AUTO_TEST_CASE(test_HfaInterpreter_ReportsACancellation) {
     Host host;
     auto analyzer = host.open();
 
     // These are the milestones the provider reports before the graph, after it and after the
-    // non-speech insert (hfa/main.cpp:389, 405 and 430). A milestone that moves makes the run
-    // succeed, so the case fails on the missing cancellation instead of passing silently.
+    // non-speech insert (the executive in hfa/HfaInterpreter.cpp). A milestone that moves makes the
+    // run succeed, so the case fails on the missing cancellation instead of passing silently.
     for (const double at : {0.0, 0.5, 0.85}) {
         AlignApi::AlignStartInput input;
         lyrics(input, "a b");

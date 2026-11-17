@@ -11,10 +11,16 @@
 #include <string>
 #include <vector>
 
+#include <stdcorelib/plugin/plugin.h>
+
 #include <synthrt/SVS/InferenceContrib.h>
+#include <synthrt/SVS/InferenceInterpreterPlugin.h>
 
 #include <otter/Analysis/AnalysisError.h>
 #include <otter/Api/Note/1/NoteApiL1.h>
+
+#include <onnxutil/OnnxSupport.h>
+#include <game/GameInterpreter.h>
 
 #define BOOST_TEST_MAIN
 #include <boost/test/unit_test.hpp>
@@ -23,6 +29,30 @@
 
 namespace NoteApi = otter::Api::Note::L1;
 namespace CommonApi = otter::Api::Common::L1;
+
+namespace {
+
+    /// The plugin that main.cpp of game declares, around the interpreter that this test
+    /// links. The test registers it as a static plugin with the plugin.json of game, so that
+    /// discovery selects this class rather than the library in the plugin tree.
+    class GamePlugin : public srt::InferenceInterpreterPlugin {
+    public:
+        srt::Expected<std::unique_ptr<srt::ContribInterpreter>>
+            create(const srt::ContribTriplet &triplet) override {
+            if (auto served = otter::onnx::checkServed(
+                    triplet, srt::ContribTriplet(NoteApi::API_INTERFACE, NoteApi::API_LEVEL,
+                                                 otter::game::VARIANT));
+                !served) {
+                return served.takeError();
+            }
+            return std::unique_ptr<srt::ContribInterpreter>(new otter::game::GameInterpreter());
+        }
+    };
+
+}
+
+STDC_EXPORT_STATIC_PLUGIN(GamePlugin, srt::InferenceInterpreterPlugin::IID,
+                          otter::test::pluginManifest())
 
 namespace {
 
@@ -73,9 +103,9 @@ namespace {
 
 BOOST_TEST_GLOBAL_FIXTURE(FixturesOrSkip);
 
-BOOST_AUTO_TEST_SUITE(test_Game)
+BOOST_AUTO_TEST_SUITE(test_GameInterpreter)
 
-BOOST_AUTO_TEST_CASE(test_Game_ReportsWhatTheDeclarationExports) {
+BOOST_AUTO_TEST_CASE(test_GameInterpreter_ReportsWhatTheDeclarationExports) {
     Host host;
     auto spec = host.load();
     auto schema = spec->exports()->as<NoteApi::NoteSchema>();
@@ -92,7 +122,7 @@ BOOST_AUTO_TEST_CASE(test_Game_ReportsWhatTheDeclarationExports) {
     BOOST_CHECK_CLOSE(schema->boundaryRadius.defaultValue, 0.2, 1e-9);
 }
 
-BOOST_AUTO_TEST_CASE(test_Game_ChainsTheStagesAndPlacesNotesInSeconds) {
+BOOST_AUTO_TEST_CASE(test_GameInterpreter_ChainsTheStagesAndPlacesNotesInSeconds) {
     Host host;
     auto analyzer = host.open();
 
@@ -132,7 +162,7 @@ BOOST_AUTO_TEST_CASE(test_Game_ChainsTheStagesAndPlacesNotesInSeconds) {
     BOOST_CHECK_EQUAL(analyzer->state(), srt::ITask::Succeeded);
 }
 
-BOOST_AUTO_TEST_CASE(test_Game_SendsTheKnobsToTheModels) {
+BOOST_AUTO_TEST_CASE(test_GameInterpreter_SendsTheKnobsToTheModels) {
     Host host;
     auto analyzer = host.open();
 
@@ -154,7 +184,7 @@ BOOST_AUTO_TEST_CASE(test_Game_SendsTheKnobsToTheModels) {
     BOOST_CHECK_LT(count(0.2, 0.6), count(0.2, 0.0));
 }
 
-BOOST_AUTO_TEST_CASE(test_Game_AlignsAgainstTheNotesTheCallerKnows) {
+BOOST_AUTO_TEST_CASE(test_GameInterpreter_AlignsAgainstTheNotesTheCallerKnows) {
     Host host;
     auto analyzer = host.open();
 
@@ -197,7 +227,7 @@ BOOST_AUTO_TEST_CASE(test_Game_AlignsAgainstTheNotesTheCallerKnows) {
     }
 }
 
-BOOST_AUTO_TEST_CASE(test_Game_RefusesWhatItCannotHonor) {
+BOOST_AUTO_TEST_CASE(test_GameInterpreter_RefusesWhatItCannotHonor) {
     Host host;
     auto analyzer = host.open();
 
@@ -272,7 +302,7 @@ BOOST_AUTO_TEST_CASE(test_Game_RefusesWhatItCannotHonor) {
 /// refuse these notes: a build that dropped that half of the check would accept them. The same
 /// package transcribes a span without them, which is what tells this refusal apart from a package
 /// that failed to load.
-BOOST_AUTO_TEST_CASE(test_Game_RefusesKnownNotesItDidNotPromise) {
+BOOST_AUTO_TEST_CASE(test_GameInterpreter_RefusesKnownNotesItDidNotPromise) {
     HostWithoutKnownNotes host;
     auto analyzer = host.open();
 
@@ -301,12 +331,12 @@ BOOST_AUTO_TEST_CASE(test_Game_RefusesKnownNotesItDidNotPromise) {
 /// cannot number, or an alignment path declared without the model that performs it, is rejected
 /// at load time, where both blocks are available, instead of being discovered by a failing
 /// execution.
-BOOST_AUTO_TEST_CASE(test_Game_RefusesALanguageTheModelCannotNumber) {
+BOOST_AUTO_TEST_CASE(test_GameInterpreter_RefusesALanguageTheModelCannotNumber) {
     Host host;
     BOOST_CHECK(host.refusal("fixture-note-unnumbered").find("numbering") != std::string::npos);
 }
 
-BOOST_AUTO_TEST_CASE(test_Game_RefusesAnAlignmentPromiseWithoutTheModel) {
+BOOST_AUTO_TEST_CASE(test_GameInterpreter_RefusesAnAlignmentPromiseWithoutTheModel) {
     Host host;
     BOOST_CHECK(host.refusal("fixture-note-no-alignment").find("durationToBoundary") !=
                 std::string::npos);
@@ -316,7 +346,7 @@ BOOST_AUTO_TEST_CASE(test_Game_RefusesAnAlignmentPromiseWithoutTheModel) {
 /// default applies. Exports that list languages without a default leave that case undefined, and
 /// the execution would otherwise run in the language the model numbers zero, which is not a neutral
 /// choice and, in the packages that ship this variant, not a declared language.
-BOOST_AUTO_TEST_CASE(test_Game_RefusesNumberedLanguagesWithoutADefault) {
+BOOST_AUTO_TEST_CASE(test_GameInterpreter_RefusesNumberedLanguagesWithoutADefault) {
     Host host;
     BOOST_CHECK(host.refusal("fixture-note-no-default").find("defaultLanguage") !=
                 std::string::npos);
@@ -326,7 +356,7 @@ BOOST_AUTO_TEST_CASE(test_Game_RefusesNumberedLanguagesWithoutADefault) {
 /// describes audio that a host prepares and the provider would silently reduce before the encoder
 /// saw it. The count is checked where the declaration is read, and no value of the models
 /// contradicts it, which is why the package carries the same four models as the ones above.
-BOOST_AUTO_TEST_CASE(test_Game_RefusesADeclarationOfTwoChannels) {
+BOOST_AUTO_TEST_CASE(test_GameInterpreter_RefusesADeclarationOfTwoChannels) {
     Host host;
     const auto refusal = host.refusalError("fixture-note-two-channels");
     BOOST_CHECK(refusal.code() == srt::Error::InvalidFormat);
@@ -339,14 +369,15 @@ BOOST_AUTO_TEST_CASE(test_Game_RefusesADeclarationOfTwoChannels) {
 /// does not carry over to the next execution. The stop is requested from the progress callback,
 /// which the provider calls on the executing thread after the encoder, so the timing is not left
 /// to a race with models that take milliseconds.
-BOOST_AUTO_TEST_CASE(test_Game_ReportsACancellation) {
+BOOST_AUTO_TEST_CASE(test_GameInterpreter_ReportsACancellation) {
     Host host;
     auto analyzer = host.open();
 
     // The provider's progress milestones are report(0) before the encoder, report(0.3) after it,
-    // and report(0.8) after the boundaries become durations (game/main.cpp). The callback below
-    // stops the execution only where a reported value matches, so renaming a milestone there would
-    // let the execution finish and fail this case as a cancellation that did not happen.
+    // and report(0.8) after the boundaries become durations (game/GameInterpreter.cpp). The
+    // callback below stops the execution only where a reported value matches, so renaming a
+    // milestone there would let the execution finish and fail this case as a cancellation that did
+    // not happen.
     for (const double at : {0.0, 0.3, 0.8}) {
         NoteApi::NoteStartInput input;
         input.audio = tone(1.0);

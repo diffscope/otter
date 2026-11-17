@@ -1,3 +1,4 @@
+set(OTTER_TEST_SKIP_EXIT_CODE 77)
 include("${SYNTHRT_MODULES_DIR}/AddAutoTest.cmake")
 
 # The tests load the library under test, synthrt, its stdcorelib dependencies and, if present,
@@ -30,9 +31,11 @@ endforeach()
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
-add_subdirectory(plugins/stub)
+add_subdirectory(plugins/inferenceinterpreters/stub)
 
 add_subdirectory(Analysis)
 add_subdirectory(util)
 
 add_subdirectory(Api)
+
+add_subdirectory(plugins)

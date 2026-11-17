@@ -8,7 +8,7 @@
 
 #include <synthrt/Support/Expected.h>
 
-#include "Aligner.h" // otter::hfa::Phrase
+#include <hfa/Aligner.h> // otter::hfa::Phrase
 
 namespace otter::hfa {
 

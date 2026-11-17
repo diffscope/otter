@@ -6,7 +6,7 @@
 
 #include <synthrt/Support/Expected.h>
 
-#include "Aligner.h" // otter::hfa::Word
+#include <hfa/Aligner.h> // otter::hfa::Word
 
 namespace otter::hfa {
 

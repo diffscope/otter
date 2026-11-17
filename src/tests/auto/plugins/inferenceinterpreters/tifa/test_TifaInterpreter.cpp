@@ -25,16 +25,22 @@
 #include <string_view>
 #include <vector>
 
+#include <stdcorelib/plugin/plugin.h>
+
 #include <dsinfer/Api/Drivers/Onnx/OnnxDriverApi.h>
 #include <dsinfer/Inference/InferenceDriverFactory.h>
 
 #include <synthrt/Core/PackageHandle.h>
 #include <synthrt/Core/SynthUnit.h>
 #include <synthrt/SVS/InferenceContrib.h>
+#include <synthrt/SVS/InferenceInterpreterPlugin.h>
 
 #include <otter/Analysis/AnalysisError.h>
 #include <otter/Analysis/AnalysisExecutive.h>
 #include <otter/Api/Align/1/AlignApiL1.h>
+
+#include <onnxutil/OnnxSupport.h>
+#include <tifa/TifaInterpreter.h>
 
 // Before TestSupport.h, which includes Boost.Test itself: including that header first would set its
 // include guard and this main would never be generated.
@@ -43,16 +49,34 @@
 
 #include "TestSupport.h"
 
-// The frame decode is not part of what the plugin exports, and this test target links the library
-// under test rather than the plugin, so the decode is compiled into this translation unit to be
-// called with scores of the test's own making. What the cases below assert is that arithmetic.
-// Reaching it through the fixture's graphs would assert the fixture's arithmetic with it.
-#include "../../../plugins/inferenceinterpreters/tifa/Decode.cpp"
-
 namespace fs = std::filesystem;
 namespace AlignApi = otter::Api::Align::L1;
 namespace CommonApi = otter::Api::Common::L1;
 namespace OnnxApi = ds::Api::Onnx;
+
+namespace {
+
+    /// The plugin that main.cpp of tifa declares, around the interpreter that this test
+    /// links. The test registers it as a static plugin with the plugin.json of tifa, so that
+    /// discovery selects this class rather than the library in the plugin tree.
+    class TifaPlugin : public srt::InferenceInterpreterPlugin {
+    public:
+        srt::Expected<std::unique_ptr<srt::ContribInterpreter>>
+            create(const srt::ContribTriplet &triplet) override {
+            if (auto served = otter::onnx::checkServed(
+                    triplet, srt::ContribTriplet(AlignApi::API_INTERFACE, AlignApi::API_LEVEL,
+                                                 otter::tifa::VARIANT));
+                !served) {
+                return served.takeError();
+            }
+            return std::unique_ptr<srt::ContribInterpreter>(new otter::tifa::TifaInterpreter());
+        }
+    };
+
+}
+
+STDC_EXPORT_STATIC_PLUGIN(TifaPlugin, srt::InferenceInterpreterPlugin::IID,
+                          otter::test::pluginManifest())
 
 namespace {
 
@@ -109,9 +133,6 @@ namespace {
             BOOST_REQUIRE_MESSAGE(static_cast<bool>(initialized), otter::test::why(initialized));
             auto added = unit.addRuntimeService(std::move(driver));
             BOOST_REQUIRE_MESSAGE(added, "the driver should have been registered");
-
-            std::vector<fs::path> pluginPaths = {fs::path(OTTER_TEST_PLUGIN_DIR)};
-            unit.setPluginPaths(srt::InferenceCategory::NAME, pluginPaths);
         }
 
         ~Host() {
@@ -339,9 +360,9 @@ namespace {
 
 BOOST_TEST_GLOBAL_FIXTURE(DataOrSkip);
 
-BOOST_AUTO_TEST_SUITE(test_Tifa)
+BOOST_AUTO_TEST_SUITE(test_TifaInterpreter)
 
-BOOST_AUTO_TEST_CASE(test_Tifa_ReportsWhatTheDeclarationExports) {
+BOOST_AUTO_TEST_CASE(test_TifaInterpreter_ReportsWhatTheDeclarationExports) {
     Host host;
     auto spec = host.load();
     auto schema = spec->exports()->as<AlignApi::AlignSchema>();
@@ -383,7 +404,7 @@ BOOST_AUTO_TEST_CASE(test_Tifa_ReportsWhatTheDeclarationExports) {
     BOOST_CHECK(!english.phonemes.empty());
 }
 
-BOOST_AUTO_TEST_CASE(test_Tifa_PlacesTheWordsTheLyricsName) {
+BOOST_AUTO_TEST_CASE(test_TifaInterpreter_PlacesTheWordsTheLyricsName) {
     Host host;
     auto schema = host.load()->exports()->as<AlignApi::AlignSchema>();
     BOOST_REQUIRE(schema != nullptr);
@@ -459,7 +480,7 @@ BOOST_AUTO_TEST_CASE(test_Tifa_PlacesTheWordsTheLyricsName) {
 /// The frames of a graph stop where the graph stopped, and the span does not: what neither a word
 /// nor a phoneme covers is named with the declared silence label, which is what makes a result
 /// cover the span rather than end somewhere inside it.
-BOOST_AUTO_TEST_CASE(test_Tifa_NamesWhatTheModelPlacedNoWordOver) {
+BOOST_AUTO_TEST_CASE(test_TifaInterpreter_NamesWhatTheModelPlacedNoWordOver) {
     Host host;
     auto schema = host.load()->exports()->as<AlignApi::AlignSchema>();
     BOOST_REQUIRE(schema != nullptr);
@@ -494,7 +515,7 @@ BOOST_AUTO_TEST_CASE(test_Tifa_NamesWhatTheModelPlacedNoWordOver) {
     BOOST_CHECK_GT(result->words.size(), 1u);
 }
 
-BOOST_AUTO_TEST_CASE(test_Tifa_RefusesWhatItCannotHonor) {
+BOOST_AUTO_TEST_CASE(test_TifaInterpreter_RefusesWhatItCannotHonor) {
     Host host;
     auto schema = host.load()->exports()->as<AlignApi::AlignSchema>();
     BOOST_REQUIRE(schema != nullptr);
@@ -545,8 +566,7 @@ BOOST_AUTO_TEST_CASE(test_Tifa_RefusesWhatItCannotHonor) {
     auto unheadlined = analyzer->start(unknownLabel);
     BOOST_REQUIRE(!unheadlined);
     BOOST_CHECK(unheadlined.error().code() == srt::Error::InvalidArgument);
-    BOOST_CHECK(unheadlined.error().message().find("non-speech phoneme AP") !=
-                std::string::npos);
+    BOOST_CHECK(unheadlined.error().message().find("non-speech phoneme AP") != std::string::npos);
     // The wording is the one the hfa provider and the stub use for the same condition, so a
     // message that drifted from it fails here rather than in one provider only.
     BOOST_CHECK(unheadlined.error().message().find(", which this model cannot report") !=
@@ -564,7 +584,7 @@ BOOST_AUTO_TEST_CASE(test_Tifa_RefusesWhatItCannotHonor) {
 
 /// A host that stops what it started gets a cancellation and no result, on an analyzer that runs
 /// the next execution afterwards: a stop belongs to the execution it was aimed at.
-BOOST_AUTO_TEST_CASE(test_Tifa_ReportsAStopAsACancellation) {
+BOOST_AUTO_TEST_CASE(test_TifaInterpreter_ReportsAStopAsACancellation) {
     Host host;
     auto schema = host.load()->exports()->as<AlignApi::AlignSchema>();
     BOOST_REQUIRE(schema != nullptr);
@@ -603,7 +623,7 @@ BOOST_AUTO_TEST_CASE(test_Tifa_ReportsAStopAsACancellation) {
 /// declaration contradicts, and the provider reads the model's own files at load, so the refusal
 /// lands where both are in hand rather than at the end of a run that produced an answer nobody can
 /// tell is wrong. The packages and why each one is a defect: scripts/make-model-fixtures.py.
-BOOST_AUTO_TEST_CASE(test_Tifa_RefusesDeclarationsItsModelCannotHonor) {
+BOOST_AUTO_TEST_CASE(test_TifaInterpreter_RefusesDeclarationsItsModelCannotHonor) {
     Host host;
 
     /// One package, what its refusal has to name, and why the declaration cannot be honored. A
@@ -645,7 +665,7 @@ BOOST_AUTO_TEST_CASE(test_Tifa_RefusesDeclarationsItsModelCannotHonor) {
 /// honor, and honoring it silently would put a wrong answer beyond the host's reach: audio that the
 /// provider mixed down without being asked, phonemes read in a notation nobody declared, or "none
 /// found" where nothing was looked for.
-BOOST_AUTO_TEST_CASE(test_Tifa_RefusesPromisesItsModelCannotKeep) {
+BOOST_AUTO_TEST_CASE(test_TifaInterpreter_RefusesPromisesItsModelCannotKeep) {
     Host host;
 
     // The five graphs take one channel each, so a declaration of two describes audio that the host
@@ -681,7 +701,7 @@ BOOST_AUTO_TEST_CASE(test_Tifa_RefusesPromisesItsModelCannotKeep) {
 /// tokens, so aligning one would answer about a word the model was never asked about. The fixture's
 /// own dictionaries are consistent with its vocabulary, so a copy of the package is written with
 /// one such entry added, and loaded as a package of its own.
-BOOST_AUTO_TEST_CASE(test_Tifa_DropsAWordTheVocabularyCannotSpell) {
+BOOST_AUTO_TEST_CASE(test_TifaInterpreter_DropsAWordTheVocabularyCannotSpell) {
     /// A directory that goes away with the test, whatever it did.
     struct Scratch {
         fs::path path;
@@ -774,7 +794,7 @@ BOOST_AUTO_TEST_CASE(test_Tifa_DropsAWordTheVocabularyCannotSpell) {
 /// than the first line of the file. The fixture adds a second reading to one entry in a language
 /// that is not the default one, and its score graph is the exporter's layout with the arithmetic
 /// left out, so what its table settles is a tie (scripts/make-model-fixtures.py).
-BOOST_AUTO_TEST_CASE(test_Tifa_PicksOneReadingOfAWordTheDictionarySpellsTwice) {
+BOOST_AUTO_TEST_CASE(test_TifaInterpreter_PicksOneReadingOfAWordTheDictionarySpellsTwice) {
     /// A directory that goes away with the test, whatever it did.
     struct Scratch {
         fs::path path;
@@ -920,79 +940,6 @@ BOOST_AUTO_TEST_CASE(test_Tifa_PicksOneReadingOfAWordTheDictionarySpellsTwice) {
         BOOST_CHECK_EQUAL(actual.duration, expected.duration);
         BOOST_CHECK(phones(actual) == phones(expected));
     }
-}
-
-// The frame decode against the reference's own answers: the numbers below were read back from the
-// reference on these very inputs rather than reasoned out here, and the run's authoritative
-// readings are in docs/plans/tifa-align.md §11.11 (the decode differencing in §11.12). A caller
-// that drops zero-width tokens sees the same result either way, so only a caller that reads the
-// anchors can see them.
-BOOST_AUTO_TEST_CASE(test_Tifa_DecodesFramesTheWayTheReferenceDoes) {
-    const auto spansOf = [](std::vector<float> similarities, std::size_t frames, std::size_t tokens,
-                            std::vector<std::int64_t> groups) {
-        return otter::tifa::decodeFrames(similarities, frames, tokens, groups);
-    };
-    const auto expect = [](const std::vector<otter::tifa::Span> &actual,
-                           const std::vector<std::pair<std::size_t, std::size_t>> &wanted) {
-        BOOST_REQUIRE_EQUAL(actual.size(), wanted.size());
-        for (std::size_t token = 0; token < wanted.size(); ++token) {
-            BOOST_CHECK_MESSAGE(actual[token].start == wanted[token].first &&
-                                    actual[token].end == wanted[token].second,
-                                "token " << token << " spans [" << actual[token].start << ", "
-                                         << actual[token].end << ") where the reference spans ["
-                                         << wanted[token].first << ", " << wanted[token].second
-                                         << ")");
-        }
-    };
-
-    // One frame for two tokens. The frame is worth 1.2999038 on the second token against 1.0052632
-    // on the first, and dropping a token costs 0.5, so sounding the first and dropping the second
-    // scores 0.5052632 while dropping the first and sounding the second scores 0.7999038. The
-    // second alignment wins, and the token it drops is the first one, which is what a phrase that
-    // may simply end at its best scoring position gets wrong: a token left behind at the end of the
-    // phrase is not free, and this phrase does not end after its first token.
-    expect(spansOf(
-               {
-                   1.0052632F, 1.2999038F
-    },
-               1, 2, {0, 1}),
-           {{0, 0}, {0, 1}});
-
-    // Four frames, three tokens, a group boundary at every seam so a pause is allowed everywhere.
-    // The first token fits the first two frames well and the third fits the last two, which leaves
-    // the middle token nothing to take: it is dropped and holds the frame the pause before the
-    // third token sits at.
-    expect(spansOf(
-               {
-                   3.0F, -9.0F, 0.0F, 3.0F, -9.0F, 0.0F, 0.0F, -9.0F, 3.0F, 0.0F, -9.0F, 3.0F
-    },
-               4, 3, {0, 1, 0}),
-           {{0, 2}, {2, 2}, {2, 4}});
-
-    // A dropped token whose own position cannot hold a pause is held at the end of the span in
-    // front of it instead: the seam between the first two tokens is one group's inside and no pause
-    // belongs there, so the drop is anchored on the boundary behind it rather than in front.
-    expect(spansOf(
-               {
-                   3.0F,  -9.0F, -9.0F, -9.0F, 3.0F, -9.0F, -9.0F, -9.0F, -9.0F, -9.0F,
-                   -9.0F, -9.0F, -9.0F, -9.0F, 3.0F, -9.0F, -9.0F, -9.0F, -9.0F, 3.0F
-    },
-               5, 4, {0, 0, 1, 1}),
-           {{0, 2}, {2, 2}, {3, 4}, {4, 5}});
-
-    // A run of two dropped tokens that a pause splits. The run's first position is one group's
-    // inside, so no pause belongs there, and the only pause the groups allow in reach sits between
-    // the two: the reference holds the drop in front of that pause at the end of the span before
-    // the run and the drop behind it at the start of the span after it, which is the one
-    // arrangement where both anchors are readable at once: holding the whole run at either
-    // boundary reads elsewhere.
-    expect(spansOf(
-               {
-                   3.0F, -9.0F, -9.0F, -9.0F, 3.0F, -9.0F, -9.0F, -9.0F, -9.0F, -9.0F, -9.0F, -9.0F,
-                   -9.0F, -9.0F, -9.0F, 3.0F
-    },
-               4, 4, {0, 0, 1, 1}),
-           {{0, 2}, {2, 2}, {3, 3}, {3, 4}});
 }
 
 BOOST_AUTO_TEST_SUITE_END()

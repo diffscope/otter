@@ -10,10 +10,16 @@
 #include <string>
 #include <vector>
 
+#include <stdcorelib/plugin/plugin.h>
+
 #include <synthrt/SVS/InferenceContrib.h>
+#include <synthrt/SVS/InferenceInterpreterPlugin.h>
 
 #include <otter/Analysis/AnalysisError.h>
 #include <otter/Api/F0/1/F0ApiL1.h>
+
+#include <onnxutil/OnnxSupport.h>
+#include <rmvpe/RmvpeInterpreter.h>
 
 #define BOOST_TEST_MAIN
 #include <boost/test/unit_test.hpp>
@@ -22,6 +28,30 @@
 
 namespace F0Api = otter::Api::F0::L1;
 namespace CommonApi = otter::Api::Common::L1;
+
+namespace {
+
+    /// The plugin that main.cpp of rmvpe declares, around the interpreter that this test
+    /// links. The test registers it as a static plugin with the plugin.json of rmvpe, so that
+    /// discovery selects this class rather than the library in the plugin tree.
+    class RmvpePlugin : public srt::InferenceInterpreterPlugin {
+    public:
+        srt::Expected<std::unique_ptr<srt::ContribInterpreter>>
+            create(const srt::ContribTriplet &triplet) override {
+            if (auto served = otter::onnx::checkServed(
+                    triplet, srt::ContribTriplet(F0Api::API_INTERFACE, F0Api::API_LEVEL,
+                                                 otter::rmvpe::VARIANT));
+                !served) {
+                return served.takeError();
+            }
+            return std::unique_ptr<srt::ContribInterpreter>(new otter::rmvpe::RmvpeInterpreter());
+        }
+    };
+
+}
+
+STDC_EXPORT_STATIC_PLUGIN(RmvpePlugin, srt::InferenceInterpreterPlugin::IID,
+                          otter::test::pluginManifest())
 
 namespace {
 
@@ -51,9 +81,9 @@ namespace {
 
 BOOST_TEST_GLOBAL_FIXTURE(FixturesOrSkip);
 
-BOOST_AUTO_TEST_SUITE(test_Rmvpe)
+BOOST_AUTO_TEST_SUITE(test_RmvpeInterpreter)
 
-BOOST_AUTO_TEST_CASE(test_Rmvpe_RunsTheModelAndAnchorsTheCurve) {
+BOOST_AUTO_TEST_CASE(test_RmvpeInterpreter_RunsTheModelAndAnchorsTheCurve) {
     Host host;
     auto analyzer = host.open();
 
@@ -85,7 +115,7 @@ BOOST_AUTO_TEST_CASE(test_Rmvpe_RunsTheModelAndAnchorsTheCurve) {
     BOOST_CHECK_EQUAL(analyzer->state(), srt::ITask::Succeeded);
 }
 
-BOOST_AUTO_TEST_CASE(test_Rmvpe_SendsTheThresholdToTheModel) {
+BOOST_AUTO_TEST_CASE(test_RmvpeInterpreter_SendsTheThresholdToTheModel) {
     Host host;
     auto analyzer = host.open();
 
@@ -108,7 +138,7 @@ BOOST_AUTO_TEST_CASE(test_Rmvpe_SendsTheThresholdToTheModel) {
     BOOST_CHECK_LT(voicedCount(0.1), voicedCount(0.5));
 }
 
-BOOST_AUTO_TEST_CASE(test_Rmvpe_InterpolationFillsWhatTheFlagLeavesOut) {
+BOOST_AUTO_TEST_CASE(test_RmvpeInterpreter_InterpolationFillsWhatTheFlagLeavesOut) {
     Host host;
     auto analyzer = host.open();
 
@@ -143,7 +173,7 @@ BOOST_AUTO_TEST_CASE(test_Rmvpe_InterpolationFillsWhatTheFlagLeavesOut) {
     BOOST_CHECK(sawFilled);
 }
 
-BOOST_AUTO_TEST_CASE(test_Rmvpe_DownmixesButRefusesToResample) {
+BOOST_AUTO_TEST_CASE(test_RmvpeInterpreter_DownmixesButRefusesToResample) {
     Host host;
     auto analyzer = host.open();
 
@@ -168,7 +198,7 @@ BOOST_AUTO_TEST_CASE(test_Rmvpe_DownmixesButRefusesToResample) {
 /// The graph is built for one rate and one hop. A declaration that states other values would make
 /// the host prepare audio that the model then misplaces, so the declaration is rejected at load
 /// time.
-BOOST_AUTO_TEST_CASE(test_Rmvpe_RefusesADeclarationTheModelCannotHonor) {
+BOOST_AUTO_TEST_CASE(test_RmvpeInterpreter_RefusesADeclarationTheModelCannotHonor) {
     Host host;
     BOOST_CHECK(host.refusal("fixture-rmvpe-wrong-rate").find("16000") != std::string::npos);
 }
@@ -177,7 +207,7 @@ BOOST_AUTO_TEST_CASE(test_Rmvpe_RefusesADeclarationTheModelCannotHonor) {
 /// audio that a host prepares and the provider would silently reduce, so the count is checked where
 /// the declaration is read. No value of the graph itself could contradict the declaration here,
 /// which is why this package writes the same graph as the good fixture.
-BOOST_AUTO_TEST_CASE(test_Rmvpe_RefusesADeclarationOfTwoChannels) {
+BOOST_AUTO_TEST_CASE(test_RmvpeInterpreter_RefusesADeclarationOfTwoChannels) {
     Host host;
     const auto refusal = host.refusalError("fixture-rmvpe-two-channels");
     BOOST_CHECK(refusal.code() == srt::Error::InvalidFormat);
@@ -190,14 +220,15 @@ BOOST_AUTO_TEST_CASE(test_Rmvpe_RefusesADeclarationOfTwoChannels) {
 /// carry over to the next execution. The stop is requested from the progress callback, which the
 /// provider calls on the executing thread before the model runs, so the timing is not left to a
 /// race with a model that takes milliseconds.
-BOOST_AUTO_TEST_CASE(test_Rmvpe_ReportsACancellation) {
+BOOST_AUTO_TEST_CASE(test_RmvpeInterpreter_ReportsACancellation) {
     Host host;
     auto analyzer = host.open();
 
     F0Api::F0StartInput input;
     input.audio = tone(1.0);
     input.progress = [&analyzer](double value) {
-        // Zero is the report that the provider makes before the model runs (rmvpe/main.cpp:96).
+        // Zero is the report that the provider makes before the model runs (the executive in
+        // rmvpe/RmvpeInterpreter.cpp).
         if (value == 0) {
             (void) analyzer->stop();
         }

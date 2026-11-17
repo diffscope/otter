@@ -112,8 +112,6 @@ namespace otter::test {
     /// registers, so the unit searches no plugin directory of the inference category.
     struct ModelHost {
         ModelHost() {
-            std::vector<std::filesystem::path> pluginPaths = {std::filesystem::path(OTTER_TEST_PLUGIN_DIR)};
-            unit.setPluginPaths(srt::InferenceCategory::NAME, pluginPaths);
             std::vector<std::filesystem::path> driverPaths = {
                 std::filesystem::path(OTTER_TEST_DRIVER_PLUGIN_DIR)};
             factory.setPluginPaths(driverPaths);

@@ -68,25 +68,50 @@ endfunction()
 # built: packages still load, and only analyzer execution is unavailable. synthrt degrades in the
 # same way without its own driver.
 if(OTTER_HAS_DSINFER)
+    include("${SYNTHRT_MODULES_DIR}/AddPlugin.cmake")
+    synthrt_add_plugin_objects(otterrmvpe DIRECTORY rmvpe
+        FEATURES cxx_std_17
+        LINKS synthrt-otter
+        LINKS_PRIVATE analysisutil onnxutil synthrt::dsinfer
+        INCLUDE ${CMAKE_CURRENT_SOURCE_DIR}
+        INCLUDE_PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/rmvpe/*
+    )
     otter_add_interpreter_plugin(otterrmvpe rmvpe
         SOURCES rmvpe/main.cpp
-        LINKS synthrt-otter analysisutil onnxutil synthrt::dsinfer
+        LINKS otterrmvpe_objects analysisutil onnxutil synthrt::dsinfer
+    )
+    synthrt_add_plugin_objects(ottergame DIRECTORY game
+        FEATURES cxx_std_17
+        LINKS synthrt-otter
+        LINKS_PRIVATE analysisutil onnxutil synthrt::dsinfer
+        INCLUDE ${CMAKE_CURRENT_SOURCE_DIR}
+        INCLUDE_PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/game/*
     )
     otter_add_interpreter_plugin(ottergame game
         SOURCES game/main.cpp
-        LINKS synthrt-otter analysisutil onnxutil synthrt::dsinfer
+        LINKS ottergame_objects analysisutil onnxutil synthrt::dsinfer
+    )
+    synthrt_add_plugin_objects(otterhfa DIRECTORY hfa
+        FEATURES cxx_std_17
+        LINKS synthrt-otter
+        LINKS_PRIVATE analysisutil onnxutil synthrt::dsinfer
+        INCLUDE ${CMAKE_CURRENT_SOURCE_DIR}
+        INCLUDE_PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/hfa/*
     )
     otter_add_interpreter_plugin(otterhfa hfa
-        SOURCES hfa/main.cpp hfa/Aligner.h hfa/Aligner.cpp hfa/G2p.h hfa/G2p.cpp hfa/NonSpeech.h
-                hfa/NonSpeech.cpp
-        LINKS synthrt-otter analysisutil onnxutil synthrt::dsinfer
+        SOURCES hfa/main.cpp
+        LINKS otterhfa_objects analysisutil onnxutil synthrt::dsinfer
     )
-    # The aligner that reads the five exported graphs: the spectrogram front end, the acoustic
-    # model, the scoring inputs, the word scores and the selection that turns them into frames.
+    synthrt_add_plugin_objects(ottertifa DIRECTORY tifa
+        FEATURES cxx_std_17
+        LINKS synthrt-otter
+        LINKS_PRIVATE analysisutil onnxutil synthrt::dsinfer
+        INCLUDE ${CMAKE_CURRENT_SOURCE_DIR}
+        INCLUDE_PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tifa/*
+    )
     otter_add_interpreter_plugin(ottertifa tifa
-        SOURCES tifa/main.cpp tifa/Decode.h tifa/Decode.cpp tifa/Grid.h tifa/Grid.cpp
-                tifa/Scoring.h tifa/Scoring.cpp
-        LINKS synthrt-otter analysisutil onnxutil synthrt::dsinfer
+        SOURCES tifa/main.cpp
+        LINKS ottertifa_objects analysisutil onnxutil synthrt::dsinfer
     )
 endif()
 
