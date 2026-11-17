@@ -1,3 +1,8 @@
+#ifndef OTTER_TESTS_PLUGINS_INFERENCEINTERPRETERS_GAME_GGML_INTERPRETERTESTSUPPORT_H
+#define OTTER_TESTS_PLUGINS_INFERENCEINTERPRETERS_GAME_GGML_INTERPRETERTESTSUPPORT_H
+
+#include <system_error>
+
 // The game-ggml provider.
 //
 // The plumbing is verified in every run of a build that compiled the plugin, against a stand-in
@@ -8,28 +13,64 @@
 // release is an artifact no build should fetch on its own.
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
+#include <condition_variable>
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <memory>
+#include <mutex>
 #include <string>
 #include <vector>
+
+#include <stdcorelib/plugin/plugin.h>
 
 #include <synthrt/Core/PackageHandle.h>
 #include <synthrt/Core/SynthUnit.h>
 #include <synthrt/SVS/InferenceContrib.h>
 #include <synthrt/Support/Error.h>
+#include <synthrt/SVS/InferenceInterpreterPlugin.h>
 
 #include <otter/Analysis/AnalysisError.h>
 #include <otter/Api/Note/1/NoteApiL1.h>
 
-#define BOOST_TEST_MAIN
+#include <game-ggml/GameGgmlInterpreter.h>
+
 #include <boost/test/unit_test.hpp>
+
+#include "TestSupport.h"
 
 namespace NoteApi = otter::Api::Note::L1;
 namespace CommonApi = otter::Api::Common::L1;
+
+namespace {
+
+    /// The plugin that main.cpp of game-ggml declares, around the interpreter that this test
+    /// links. The test registers it as a static plugin with the plugin.json of game-ggml, so that
+    /// discovery selects this class rather than the library in the plugin tree.
+    class GameGgmlPlugin : public srt::InferenceInterpreterPlugin {
+    public:
+        srt::Expected<std::unique_ptr<srt::ContribInterpreter>>
+            create(const srt::ContribTriplet &triplet) override {
+            if (triplet != srt::ContribTriplet(NoteApi::API_INTERFACE, NoteApi::API_LEVEL,
+                                               otter::gameGgml::VARIANT)) {
+                return srt::Error(srt::Error::FeatureNotSupported,
+                                  "this plugin serves the " + std::string(NoteApi::API_INTERFACE) +
+                                      " contract at level " + std::to_string(NoteApi::API_LEVEL) +
+                                      " only, in the variant " + otter::gameGgml::VARIANT);
+            }
+            return std::unique_ptr<srt::ContribInterpreter>(
+                new otter::gameGgml::GameGgmlInterpreter());
+        }
+    };
+
+}
+
+STDC_EXPORT_STATIC_PLUGIN(GameGgmlPlugin, srt::InferenceInterpreterPlugin::IID,
+                          otter::test::pluginManifest())
 
 namespace {
 
@@ -92,8 +133,6 @@ namespace {
             root = std::filesystem::temp_directory_path() / "otter-game-ggml-test";
             std::filesystem::remove_all(root);
             std::filesystem::create_directories(root / "package" / "inferences" / "note");
-            std::vector<std::filesystem::path> pluginPaths = {OTTER_TEST_PLUGIN_DIR};
-            unit.setPluginPaths(srt::InferenceCategory::NAME, pluginPaths);
         }
 
         ~Host() {
@@ -134,8 +173,11 @@ namespace {
                       "    \"level\": 1,\n"
                       "    \"variant\": \"game-ggml\",\n"
                       "    \"name\": \"GGML GAME\",\n"
-                      "    \"exports\": " + std::string(EXPORTS) + ",\n"
-                      "    \"configuration\": " + wiring + "\n}");
+                      "    \"exports\": " +
+                          std::string(EXPORTS) +
+                          ",\n"
+                          "    \"configuration\": " +
+                          wiring + "\n}");
         }
 
         /// Writes the declaration so that its configuration names \a wiring verbatim and its
@@ -156,8 +198,11 @@ namespace {
                       "    \"level\": 1,\n"
                       "    \"variant\": \"game-ggml\",\n"
                       "    \"name\": \"GGML GAME\",\n"
-                      "    \"exports\": " + exports + ",\n"
-                      "    \"configuration\": " + wiring + "\n}");
+                      "    \"exports\": " +
+                          exports +
+                          ",\n"
+                          "    \"configuration\": " +
+                          wiring + "\n}");
         }
 
         srt::ContribSpec *load() {
@@ -203,178 +248,5 @@ namespace {
 
 }
 
-BOOST_AUTO_TEST_SUITE(test_GameGgml)
 
-BOOST_AUTO_TEST_CASE(test_GameGgml_ReportsWhatTheDeclarationExports) {
-    Host host;
-    host.write();
-    auto spec = host.load();
-    auto schema = spec->exports()->as<NoteApi::NoteSchema>();
-    BOOST_REQUIRE(schema != nullptr);
-
-    BOOST_CHECK_EQUAL(schema->sampleRate, RATE);
-    BOOST_CHECK_EQUAL(schema->channelCount, 1);
-    BOOST_CHECK_CLOSE(schema->maxSegmentDuration, 30.0, 1e-9);
-    BOOST_CHECK(!schema->supportsKnownNotes);
-    BOOST_REQUIRE_EQUAL(schema->languages.size(), 1u);
-    BOOST_CHECK_EQUAL(schema->languages.front(), "cmn");
-    BOOST_CHECK_EQUAL(schema->defaultLanguage, "cmn");
-    BOOST_CHECK(schema->steps.honored);
-    BOOST_CHECK_EQUAL(schema->steps.defaultValue, 8);
-    BOOST_CHECK_CLOSE(schema->boundaryRadius.defaultValue, 0.02, 1e-9);
-    BOOST_CHECK_CLOSE(schema->notePresenceCutoff.defaultValue, 0.5, 1e-9);
-}
-
-BOOST_AUTO_TEST_CASE(test_GameGgml_RefusesTheDeclarationsItCannotHonor) {
-    // The serve protocol runs no alignment model, so a declaration that promises the alignment
-    // path is refused at load, where the host can still pick another package.
-    {
-        Host host;
-        host.writeWiring(R"({"cli": "x", "model": "y", "languages": {"cmn": 1}})",
-                         R"({
-                             "sampleRate": 44100,
-                             "channelCount": 1,
-                             "maxSegmentDuration": 30,
-                             "languages": ["cmn"],
-                             "defaultLanguage": "cmn",
-                             "supportsKnownNotes": true
-                         })");
-        BOOST_CHECK(host.refusal().find("cannot be conditioned on known notes") !=
-                    std::string::npos);
-    }
-    // A language the exports promise but the configuration does not number would leave the
-    // execution without a number to pass to the model.
-    {
-        Host host;
-        host.writeWiring(R"({"cli": "x", "model": "y", "languages": {"yue": 1}})");
-        BOOST_CHECK(host.refusal().find("no numbering") != std::string::npos);
-    }
-    // A configuration key outside the variant's own vocabulary is a misspelling, and an accepted
-    // misspelling would leave the intended value silently absent.
-    {
-        Host host;
-        host.writeWiring(
-            R"({"cli": "x", "model": "y", "languages": {"cmn": 1}, "scheduleStart": 0})");
-        BOOST_CHECK(host.refusal().find("scheduleStart") != std::string::npos);
-    }
-}
-
-BOOST_AUTO_TEST_CASE(test_GameGgml_AnalyzerCreationChecksTheFiles) {
-    // A package whose engine is missing is one that cannot run, and the refusal names it.
-    {
-        Host host;
-        host.write("cli/game_ggml_cli.exe");
-        auto spec = host.load();
-        auto made = NoteApi::createAnalyzer(*spec->as<srt::InferenceSpec>());
-        BOOST_REQUIRE(!made);
-        BOOST_CHECK(made.error().rootCause().message().find("cannot find the game CLI") !=
-                    std::string::npos);
-    }
-    {
-        Host host;
-        host.write(OTTER_TEST_FAKE_CLI, "models/absent.gguf");
-        auto spec = host.load();
-        auto made = NoteApi::createAnalyzer(*spec->as<srt::InferenceSpec>());
-        BOOST_REQUIRE(!made);
-        BOOST_CHECK(made.error().rootCause().message().find("cannot find the game model") !=
-                    std::string::npos);
-    }
-}
-
-BOOST_AUTO_TEST_CASE(test_GameGgml_TranscribesAgainstTheFakeCli) {
-    Host host;
-    host.write();
-    auto analyzer = host.open();
-
-    NoteApi::NoteStartInput input;
-    input.audio = tone(2.0, 7.5);
-    std::vector<double> reported;
-    input.progress = [&reported](double value) {
-        reported.push_back(value);
-        return true;
-    };
-
-    auto produced = analyzer->start(input);
-    BOOST_REQUIRE_MESSAGE(static_cast<bool>(produced), why(produced));
-    auto result = produced.take();
-
-    // The fake engine answers with one voiced note of half a second and one rest. The default
-    // cutoff is above the confidence of a rest, so the transcription keeps the first only.
-    BOOST_REQUIRE_EQUAL(result->notes.size(), 1u);
-    BOOST_CHECK_EQUAL(result->notes.front().key, 60);
-    BOOST_CHECK_CLOSE(result->notes.front().start, 7.5, 1e-6);
-    BOOST_CHECK_CLOSE(result->notes.front().duration, 0.5, 1e-6);
-    BOOST_CHECK_CLOSE(result->notes.front().confidence, 1.0, 1e-9);
-
-    // The engine call is monolithic, so the execution reports its progress at its start and its
-    // end and nowhere between.
-    BOOST_REQUIRE_GE(reported.size(), 2u);
-    BOOST_CHECK_CLOSE(reported.front(), 0.0, 1e-9);
-    BOOST_CHECK_CLOSE(reported.back(), 1.0, 1e-9);
-
-    // A second execution reuses the same analyzer, whose engine process is still warm.
-    NoteApi::NoteStartInput again;
-    again.audio = tone(1.0, 1.0);
-    auto second = analyzer->start(again);
-    BOOST_REQUIRE_MESSAGE(static_cast<bool>(second), why(second));
-    BOOST_REQUIRE_EQUAL(second.take()->notes.size(), 1u);
-}
-
-BOOST_AUTO_TEST_CASE(test_GameGgml_RefusesKnownNotes) {
-    Host host;
-    host.write();
-    auto analyzer = host.open();
-
-    NoteApi::NoteStartInput input;
-    input.audio = tone(2.0);
-    input.knownNotes = {{0.5, 0.5}};
-    auto refused = analyzer->start(input);
-    BOOST_REQUIRE(!refused);
-    BOOST_CHECK(refused.error().rootCause().message().find(
-                    "cannot be conditioned on known notes") != std::string::npos);
-}
-
-BOOST_AUTO_TEST_CASE(test_GameGgml_TranscribesAToneWithTheRealEngine) {
-    Host host;
-    const auto cli = pathFromEnv("OTTER_TEST_GAME_CLI", "no game.cpp CLI; set OTTER_TEST_GAME_CLI "
-                                                    "to run the engine tests");
-    const auto model = pathFromEnv("OTTER_TEST_GAME_GGUF", "no GAME GGUF model; set "
-                                                     "OTTER_TEST_GAME_GGUF to run the engine tests");
-    host.write(cli, model);
-    auto spec = host.load();
-    auto made = NoteApi::createAnalyzer(*spec->as<srt::InferenceSpec>());
-    BOOST_REQUIRE_MESSAGE(static_cast<bool>(made), why(made));
-    const auto analyzer = made.take();
-
-    NoteApi::NoteStartInput input;
-    input.audio = tone(2.0, 7.5);
-    std::vector<double> reported;
-    input.progress = [&reported](double value) {
-        reported.push_back(value);
-        return true;
-    };
-
-    auto produced = analyzer->start(input);
-    BOOST_REQUIRE_MESSAGE(static_cast<bool>(produced), why(produced));
-    auto result = produced.take();
-
-    // The notes are ordered, non-overlapping, lie inside the span, and sit on the host's timeline
-    // in seconds. What the engine makes of a constant tone is its own business; where it placed
-    // them is the provider's promise.
-    for (std::size_t i = 0; i < result->notes.size(); ++i) {
-        const auto &note = result->notes[i];
-        BOOST_CHECK_LE(note.start, 9.5);
-        BOOST_CHECK_GE(note.start, 7.5);
-        BOOST_CHECK_LE(note.start + note.duration, 9.5 + 1e-4);
-        BOOST_CHECK_GT(note.duration, 0.0);
-        // The default cutoff is above the confidence of a rest, so every note that survived is
-        // one the engine called voiced.
-        BOOST_CHECK_CLOSE(note.confidence, 1.0, 1e-9);
-        if (i != 0) {
-            BOOST_CHECK_GE(note.start, result->notes[i - 1].start +
-                                            result->notes[i - 1].duration - 1e-4);
-        }
-    }
-}
-
-BOOST_AUTO_TEST_SUITE_END()
+#endif // OTTER_TESTS_PLUGINS_INFERENCEINTERPRETERS_GAME_GGML_INTERPRETERTESTSUPPORT_H

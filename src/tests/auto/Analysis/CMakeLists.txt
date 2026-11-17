@@ -4,18 +4,7 @@ add_auto_test(test_AnalysisExecutive_Load.cpp synthrt-otter)
 
 add_auto_test(test_AnalysisExecutive.cpp synthrt-otter)
 
-# The ggml providers exist only in a build that named their engines, so their tests exist only
-# beside them. Without a model the tests still cover the declaration surface, and a run with no
-# model named in the environment reports itself as a skip.
-if(TARGET ottergameggml)
-    add_auto_test(test_GameGgml.cpp synthrt-otter)
-endif()
-if(TARGET ottertifaggml)
-    add_auto_test(test_TifaGgml.cpp synthrt-otter)
-endif()
-
-set(_otter_tests test_AnalysisError test_AnalysisExecutive_Load test_AnalysisExecutive
-                 test_GameGgml test_TifaGgml)
+set(_otter_tests test_AnalysisError test_AnalysisExecutive_Load test_AnalysisExecutive)
 
 foreach(_test IN LISTS _otter_tests)
     if(TARGET ${_test})
@@ -65,31 +54,6 @@ foreach(_needs_stub IN ITEMS test_AnalysisExecutive_Load test_AnalysisExecutive)
 endforeach()
 
 find_package(Python3 COMPONENTS Interpreter QUIET)
-
-# The ggml tests load packages they write themselves and need no fixtures, packages directory or
-# driver. Their execution cases run against a stand-in command line tool that answers the engines'
-# protocols with canned output, which the build compiles beside the tests; the real-engine cases
-# name the engine through the environment and report themselves as a skip without it.
-add_executable(otterfakecli fakecli.cpp)
-target_compile_features(otterfakecli PRIVATE cxx_std_17)
-foreach(_ggml_test IN ITEMS test_GameGgml test_TifaGgml)
-    if(TARGET ${_ggml_test})
-        foreach(_ggml_plugin IN ITEMS ottergameggml ottertifaggml)
-            if(TARGET ${_ggml_plugin})
-                add_dependencies(${_ggml_test} ${_ggml_plugin})
-            endif()
-        endforeach()
-        add_dependencies(${_ggml_test} otterfakecli)
-        set_tests_properties(${_ggml_test} PROPERTIES SKIP_RETURN_CODE ${OTTER_TEST_SKIP_EXIT_CODE})
-        target_compile_definitions(${_ggml_test} PRIVATE
-            OTTER_TEST_SKIP_EXIT_CODE=${OTTER_TEST_SKIP_EXIT_CODE}
-            OTTER_TEST_PLUGIN_DIR="${OTTER_BUILD_PLUGINS_DIR}/inferenceinterpreters"
-            OTTER_TEST_FAKE_CLI="$<TARGET_FILE:otterfakecli>"
-        )
-        set_tests_properties(${_ggml_test} PROPERTIES ENVIRONMENT_MODIFICATION
-            "${_otter_test_env}")
-    endif()
-endforeach()
 
 # The package lint and the package assembler are Python scripts with tests of their own. They need
 # nothing but Python.

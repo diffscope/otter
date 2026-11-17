@@ -1,12 +1,17 @@
 // A stand-in for the engine command line tools the ggml providers drive, so the provider tests can
 // run their whole path — spawn, protocol, parse, place — without any model. It answers the game
 // `serve` protocol with a canned transcription and the tifa `align` command with a canned TextGrid;
-// what it verifies is the plumbing, never the weights.
+// what it verifies is the plumbing, never the weights. An environment that names a marker file in
+// OTTER_FAKE_CLI_HANG makes it hang instead of answering, so the tests can stop an engine that
+// never answers.
 
+#include <chrono>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <string>
+#include <thread>
 #include <vector>
 
 #ifdef _WIN32
@@ -15,6 +20,21 @@
 #endif
 
 namespace {
+
+    /// Hangs until the engine is killed if the environment names a marker file, which is created
+    /// first so that the test learns that the engine hangs.
+    void hangIfAsked() {
+        const char *marker = std::getenv("OTTER_FAKE_CLI_HANG");
+        if (marker == nullptr || *marker == '\0') {
+            return;
+        }
+        if (std::FILE *file = std::fopen(marker, "wb")) {
+            std::fclose(file);
+        }
+        while (true) {
+            std::this_thread::sleep_for(std::chrono::seconds(1));
+        }
+    }
 
     /// The transcription the fake `serve` answers with: one voiced note and one rest, so the tests
     /// can watch the provider's cutoff drop the second.
@@ -46,6 +66,7 @@ namespace {
                 }
                 left -= static_cast<std::uint32_t>(chunk);
             }
+            hangIfAsked();
             std::printf("{\"type\":\"notes\",\"count\":2,\"notes\":["
                         "{\"o\":0.000000,\"d\":0.500000,\"p\":60.250000,\"v\":1},"
                         "{\"o\":0.500000,\"d\":1.500000,\"p\":0.300000,\"v\":0}]}\n");
@@ -55,6 +76,7 @@ namespace {
 
     /// The alignment the fake `align` writes: two words of two phones each, tiling the span.
     void align(int argc, char **argv) {
+        hangIfAsked();
         std::string outputDirectory;
         std::string stem = "span";
         // The audio is the first argument after the command; every other non-option argument is a

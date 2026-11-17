@@ -1,3 +1,4 @@
+include("${SYNTHRT_MODULES_DIR}/AddPlugin.cmake")
 get_filename_component(_dir_name ${CMAKE_CURRENT_LIST_DIR} NAME)
 set(CURRENT_PLUGIN_CATEGORY ${_dir_name})
 # The inference category belongs to synthrt; these interpreters therefore use synthrt's plugin IID.
@@ -124,15 +125,29 @@ option(OTTER_BUILD_GAME_GGML "Build the game-ggml interpreter, which drives the 
 option(OTTER_BUILD_TIFA_GGML "Build the tifa-ggml interpreter, which drives the tifa.cpp CLI" ON)
 
 if(OTTER_BUILD_GAME_GGML)
+    synthrt_add_plugin_objects(ottergameggml DIRECTORY game-ggml
+        FEATURES cxx_std_17
+        LINKS synthrt-otter
+        LINKS_PRIVATE analysisutil ggmlutil
+        INCLUDE ${CMAKE_CURRENT_SOURCE_DIR}
+        INCLUDE_PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/game-ggml/*
+    )
     otter_add_interpreter_plugin(ottergameggml game-ggml
         SOURCES game-ggml/main.cpp
-        LINKS synthrt-otter analysisutil ggmlutil
+        LINKS ottergameggml_objects analysisutil ggmlutil
     )
 endif()
 
 if(OTTER_BUILD_TIFA_GGML)
+    synthrt_add_plugin_objects(ottertifaggml DIRECTORY tifa-ggml
+        FEATURES cxx_std_17
+        LINKS synthrt-otter
+        LINKS_PRIVATE analysisutil ggmlutil
+        INCLUDE ${CMAKE_CURRENT_SOURCE_DIR}
+        INCLUDE_PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tifa-ggml/*
+    )
     otter_add_interpreter_plugin(ottertifaggml tifa-ggml
         SOURCES tifa-ggml/main.cpp
-        LINKS synthrt-otter analysisutil ggmlutil
+        LINKS ottertifaggml_objects analysisutil ggmlutil
     )
 endif()
