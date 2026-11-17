@@ -32,3 +32,5 @@ add_subdirectory(plugins/stub)
 
 add_subdirectory(Analysis)
 add_subdirectory(util)
+
+add_subdirectory(Api)

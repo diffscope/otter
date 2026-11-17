@@ -190,3 +190,8 @@ else()
         "OTTER_INSTALL is off, so the shape of the installed tree is not covered: the check is not "
         "registered with ctest")
 endif()
+
+add_auto_test(Provider/test_AnalysisInput.cpp synthrt-otter)
+if(TARGET test_AnalysisInput)
+    set_tests_properties(test_AnalysisInput PROPERTIES ENVIRONMENT_MODIFICATION "${_otter_test_env}")
+endif()
