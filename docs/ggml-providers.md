@@ -88,7 +88,7 @@ cmake -B build/cmake -G Ninja \
     -DOTTER_BUILD_GAME_GGML=ON -DOTTER_BUILD_TIFA_GGML=ON
 ```
 
-Both options default to on; turning one off leaves that provider out of the deployment. The only code the two share with each other is `otter_cli_support`, the private static library that spawns the child process, writes the span as a float32 WAV and keeps the scratch directory of one execution.
+Both options default to on; turning one off leaves that provider out of the deployment. Each runs its engine as a `stdc::Popen` of stdcorelib. The only code the two share with each other is `ggmlutil`, the private static library under `src/util` that writes the span as a float32 WAV, keeps the scratch directory of one execution and reads and writes the pipes of the engine.
 
 ## What a host can observe
 

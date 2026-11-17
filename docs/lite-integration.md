@@ -150,15 +150,17 @@ namespace Extractors {
 
 ### 包的安装位置
 
-分析器模型包与声库包**共用同一个 `SynthUnit` 与同一组搜索路径**（otter A13）。分析器是 inference 模块，因此 `SynthrtEngine` 初始化时只需将 otter 的插件目录加入 inference 类别的插件搜索路径。 `setPluginPaths` 替换而非追加路径，三个库的目录必须在同一次调用中全部给出：
+分析器模型包与声库包**共用同一个 `SynthUnit` 与同一组搜索路径**（otter A13）。分析器是 inference 模块，因此 `SynthrtEngine` 初始化时只需将 otter 的插件目录加入 inference 类别的插件搜索路径。三个库的插件各自安装在前缀下的 `lib/<库名>/plugins`，宿主把各库的 `inferenceinterpreters` 目录列在一次 `setPluginPaths` 调用中：
 
 ```cpp
-unit.setPluginPaths(srt::InferenceCategory::NAME,
-                    {pluginRoot / "plugins/dsinfer/inferenceinterpreters",
-                     pluginRoot / "plugins/wolf/inferenceinterpreters",
-                     pluginRoot / "plugins/otter/inferenceinterpreters"});
+const auto category = srt::InferenceCategory::NAME;
+unit.setPluginPaths(category, {prefix / "lib/synthrt-dsinfer/plugins/inferenceinterpreters",
+                               prefix / "lib/synthrt-wolf/plugins/inferenceinterpreters",
+                               prefix / "lib/synthrt-otter/plugins/inferenceinterpreters"});
 // 包路径与声库共用，已有
 ```
+
+三个库的 CMake 包都把安装的插件导出为导入目标，例如 `synthrt::onnxdriver`、`synthrt::otterrmvpe`。宿主以 CMake 部署插件时可以用 `$<TARGET_FILE_DIR:...>` 取得各插件所在目录。
 
 包加载完成后，`SynthrtEngine` 通过两个方法列举分析器，不另开模块目录：
 

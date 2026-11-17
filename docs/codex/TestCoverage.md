@@ -6,8 +6,6 @@
 
 四组 ONNX 模型夹具测试已启用并运行。Game、Tifa 的假引擎协议与停止测试独立通过。两个 _RealEngine 测试需要外部引擎和模型，当前跳过，不计为通过。
 
-已提交版本注册 28 项测试，26 项通过、2 项真实引擎测试跳过。
-
 本轮完整工作区验证：先确认构建退出码为 0，再运行 CTest。otter 注册 30 项测试，Boost.Test 实际执行 2030 条断言。其中 28 项为 C++ 测试程序，另有 Python 脚本检查和安装布局检查。两个真实引擎测试跳过，计为 28 项通过、2 项跳过。EngineFiles 与 EnginePipe 的两项测试依赖工作区原有的进程重构，目前尚未提交。
 
 | 产品文件 | 类及内部类型 | 测试入口 | 验证方式 |
@@ -50,6 +48,7 @@
 | [src/plugins/inferenceinterpreters/tifa-ggml/main.cpp](../../src/plugins/inferenceinterpreters/tifa-ggml/main.cpp) | `TifaGgmlPlugin` | [test_ContribInterpreterPlugin_Otter](../../src/tests/auto/Core/test_ContribInterpreterPlugin_Otter.cpp) | 通过所属接口或集成流程验证 |
 | [src/plugins/inferenceinterpreters/tifa-ggml/TifaGgmlInterpreter.cpp](../../src/plugins/inferenceinterpreters/tifa-ggml/TifaGgmlInterpreter.cpp) | `TifaGgmlConfiguration, GridInterval, GridTiers, TifaGgmlExecutive, Word` | [test_TifaGgmlInterpreter](../../src/tests/auto/plugins/inferenceinterpreters/tifa-ggml/test_TifaGgmlInterpreter.cpp)、[test_TifaGgmlInterpreter_RealEngine](../../src/tests/auto/plugins/inferenceinterpreters/tifa-ggml/test_TifaGgmlInterpreter_RealEngine.cpp) | 直接测试 |
 | [src/plugins/inferenceinterpreters/tifa-ggml/TifaGgmlInterpreter.h](../../src/plugins/inferenceinterpreters/tifa-ggml/TifaGgmlInterpreter.h) | `TifaGgmlInterpreter` | [test_TifaGgmlInterpreter](../../src/tests/auto/plugins/inferenceinterpreters/tifa-ggml/test_TifaGgmlInterpreter.cpp)、[test_TifaGgmlInterpreter_RealEngine](../../src/tests/auto/plugins/inferenceinterpreters/tifa-ggml/test_TifaGgmlInterpreter_RealEngine.cpp) | 直接测试 |
+| [src/util/ggmlutil/EnginePipe.cpp](../../src/util/ggmlutil/EnginePipe.cpp) | `BrokenPipeGuard` | [test_EnginePipe](../../src/tests/auto/util/ggmlutil/test_EnginePipe.cpp) | 直接测试 |
 | [src/util/onnxutil/OnnxSupport.h](../../src/util/onnxutil/OnnxSupport.h) | `OnnxExecutive` | [test_OnnxSupport](../../src/tests/auto/util/onnxutil/test_OnnxSupport.cpp)、[test_RmvpeInterpreter](../../src/tests/auto/plugins/inferenceinterpreters/rmvpe/test_RmvpeInterpreter.cpp)、[test_GameInterpreter](../../src/tests/auto/plugins/inferenceinterpreters/game/test_GameInterpreter.cpp)、[test_HfaInterpreter](../../src/tests/auto/plugins/inferenceinterpreters/hfa/test_HfaInterpreter.cpp)、[test_TifaInterpreter](../../src/tests/auto/plugins/inferenceinterpreters/tifa/test_TifaInterpreter.cpp) | 通过所属接口或集成流程验证 |
 
 

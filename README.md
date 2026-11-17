@@ -1,5 +1,7 @@
 # OTTER: Orchestratable Transcription, Timing and Expression Runtime
 
+[中文](docs/README.zh_CN.md)
+
 An analysis layer for [synthrt](https://github.com/diffscope/synthrt) that defines contracts and interpreters for inference modules producing structured annotations of audio.
 
 synthrt defines singers and inferences, and [wolf](https://github.com/diffscope/wolf) adds languages. Neither library determines the sung content of a recording, that is, the notes, their pitches and their timing. otter provides this layer. A model that reads audio and returns a structured annotation of it is an inference module whose interface is one of the otter contracts, and a package declares it in the same way as any other module. otter adds no contribution category; the analyzers belong to the built-in synthrt `inference` category, as the wolf G2P and S2P modules do.
@@ -68,7 +70,7 @@ The host is therefore responsible for three tasks:
 
 ## Analyzer creation
 
-A host passes the otter plugin directory, `${OTTER_PLUGINS_DIR}/inferenceinterpreters`, together with the directories of dsinfer and wolf to `SynthUnit::setPluginPaths` for the inference category. The call replaces the existing list, and all directories must therefore be passed in a single call. An analyzer does not require an importing module: the host opens the package, obtains the module, and creates an analyzer through the contract header.
+A host passes the otter plugin directory, `lib/synthrt-otter/plugins/inferenceinterpreters` of the install prefix, to the inference category with `SynthUnit::setPluginPaths`, listed with the directories of dsinfer and wolf. The CMake package exports every installed plugin as an imported target, such as `synthrt::otterrmvpe`, so a CMake project that deploys the plugins, or needs their directory, reads it with `$<TARGET_FILE_DIR:synthrt::otterrmvpe>`, which also resolves the Debug tree of a vcpkg installation. An analyzer does not require an importing module: the host opens the package, obtains the module, and creates an analyzer through the contract header.
 
 ```cpp
 auto spec = package.contribution(srt::InferenceCategory::NAME, "f0");
@@ -81,7 +83,7 @@ auto analyzer = otter::Api::F0::L1::createAnalyzer(*spec->as<srt::InferenceSpec>
 
 **otter provides no ABI stability guarantee before 1.0.** Nearly every type that a host uses is a value type in a public header: every payload under `Api/` is one, and the vtable of a contract interface changes when a virtual function is added. Mixing objects compiled against two versions of these headers is undefined behaviour, not a link error, and therefore produces no diagnostic. Rebuild the host whenever the otter version changes.
 
-The headers under `otter/Support` are not part of the API. They declare the manifest readers shared by the library and its plugins, are not installed, and are compiled into a private static library instead of being exported from the shared library.
+The code that the library and its plugins share is not part of the API. It lives in three private static libraries under `src/util`, named for what they serve: `analysisutil` holds the manifest readers and the checks of the library and every plugin, `onnxutil` the session shell of the ONNX providers, and `ggmlutil` the files and the pipes of the ggml engines. Their headers are not installed and no binary exports their functions.
 
 ## Requirements
 
@@ -95,7 +97,7 @@ Every dependency, synthrt included, comes from vcpkg. Ports resolve through two 
 
 Boost.Test is needed only to build the tests.
 
-All four shipped providers run ONNX models and are built only if dsinfer is present. The `onnx` feature (`--x-feature=onnx`) adds `synthrt-main[onnx]`, which installs the dsinfer CMake package beside the synthrt package so that `find_package(dsinfer)` locates it. Without this feature the library still builds and packages still load; only analyzer execution is unavailable. synthrt behaves in the same way without its own driver. The `game-ggml` and `tifa-ggml` providers sit outside that story in both directions: they build without dsinfer and without ONNX Runtime, and they **run** an engine executable that comes from the engine's own release rather than from this repository — unpacked from game.cpp's `.oudep` or tifa.cpp's `tifa-cli-*.tar.gz` and named by the declaration ([docs/ggml-providers.md](docs/ggml-providers.md), 中文：[docs/ggml-providers.zh.md](docs/ggml-providers.zh.md)).
+All four shipped providers run ONNX models and are built only if dsinfer is present. The `onnx` feature (`--x-feature=onnx`) adds `synthrt-main[onnx]`, which installs the dsinfer CMake package beside the synthrt package so that `find_package(synthrt-dsinfer)` locates it. Without this feature the library still builds and packages still load; only analyzer execution is unavailable. synthrt behaves in the same way without its own driver. The `game-ggml` and `tifa-ggml` providers sit outside that story in both directions: they build without dsinfer and without ONNX Runtime, and they **run** an engine executable that comes from the engine's own release rather than from this repository — unpacked from game.cpp's `.oudep` or tifa.cpp's `tifa-cli-*.tar.gz` and named by the declaration ([docs/ggml-providers.md](docs/ggml-providers.md), 中文：[docs/ggml-providers.zh.md](docs/ggml-providers.zh.md)).
 
 ## Build
 
@@ -117,7 +119,7 @@ cmake --build build/cmake
 ctest --test-dir build/cmake
 ```
 
-The model tests (`test_Rmvpe`, `test_Game`, `test_Hfa` and `test_Tifa`) require fixtures, which are generated instead of committed. If the build finds a Python interpreter with the `onnx` and `numpy` modules, it generates the fixtures into the build tree as a dependency of those tests; otherwise the four tests are registered as disabled and ctest reports them as such. That decision is taken while configuring; a test that is enabled but finds its data missing at run time reports itself as skipped instead, which is a different mechanism (described below, together with the same distinction for the loading tests). The script can also be run manually:
+The model tests (`test_RmvpeInterpreter`, `test_GameInterpreter`, `test_HfaInterpreter` and `test_TifaInterpreter`) require fixtures, which are generated instead of committed. If the build finds a Python interpreter with the `onnx` and `numpy` modules, it generates the fixtures into the build tree as a dependency of those tests; otherwise the four tests are registered as disabled and ctest reports them as such. That decision is taken while configuring; a test that is enabled but finds its data missing at run time reports itself as skipped instead, which is a different mechanism (described below, together with the same distinction for the loading tests). The script can also be run manually:
 
 ```sh
 python3 scripts/make-model-fixtures.py --output build/cmake/fixtures
@@ -179,8 +181,8 @@ python3 scripts/check-declarations.py <package directory>...
 ## Usage
 
 ```cmake
-find_package(otter CONFIG REQUIRED)
-target_link_libraries(example otter::otter)
+find_package(synthrt-otter CONFIG REQUIRED)
+target_link_libraries(example synthrt::otter)
 ```
 
 The analyzers are plugins located through the inference search path. A host therefore links otter only for the contract headers and the library functions that they call; linking performs no registration.

@@ -98,7 +98,7 @@ cmake -B build/cmake -G Ninja \
     -DOTTER_BUILD_GAME_GGML=ON -DOTTER_BUILD_TIFA_GGML=ON
 ```
 
-两个选项默认都是开；关掉一个就把那个提供者排除在部署之外。两者之间唯一共用的代码是 `otter_cli_support`——那个启动子进程、把片段写成 float32 WAV、并管理一次执行的 scratch 目录的私有静态库。
+两个选项默认都是开；关掉一个就把那个提供者排除在部署之外。两者各自用 stdcorelib 的 `stdc::Popen` 运行引擎。两者之间唯一共用的代码是 `src/util` 下的私有静态库 `ggmlutil`，它把片段写成 float32 WAV，管理一次执行的 scratch 目录，并读写引擎的管道。
 
 ## 宿主可观察到的行为
 

@@ -8,7 +8,7 @@
 
 各来源发生冲突时按下列顺序裁决，**上位来源优先**：
 
-1. **[DiffSinger 数据格式与推理接口规范 2.4](../../synthrt/docs/ds-spec-2.4.md)**：上位规范；
+1. **[DiffSinger 数据格式与推理接口规范 2.4](https://github.com/diffscope/synthrt/blob/main/docs/ds-spec-2.4.md)**：上位规范；
 2. **synthrt / dsinfer 实际代码**：框架能力的唯一事实来源；
 3. **本文**：分层与跨层决策；
 4. **[wolf](../../wolf/docs/linguist-architecture.md)**：同构先例，不属于规范。wolf 的做法可供参考，但不构成 otter 的约束。
@@ -17,7 +17,7 @@
 
 | 代码树 | 观察点 | 引用写法 |
 | :-- | :-- | :-- |
-| spec 2.4 | synthrt 仓 `docs/ds-spec-2.4.md` | `spec 2.4 §<章节名>` |
+| spec 2.4 | synthrt 仓 `docs/ds-spec-2.4.md` 的 main 分支（[在线](https://github.com/diffscope/synthrt/blob/main/docs/ds-spec-2.4.md)） | `spec 2.4 §<章节名>` |
 | synthrt / dsinfer | 分支 `onnxruntime-builds-uptake`（由 `scripts/vcpkg-ports/synthrt-main` 固定） | 文件路径与符号，如 `synthrt/include/synthrt/Core/ContribSpec.h` |
 | refactor 抽参子系统 | lite `main` 分支所引用的 synthrt 版本 | `lib/Extract/...`、`plugins/Extract/...` |
 | lite | 分支 `main` | `src/app/Modules/Extractors/...` |
@@ -77,7 +77,7 @@ refactor 中的已知缺陷，移植时一并修正：
 
 `srt::InferenceSpec::createInference(importOptions, runtimeOptions)` 是公开方法，只要求模块已载入、两份选项与模块的 (interface, level, variant) 一致，不要求该模块被其他模块 import （`synthrt/include/synthrt/SVS/InferenceContrib.h`、`lib/SVS/InferenceContrib.cpp`）。因此宿主可以直接在顶层创建分析器，方式与 wolf 的测试直接创建 G2P/S2P 执行体相同。每份契约头文件提供 `createAnalyzer(spec)`，该函数用模块自身的 variant 构造该契约的两份选项，调用 `createInference`，再以 `dynamic_cast` 检查并转换为该契约的执行体；解释器返回其他契约的执行体时报 `AnalysisError::ContractViolation`（A30 修订：原报 `Internal`）。其他模块仍可以用普通的 `imports` 条目（`options` 为空）引用分析器，此时框架以相同方式代为创建分析器。
 
-分析器与 wolf 的 G2P/S2P 共用 inference 类别，插件安装在 `lib/plugins/otter/inferenceinterpreters`，嵌入 synthrt 的 `InferenceInterpreterPlugin::IID`。安装后的 CMake 包以 `OTTER_PLUGINS_DIR` 导出插件树的位置。宿主调用 `setPluginPaths(srt::InferenceCategory::NAME, …)` 时必须将该目录与 dsinfer、wolf 的同名目录一并给出，因为该调用替换而非追加路径。
+分析器与 wolf 的 G2P/S2P 共用 inference 类别，插件安装在 `lib/synthrt-otter/plugins/inferenceinterpreters`，嵌入 synthrt 的 `InferenceInterpreterPlugin::IID`。宿主经 `SynthUnit::setPluginPaths(srt::InferenceCategory::NAME, ...)` 交给该类别的序列中包含 `prefix / "lib/synthrt-otter/plugins/inferenceinterpreters"`，与 dsinfer 和 wolf 的同名目录并列。CMake 包把每个安装的插件导出为导入目标 `synthrt::<目标名>`，CMake 工程用 `$<TARGET_FILE_DIR:...>` 取得插件所在目录。
 
 ### 4.2 ONNX 驱动的直接获取
 
@@ -94,24 +94,30 @@ otter (库，链接进宿主)
 │   ├── AnalysisTask.h              执行生命周期：建于 srt::ITask 之上的任务面（A15 及补记），
 │   │                               非模板基类 AnalysisTaskBase 在库内实现（A28）
 │   └── AnalysisInput.h             输入校验：prepareSamples()、chooseKnob()（第 9.5 节）
-├── Support/                        私有，不安装，编译进静态库 otter_support（A28）
-│   ├── ManifestValues.h            声明读取器，库与各插件共用
-│   ├── F0Curve.h                   清音插值 interpolateUnvoiced()
-│   └── KnownNotes.h                knownNotes 检查 checkKnownNotes()
 └── Api/
     ├── Common/1/CommonApiL1.h      AudioSegment、Knob / IntKnob / FlagKnob、ProgressCallback
     ├── F0/1/F0ApiL1.h              org.openvpi.otter.inference.F0 契约面
     ├── Note/1/NoteApiL1.h          org.openvpi.otter.inference.Note 契约面
     └── Align/1/AlignApiL1.h        org.openvpi.otter.inference.Align 契约面
 
+src/util 下的私有静态库（不安装，链接它们的库与插件各自静态链接，A28、A32、A33）
+├── analysisutil                    库与各插件共用
+│   ├── ManifestValues.h            声明读取器
+│   ├── F0Curve.h                   清音插值 interpolateUnvoiced()
+│   └── KnownNotes.h                knownNotes 检查 checkKnownNotes()
+├── onnxutil/OnnxSupport.h          四个 ONNX 提供者共用的会话外壳，仅在含 dsinfer 的构建中存在
+└── ggmlutil                        两个 ggml 提供者共用
+    ├── EngineFiles.h               交给引擎的 float32 WAV 与一次执行的 scratch 目录
+    └── EnginePipe.h                引擎进程（stdc::Popen）的启动设置与管道读写
+
 otter 插件（独立动态库，嵌入 srt::InferenceInterpreterPlugin::IID）
 ├── inferenceinterpreters/rmvpe    (F0, 1, "rmvpe")
 ├── inferenceinterpreters/game     (Note, 1, "game")
 ├── inferenceinterpreters/hfa      (Align, 1, "hfa")
-├── inferenceinterpreters/tifa     (Align, 1, "tifa")
-├── inferenceinterpreters/stub     otterstub：F0 / Note / Align 三契约的测试桩，不依赖 dsinfer
-└── inferenceinterpreters/onnx     私有静态库 otter_onnx_support：四个 ONNX 提供者共用的会话外壳（A28）
+└── inferenceinterpreters/tifa     (Align, 1, "tifa")
 ```
+
+测试桩不在插件树里。`src/tests/auto/plugins/stub` 把 F0 / Note / Align 三契约的桩编成 OBJECT 库 `otterstub`，以静态插件注册，不依赖 dsinfer，由 `test_AnalysisLoad` 与 `test_AnalysisRuntime` 链接（A33）。
 
 inference 类别**不追加任何字段**。宿主在设置界面列出已安装抽参器所需的信息（`name`、 `interface`、`variant`）均属于 spec 2.4 的公共字段，`DataOnly` 模式即可读取。宿主按 `interface` 从 inference 模块中筛选出 otter 的契约；新增契约只需增加头文件与解释器，不涉及任何类别。
 
@@ -617,11 +623,11 @@ TIFA 是第二个将模型自带文件一并打包的变体（A29）：五张图
 }
 ```
 
-`game` 与两个对齐变体结构相同（`ottergame` 对应 `org.openvpi.otter.inference.Note`，`otterhfa` 与 `ottertifa` 对应 `org.openvpi.otter.inference.Align`）。测试桩 `otterstub` 以 variant `stub` 同时声明三份契约。
+`game` 与两个对齐变体结构相同（`ottergame` 对应 `org.openvpi.otter.inference.Note`，`otterhfa` 与 `ottertifa` 对应 `org.openvpi.otter.inference.Align`）。测试桩以 variant `stub` 同时声明三份契约，它是测试里的静态插件，不是插件目录（A33）。
 
-插件的 CMake 目标由 `otter_add_interpreter_plugin` 声明（A28）：`otterrmvpe` 与 `ottergame` 各只有 `main.cpp`；`otterhfa` 另有 `Aligner`、`G2p`、`NonSpeech` 三对源文件；`ottertifa` 的源文件为 `tifa/main.cpp`、`tifa/Decode.{h,cpp}`、`tifa/Grid.{h,cpp}` 与 `tifa/Scoring.{h,cpp}`，统一链接 `otter`、`otter_support`、`otter_onnx_support` 与 `dsinfer::dsinfer`。各插件不再各有一份 CMakeLists，声明集中在 `inferenceinterpreters/CMakeLists.txt`。
+插件的 CMake 目标由 `otter_add_interpreter_plugin(<target> <目录>)` 声明（A28），它以 `otter_add_plugin()` 声明插件，再组合 synthrt 的 `AddPlugin.cmake` 提供的 `synthrt_add_plugin_objects()`、`synthrt_configure_plugin_manifest()` 与 stdcorelib-plugin 的 `stdc_add_plugin_metadata()`。源文件是插件目录下的全部头文件与源文件，目录名即 include 命名空间（`<tifa/Decode.h>`）。`main.cpp` 只放插件类，其余源文件编成 OBJECT 库 `<target>_objects`，由插件与测试共用。解释器类声明在 `<X>Interpreter.h`，成员函数的定义连同配置、执行体与解释器原有的私有静态辅助函数放在同名 `.cpp` 的匿名命名空间里。命名空间为 `otter::<插件>`，`game-ggml` 与 `tifa-ggml` 为 `otter::gameGgml` 与 `otter::tifaGgml`。`otterhfa` 另有 `Aligner`、`G2p`、`NonSpeech` 三对源文件，`ottertifa` 另有 `Decode`、`Grid`、`Scoring`。插件的头文件只用到 otter 与 synthrt，所以只有 `synthrt-otter` 是公开依赖，`analysisutil`、`onnxutil`（或 `ggmlutil`）与 `synthrt::dsinfer` 都是私有依赖。插件拒绝自己不服务的三元组时用 `checkServed` 的 `FeatureNotSupported`。各插件不再各有一份 CMakeLists，声明集中在 `inferenceinterpreters/CMakeLists.txt`。
 
-宿主将 otter 的 `inferenceinterpreters` 目录加入 inference 类别的插件搜索路径： `SynthUnit::setPluginPaths(srt::InferenceCategory::NAME, {…dsinfer, wolf, otter…})`。
+宿主将 otter 的 `inferenceinterpreters` 目录加入 inference 类别的插件搜索路径：`SynthUnit::setPluginPaths(srt::InferenceCategory::NAME, ...)` 的序列中列出 `prefix / "lib/synthrt-otter/plugins/inferenceinterpreters"`，与 dsinfer 和 wolf 的目录并列。
 
 ## 8. 宿主责任
 
@@ -867,7 +873,7 @@ otter 将以下三项职责明确留给宿主，三者缺一不可：
 
 ### A26 — 分析器作为 inference 模块，otter 不注册自有类别
 
-**决策**：撤回 A1、A2、A4、A14。F0 / Note / Align 是 synthrt 内置 `inference` 类别下的模块，接口名为 `org.openvpi.otter.inference.{F0,Note,Align}`；解释器派生自 `srt::InferenceInterpreter`，插件嵌入 `srt::InferenceInterpreterPlugin::IID`，安装在 `lib/plugins/otter/inferenceinterpreters`；执行体派生自 `srt::InferenceExecutive`。宿主通过契约头文件中的 `createAnalyzer(spec)` 在顶层创建分析器，该函数调用公开的 `srt::InferenceSpec::createInference`。
+**决策**：撤回 A1、A2、A4、A14。F0 / Note / Align 是 synthrt 内置 `inference` 类别下的模块，接口名为 `org.openvpi.otter.inference.{F0,Note,Align}`；解释器派生自 `srt::InferenceInterpreter`，插件嵌入 `srt::InferenceInterpreterPlugin::IID`，安装在 `lib/synthrt-otter/plugins/inferenceinterpreters`；执行体派生自 `srt::InferenceExecutive`。宿主通过契约头文件中的 `createAnalyzer(spec)` 在顶层创建分析器，该函数调用公开的 `srt::InferenceSpec::createInference`。
 
 **依据**：A1 的前提「`InferenceSpec` 只能经 import 创建执行体」与 synthrt 的实现不符。 `InferenceSpec::createInference` 是公开方法，只校验模块已载入、选项与模块的契约一致，不要求存在 importer；wolf 的测试即以此方式在顶层创建 G2P/S2P 执行体。A1 的另一项理由「扩展 traits 以 spec 类型为键，因此需要自有的 spec 类型」也随之失效，因为不再使用扩展。自有类别不追加字段（A2 的结论对 inference 同样成立），其唯一作用是为扩展提供作为键的 spec 类型。
 
@@ -891,7 +897,7 @@ otter 将以下三项职责明确留给宿主，三者缺一不可：
 本条记录 2026-09-29 联合审计（硬编码、设计缺陷、代码异味）之后契约层面的变化。
 
 **决策**：
-- `otter/Support` 不再属于公共面：头文件不安装，读取器不从共享库导出，而是编译进私有静态库 `otter_support`，由库与各插件各自静态链接。安装后的包中没有 `otter/Support`，CI 的消费者工程（`.github/consumer/CMakeLists.txt`）断言这一点。
+- `otter/Support` 不再属于公共面：头文件不安装，读取器不从共享库导出，而是编译进私有静态库 `otter_support`，由库与各插件各自静态链接。安装后的包中没有 `otter/Support`，CI 的消费者工程（`.github/consumer/CMakeLists.txt`）断言这一点。A32 把这个库移出 `include/`，改为 `src/util/otterutil`，A33 再改名为 `analysisutil`。
 - 停止语义保持不变并写入文档：执行检测到停止请求后 `start()` 返回 `AnalysisError::Cancelled`，不返回部分结果，`state()` 为 `Canceled`。这与 wolf linguist「停止后返回已完成部分、状态为 `Canceled`」有意不同。
 - 执行结束后的状态只由错误码决定：`Cancelled` 对应 `Canceled`，其他错误对应 `Failed`，有结果对应 `Succeeded`，不再参考停止标志；工作线程在回调前也不再将状态改为 `Canceled`。
 - `AnalysisError` 新增 `Internal`（执行体抛出异常、解释器在加载期建立的声明对象缺失、产出其他契约的执行体或结果）与 `ModelFailed`（模型输出缺失、元素类型不符、尺寸与输入或其他输出不一致）。这两类错误此前报 `InvalidFormat`，与「声明不合格」混为一谈。取消错误统一由 `otter::cancelledError()` 构造。
@@ -902,7 +908,7 @@ otter 将以下三项职责明确留给宿主，三者缺一不可：
 - `otter::prepareSamples()` 的返回类型由 `std::vector<float>` 改为 `otter::PreparedSamples`：单声道片段以调用方缓冲区的视图返回，不再整体复制；多声道片段仍平均到自有缓冲区。视图的有效期与 `AudioSegment` 相同。
 - linter 与加载器对齐，原则是「加载器拒绝的声明，linter 必须拒绝」：补齐变体事实（rmvpe 16000 Hz / 0.01 s、 game 44100 Hz、三个变体均为单声道）、hfa 的 `configuration.languages` 必填、`config.json` 的 `hop_size` 与 `vocab.json` 的三个必需键、`silenceLabel` 必须声明且是词表的类、game 的 `timestep > 0` 与 `scheduleStart ∈ [0, 1]`、整数上界 2^31−1、包 id 与贡献 id 的文法、版本号各段不超过 int，以及写给本包分析器的 `imports[].options` 非空即拒绝；相对路径中的 `\` 按 `/` 解析。版本文法与加载器一致，为 1 至 4 段，不要求四段（已发布的包使用四段，但加载器不作要求）。自测逐条覆盖上述拒绝规则，并断言键表与 `docs/schemas` 一致；三份 exports JSON Schema 为 `sampleRate`、`channelCount` 与整数旋钮补上与读取器一致的上界。 `make-package.py` 改用 linter 的 JSON 读取器与 `MODEL_KEYS`，分块写入，不再因文件名相同而使伴随文件相互覆盖；同一输入两次打包的结果逐字节一致。
 - `AnalysisTask<Input, Result>` 的线程与状态逻辑移入导出的非模板基类 `otter::AnalysisTaskBase`（在库内实现，不再在每份契约中各实例化一份），模板只保留载荷的类型转换。基类的受保护虚函数 `startWorker()` 负责启动工作线程，可被覆盖以测试建线程失败的路径。线程语义不变。
-- 三个 ONNX 提供者重复的会话外壳（stop / wait 转发、取消翻译、驱动获取与会话创建、模型调用与输出检查、 `readFloats`、路径读取、波形张量、插件守卫）移入私有静态库 `otter_onnx_support`；插件的 CMake 目标由函数 `otter_add_interpreter_plugin` 声明，桩插件改名为 `otterstub`。桩实现 Align 契约，使 Align 读取器在不含 dsinfer 的构建中也有测试覆盖。
+- 三个 ONNX 提供者重复的会话外壳（stop / wait 转发、取消翻译、驱动获取与会话创建、模型调用与输出检查、 `readFloats`、路径读取、波形张量、插件守卫）移入私有静态库 `otter_onnx_support`（今为 `onnxutil`，见 A33）；插件的 CMake 目标由函数 `otter_add_interpreter_plugin` 声明，桩插件改名为 `otterstub`（A33 起为测试里的静态插件）。桩实现 Align 契约，使 Align 读取器在不含 dsinfer 的构建中也有测试覆盖。
 - 以上改动不改变当时三个出厂包的声明（历史）：随 `models-v0.3.0.0` 发布的 `otter-rmvpe`、`otter-game`、`otter-hfa` 照常载入，版本保持 0.2.0.0；A31 起包版本回到 0.1.0.0，现行发布为 `models-v0.1` 下的四个包。
 
 **依据**：
@@ -946,7 +952,7 @@ otter 将以下三项职责明确留给宿主，三者缺一不可：
 
 ### A31 — 按消费者把 Analysis 拆成宿主面与提供者面
 
-**决策**：`include/otter/Analysis/` 下只保留宿主面与共用的错误类别（`AnalysisError.h`、 `AnalysisExecutive.h`），解释器实现者需要的三个头移入 `include/otter/Analysis/Provider/`： `AnalysisInterpreter.h`、`AnalysisTask.h`、`AnalysisInput.h`。两个面都安装且都是公共头，提供者面不并入不安装的 `Support/`，因为树内插件与第三方变体都要读它们。`AnalysisInterpreter.h` 不再传递包含 `AnalysisExecutive.h`，需要该类型的实现者显式包含它。
+**决策**：`include/otter/Analysis/` 下只保留宿主面与共用的错误类别（`AnalysisError.h`、 `AnalysisExecutive.h`），解释器实现者需要的三个头移入 `include/otter/Analysis/Provider/`： `AnalysisInterpreter.h`、`AnalysisTask.h`、`AnalysisInput.h`。两个面都安装且都是公共头，提供者面不并入不安装的私有库（今为 `analysisutil`，见 A32、A33），因为树内插件与第三方变体都要读它们。`AnalysisInterpreter.h` 不再传递包含 `AnalysisExecutive.h`，需要该类型的实现者显式包含它。
 
 **依据**：一个目录同时服务两类受众时，宿主读到的是为提供者写的规则。宿主真正需要的只有执行体与错误码，把它与提供者要实现的解释器、任务与输入校验分开后，宿主面的符号从三十余个降到约九个。宿主面的路径因此不变，已接入 otter 的宿主不需要改动任何 include。
 
@@ -955,6 +961,31 @@ otter 将以下三项职责明确留给宿主，三者缺一不可：
 提供者面不含 `AnalysisInterpreter` 上回答自身标识的三个访问器（`interfaceName()`、`level()`、`variant()`）：变体名与级别在装配处已经确定，实现者不必再提供一遍。
 
 **来源**：契约面清点（C1 的 S1、S2）与用户选项确认。
+
+### A32 — 私有工具库移到 src/util/otterutil
+
+**决策**：库与插件共用的读取器与检查（`ManifestValues`、`F0Curve`、`KnownNotes`）移出 `include/otter/Support`，放到 `src/util/otterutil`，结构与 dsinfer 的 `util/inferutil` 相同：头文件在 `include/otterutil/` 下，引用写作 `<otterutil/X.h>`，私有静态库由 `otter_support` 改名为 `otterutil`。C++ 命名空间不变。`include/` 下只剩公开头文件，安装直接调用 `otter_install()`，不再需要 `NO_INCLUDE` 与排除 `Support` 的自定义安装规则。消费者工程与安装面检查改为断言安装树中没有 `otterutil` 的头文件与静态库。
+
+**依据**：私有头文件放在公开的 include 树里，安装时必须逐条排除，`Support` 这个名字在 synthrt 与 dsinfer 中又指公开头文件，含义相反。dsinfer 把同类的私有库放在 `util/` 下，公开 include 树里只有公开头文件，安装规则不需要例外。
+
+**代价（已接受）**：库、插件与测试的 include 路径一次性改动，两个测试移到 `src/tests/auto/util/otterutil/`。
+
+**来源**：用户确认，与 dsinfer 的 util 结构对齐。
+
+### A33 — 私有工具库按功能命名，测试桩改为测试里的静态插件
+
+**决策**：
+- `src/util` 下的私有静态库按功能命名。`otterutil` 改名为 `analysisutil`。四个 ONNX 提供者共用的 `otter_onnx_support` 从 `src/plugins/inferenceinterpreters/onnx` 移到 `src/util/onnxutil`，目标名 `onnxutil`。两个 ggml 提供者共用的 `otter_cli_support` 从 `src/plugins/inferenceinterpreters/external` 移到 `src/util/ggmlutil`，目标名 `ggmlutil`。三者的结构相同，引用写作 `<analysisutil/X.h>`、`<onnxutil/OnnxSupport.h>` 与 `<ggmlutil/X.h>`。
+- `otter_cli_support` 自带的子进程类删除，`game-ggml` 与 `tifa-ggml` 改用 stdcorelib 的 `stdc::Popen`。`ggmlutil` 只保留交给引擎的文件（`EngineFiles.h`：float32 WAV 与 scratch 目录）和管道的平台差异（`EnginePipe.h`：Windows 上不为引擎打开控制台窗口，POSIX 上写管道不触发 SIGPIPE）。
+- 取消语义不变。`stop()` 可以从另一个线程杀掉正在读写的引擎，析构时终止仍在运行的引擎。`stdc::Popen` 的成员函数没有同步，所以每个提供者用一把锁串行化对它的调用。管道的读写不持锁，`stop()` 持锁 kill 之后，阻塞中的读写随即失败。只有执行线程创建、替换和释放引擎，释放时在锁内把指针移出，由析构函数 kill 并等待子进程。`tifa-ggml` 等待工具结束时按 50 ms 分片，每片在锁内调用 `wait()`，`stop()` 在两片之间拿到锁。
+- 测试桩 `otterstub` 不再是插件目录。代码移到 `src/tests/auto/plugins/stub`，以 `STDC_EXPORT_STATIC_PLUGIN` 注册为 inference 类别的静态插件，清单写在代码里，内容与原来的 `plugin.json` 相同。它编成 OBJECT 库 `otterstub`，由 `test_AnalysisLoad` 与 `test_AnalysisRuntime` 链接，静态库会丢掉没有被引用的注册对象，所以不用静态库。两个测试不再设置插件路径，`OTTER_TEST_PLUGIN_DIR` 删除。`test_AnalysisLoad_ServesTheStubAsAStaticPlugin` 断言插件路径为空时测试包仍能装载。测试包里的 `"variant": "stub"` 不变。
+- 安装面检查与消费者工程断言三个私有库都不在安装树中。
+
+**依据**：`otterutil` 只说明它属于 otter，不说明它做什么，而三个私有库服务的是三组不同的代码：库与全部插件、ONNX 提供者、ggml 提供者。按功能命名后，名字本身就说明了谁链接它。两个共用库原先与插件并列放在插件目录下，看上去也像插件。子进程管理 stdcorelib 已经提供，自带一份就要自己维护三个平台的实现。桩只服务测试，作为插件目录时它要构建进插件树，要用 `NO_INSTALL` 排除出部署，测试还要知道插件目录在哪里。改为静态插件后这些都不需要了，插件树里只剩可部署的提供者，`otter_add_interpreter_plugin` 也不再需要 `NO_INSTALL`。
+
+**代价（已接受）**：库、插件与测试的 include 路径与目标名再改一次。`stdc::Popen` 只在 `communicate()` 内防护 SIGPIPE，提供者直接写管道，所以 `ggmlutil` 自己补上这层防护。`stdc::Popen` 不能从另一个线程直接调用，所以每个提供者要自己加锁，`tifa-ggml` 的 `stop()` 最多等一个分片。ctest 中不再有测试从插件目录装载 otter 的插件，插件树的发现与装载只由消费者工程覆盖到目录本身。
+
+**来源**：用户确认。
 
 ## 9.5 联合审计（实施后）
 
@@ -976,34 +1007,36 @@ X1、X2、X6 的共同原因是两个提供者各自实现同一套校验，实�
 
 | 里程碑 | 内容 | 状态 |
 | :-- | :-- | :-- |
-| **M1** | 仓库骨架：CMake、vcpkg 清单与 port | **完成**。`find_package(otter)` 可从安装树使用；CI 消费者工程校验 `otter::otter` 目标、`OTTER_PLUGINS_DIR` 与公共头文件，并断言安装树不含 `otter/Support` |
+| **M1** | 仓库骨架：CMake、vcpkg 清单与 port | **完成**。`find_package(synthrt-otter)` 可从安装树使用；CI 消费者工程校验 `synthrt::otter` 目标与公共头文件，断言安装树不含 `analysisutil`、`onnxutil` 与 `ggmlutil`，并运行程序检查从导出的插件目标读出的插件目录 |
 | **M2** | 契约头与加载路径（最初为 `analysis` 类别，A26 后改为 inference 模块） | **完成**。`test_AnalysisContrib` / `test_AnalysisLoad` / `test_AnalysisRuntime` |
-| **M3** | `rmvpe` 提供者 | **完成**。`test_Rmvpe`，运行于 ONNX 图 fixture |
-| **M4** | `game` 提供者，补回 `dur2bd` | **完成**。`test_Game`，含对齐路径 |
+| **M3** | `rmvpe` 提供者 | **完成**。`test_RmvpeInterpreter`，运行于 ONNX 图 fixture |
+| **M4** | `game` 提供者，补回 `dur2bd` | **完成**。`test_GameInterpreter`，含对齐路径 |
 | **M5** | 打包 lint 与模型 fixture | **完成**。`scripts/check-declarations.py`、`scripts/make-model-fixtures.py`、`scripts/make-package.py` |
 | **M6** | lite 接入 | **完成**。L1 至 L6 六个阶段全部实现，见 [lite-integration.md](lite-integration.md) |
 | **M7** | `Align` 契约与 `hfa` 提供者 | **完成**。契约头、提供者、fixture 用例与打包脚本均已实现；0.1.0.0 版 hfa 包曾随 [models-v0.2.0.0](https://github.com/diffscope/otter/releases/tag/models-v0.2.0.0) 发布，其后的 0.2.0.0 版曾由 `models-v0.3.0.0` 提供（历史，两个标签均已删除）；A31 起版本回到 0.1.0.0，现行发布为 `models-v0.1`；实测与决策见 [plans/hfa-align.md](plans/hfa-align.md) |
-| **M8** | `tifa` 提供者 | **完成**（P5 诊断指标与 P6 完整 G2P 按 D2/D3 缓办，属分期决策而非漏做）。声明、插件（五张图各一会话、加载期互检）、候选打分路径、帧解码与时间轴均已落地，`test_Tifa` 随夹具一起通过。**实测门禁：宿主调用形态（逐 take）下与参考逐边界一致**；batch-8 口径的差异归因于参考自身对批组成敏感（不是移植缺陷）。两种口径的读数、口径裁决与迁移记录见 [plans/tifa-align.md](plans/tifa-align.md) §11.10–§11.11 |
+| **M8** | `tifa` 提供者 | **完成**（P5 诊断指标与 P6 完整 G2P 按 D2/D3 缓办，属分期决策而非漏做）。声明、插件（五张图各一会话、加载期互检）、候选打分路径、帧解码与时间轴均已落地，`test_TifaInterpreter` 随夹具一起通过。**实测门禁：宿主调用形态（逐 take）下与参考逐边界一致**；batch-8 口径的差异归因于参考自身对批组成敏感（不是移植缺陷）。两种口径的读数、口径裁决与迁移记录见 [plans/tifa-align.md](plans/tifa-align.md) §11.10–§11.11 |
 
 ### 测试集
 
-ctest 共注册 12 个测试；注册数以 `src/tests/auto/Analysis/CMakeLists.txt` 为准，条件见下表：
+ctest 共注册 16 个测试；注册数以 `src/tests/auto/Analysis/CMakeLists.txt`、`src/tests/auto/util/analysisutil/CMakeLists.txt`、`src/tests/auto/util/onnxutil/CMakeLists.txt` 与 `src/tests/auto/plugins/CMakeLists.txt` 为准，条件见下表：
 
 | 测试 | 内容 | 条件 |
 | :-- | :-- | :-- |
 | `test_AnalysisContrib` | 链接 otter 不注册任何类别 | 始终构建 |
-| `test_AnalysisLoad` | 经 `otterstub` 的包加载、`DataOnly` 模式、声明读取与拒绝规则、其他模块对分析器的引用 | 始终构建 |
-| `test_AnalysisRuntime` | 经 `otterstub` 的分析器创建与执行、旋钮、输入校验与取消 | 始终构建 |
-| `test_ManifestValues` | 私有声明读取器 | 始终构建，链接 `otter_support` |
-| `test_F0Curve` | 清音插值 | 始终构建，链接 `otter_support` |
-| `test_Rmvpe` / `test_Game` / `test_Hfa` / `test_Tifa` | 四个提供者在生成的 ONNX fixture 上的完整链路 | 仅在含 dsinfer 的构建中存在；没有带 onnx 与 numpy 的 Python 时注册为禁用；运行期缺少 fixture、驱动或运行时时以退出码 77 报告跳过 |
-| `test_OnnxSupport` | 四个提供者共享的 ONNX 读取器与执行器封装：输出缺失与类型不符的区分，空结果与缺少输出的拒绝 | 仅在含 dsinfer 的构建中存在（要求 `otter_onnx_support` 目标） |
+| `test_AnalysisLoad` | 经静态插件形式的测试桩（`otterstub`）的包加载，不设插件路径、`DataOnly` 模式、声明读取与拒绝规则、其他模块对分析器的引用 | 始终构建 |
+| `test_AnalysisRuntime` | 经静态插件形式的测试桩的分析器创建与执行、旋钮、输入校验与取消 | 始终构建 |
+| `test_ManifestValues` | 私有声明读取器 | 始终构建，链接 `analysisutil` |
+| `test_F0Curve` | 清音插值 | 始终构建，链接 `analysisutil` |
+| `test_RmvpeInterpreter` / `test_GameInterpreter` / `test_HfaInterpreter` / `test_TifaInterpreter` | 四个提供者在生成的 ONNX fixture 上的完整链路：链接各插件的 `<target>_objects`，以插件的 `plugin.json` 把被测解释器注册为静态插件，不从插件目录加载插件 | 仅在含 dsinfer 的构建中存在；没有带 onnx 与 numpy 的 Python 时注册为禁用；运行期缺少 fixture、驱动或运行时时以退出码 77 报告跳过 |
+| `test_OnnxSupport` | 四个提供者共享的 ONNX 读取器与执行器封装：输出缺失与类型不符的区分，空结果与缺少输出的拒绝 | 仅在含 dsinfer 的构建中存在（要求 `onnxutil` 目标） |
 | `test_CheckDeclarations` | `scripts/test_*.py`（当前两份：声明 linter 与打包脚本的自测；测试包生成器没有自测） | 找到 Python 解释器时注册 |
 | `test_InstalledSurface` | 安装树形态（`check-installed-surface.cmake` 装入 scratch 前缀），含不得安装的私有头文件 | `OTTER_INSTALL` 打开时注册 |
+| `test_TifaDecode` | tifa 的逐帧解码，期望值取自参考实现，链接 `ottertifa_objects`，不需要模型 | 仅在含 dsinfer 的构建中存在 |
+| `test_HfaG2p` | hfa 的发音词典：分隔符的位置、词典缺词、条目首尾的分隔符、CRLF，链接 `otterhfa_objects`，不需要模型 | 仅在含 dsinfer 的构建中存在 |
 
 ### 验证状态
 
-**已验证**：包加载（含 `DataOnly`）、解释器发现、链接 otter 不引入类别、经 `createAnalyzer` 创建执行体、同步与异步执行、取消、输入校验、旋钮传递、四个提供者在 ONNX 图上的完整链路、对齐路径确实运行 `dur2bd`、 `find_package(otter)` 从安装树消费、不含 dsinfer 的最小构建正常降级。
+**已验证**：包加载（含 `DataOnly`）、解释器发现、链接 otter 不引入类别、经 `createAnalyzer` 创建执行体、同步与异步执行、取消、输入校验、旋钮传递、四个提供者在 ONNX 图上的完整链路、对齐路径确实运行 `dur2bd`、 `find_package(synthrt-otter)` 从安装树消费、不含 dsinfer 的最小构建正常降级。
 
 **已用真实权重验证**：
 - **GAME**：三个合成音 A3 / C4 / E4 转写为 MIDI 57 / 60 / 64，边界位于整秒处，时长与占空比吻合。该验证同时表明，fixture 原先依照提供者的假设声明张量形状，因此测试始终通过而任何真实导出的模型都无法运行； A10 所列的形状修正即由此得出。fixture 现按真实导出编写。
