@@ -1,5 +1,5 @@
-#ifndef OTTER_MANIFESTVALUES_H
-#define OTTER_MANIFESTVALUES_H
+#ifndef OTTER_SUPPORT_MANIFESTVALUES_H
+#define OTTER_SUPPORT_MANIFESTVALUES_H
 
 #include <filesystem>
 #include <initializer_list>
@@ -94,4 +94,4 @@ namespace otter::manifest {
                                           std::string_view what);
 }
 
-#endif // OTTER_MANIFESTVALUES_H
+#endif // OTTER_SUPPORT_MANIFESTVALUES_H

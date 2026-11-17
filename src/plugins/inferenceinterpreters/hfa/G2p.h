@@ -1,5 +1,5 @@
-#ifndef OTTER_HFA_G2P_H
-#define OTTER_HFA_G2P_H
+#ifndef OTTER_INFERENCEINTERPRETERS_HFA_G2P_H
+#define OTTER_INFERENCEINTERPRETERS_HFA_G2P_H
 
 #include <filesystem>
 #include <string>
@@ -41,4 +41,4 @@ namespace otter::hfa {
 
 }
 
-#endif // OTTER_HFA_G2P_H
+#endif // OTTER_INFERENCEINTERPRETERS_HFA_G2P_H

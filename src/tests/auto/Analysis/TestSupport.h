@@ -1,5 +1,5 @@
-#ifndef OTTER_TEST_SUPPORT_H
-#define OTTER_TEST_SUPPORT_H
+#ifndef OTTER_TESTS_ANALYSIS_TESTSUPPORT_H
+#define OTTER_TESTS_ANALYSIS_TESTSUPPORT_H
 
 #include <cstdlib>
 #include <filesystem>
@@ -174,4 +174,4 @@ namespace otter::test {
 
 #endif // OTTER_TEST_FIXTURE_DIR
 
-#endif // OTTER_TEST_SUPPORT_H
+#endif // OTTER_TESTS_ANALYSIS_TESTSUPPORT_H

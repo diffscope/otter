@@ -1,4 +1,5 @@
-#pragma once
+#ifndef OTTER_INFERENCEINTERPRETERS_TIFA_GRID_H
+#define OTTER_INFERENCEINTERPRETERS_TIFA_GRID_H
 
 #include <cstdint>
 #include <filesystem>
@@ -137,3 +138,5 @@ namespace otter::tifa {
                                   const Dictionary &dictionary, const Vocabulary &vocabulary);
 
 }
+
+#endif // OTTER_INFERENCEINTERPRETERS_TIFA_GRID_H

@@ -1,5 +1,5 @@
-#ifndef OTTER_API_F0APIL1_H
-#define OTTER_API_F0APIL1_H
+#ifndef OTTER_API_F0_1_F0APIL1_H
+#define OTTER_API_F0_1_F0APIL1_H
 
 #include <cstdint>
 #include <functional>
@@ -251,4 +251,4 @@ namespace otter::Api::F0::L1 {
 
 }
 
-#endif // OTTER_API_F0APIL1_H
+#endif // OTTER_API_F0_1_F0APIL1_H

@@ -1,5 +1,5 @@
-#ifndef OTTER_ANALYSISERROR_H
-#define OTTER_ANALYSISERROR_H
+#ifndef OTTER_ANALYSIS_ANALYSISERROR_H
+#define OTTER_ANALYSIS_ANALYSISERROR_H
 
 #include <system_error>
 #include <type_traits>
@@ -79,4 +79,4 @@ namespace otter {
 
 }
 
-#endif // OTTER_ANALYSISERROR_H
+#endif // OTTER_ANALYSIS_ANALYSISERROR_H

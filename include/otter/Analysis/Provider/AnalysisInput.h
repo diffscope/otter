@@ -1,5 +1,5 @@
-#ifndef OTTER_ANALYSISINPUT_H
-#define OTTER_ANALYSISINPUT_H
+#ifndef OTTER_ANALYSIS_PROVIDER_ANALYSISINPUT_H
+#define OTTER_ANALYSIS_PROVIDER_ANALYSISINPUT_H
 
 #include <cstddef>
 #include <optional>
@@ -119,4 +119,4 @@ namespace otter {
 
 }
 
-#endif // OTTER_ANALYSISINPUT_H
+#endif // OTTER_ANALYSIS_PROVIDER_ANALYSISINPUT_H

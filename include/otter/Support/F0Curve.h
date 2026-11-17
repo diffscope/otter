@@ -1,5 +1,5 @@
-#ifndef OTTER_F0CURVE_H
-#define OTTER_F0CURVE_H
+#ifndef OTTER_SUPPORT_F0CURVE_H
+#define OTTER_SUPPORT_F0CURVE_H
 
 #include <cstdint>
 #include <vector>
@@ -23,4 +23,4 @@ namespace otter::support {
 
 }
 
-#endif // OTTER_F0CURVE_H
+#endif // OTTER_SUPPORT_F0CURVE_H

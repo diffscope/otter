@@ -1,5 +1,5 @@
-#ifndef OTTER_API_ALIGNAPIL1_H
-#define OTTER_API_ALIGNAPIL1_H
+#ifndef OTTER_API_ALIGN_1_ALIGNAPIL1_H
+#define OTTER_API_ALIGN_1_ALIGNAPIL1_H
 
 #include <functional>
 #include <memory>
@@ -373,4 +373,4 @@ namespace otter::Api::Align::L1 {
 
 }
 
-#endif // OTTER_API_ALIGNAPIL1_H
+#endif // OTTER_API_ALIGN_1_ALIGNAPIL1_H

@@ -1,4 +1,5 @@
-#pragma once
+#ifndef OTTER_INFERENCEINTERPRETERS_TIFA_SCORING_H
+#define OTTER_INFERENCEINTERPRETERS_TIFA_SCORING_H
 
 #include <array>
 #include <cstdint>
@@ -62,3 +63,5 @@ namespace otter::tifa {
         chooseCandidates(const Fragments &table, const std::vector<std::vector<bool>> &valid);
 
 }
+
+#endif // OTTER_INFERENCEINTERPRETERS_TIFA_SCORING_H

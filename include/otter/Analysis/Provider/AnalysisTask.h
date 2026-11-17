@@ -1,5 +1,5 @@
-#ifndef OTTER_ANALYSISTASK_H
-#define OTTER_ANALYSISTASK_H
+#ifndef OTTER_ANALYSIS_PROVIDER_ANALYSISTASK_H
+#define OTTER_ANALYSIS_PROVIDER_ANALYSISTASK_H
 
 #include <atomic>
 #include <cstdint>
@@ -247,4 +247,4 @@ namespace otter {
     };
 }
 
-#endif // OTTER_ANALYSISTASK_H
+#endif // OTTER_ANALYSIS_PROVIDER_ANALYSISTASK_H

@@ -1,4 +1,5 @@
-#pragma once
+#ifndef OTTER_INFERENCEINTERPRETERS_TIFA_DECODE_H
+#define OTTER_INFERENCEINTERPRETERS_TIFA_DECODE_H
 
 #include <cstddef>
 #include <cstdint>
@@ -34,3 +35,5 @@ namespace otter::tifa {
                                    std::size_t tokens, const std::vector<std::int64_t> &groups);
 
 }
+
+#endif // OTTER_INFERENCEINTERPRETERS_TIFA_DECODE_H

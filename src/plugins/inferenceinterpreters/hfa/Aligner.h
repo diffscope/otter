@@ -1,5 +1,5 @@
-#ifndef OTTER_HFA_ALIGNER_H
-#define OTTER_HFA_ALIGNER_H
+#ifndef OTTER_INFERENCEINTERPRETERS_HFA_ALIGNER_H
+#define OTTER_INFERENCEINTERPRETERS_HFA_ALIGNER_H
 
 /// \file Aligner.h
 /// The decode step of the hubert-infer forced aligner: a three-state Viterbi over phoneme frame
@@ -128,4 +128,4 @@ namespace otter::hfa {
     };
 }
 
-#endif // OTTER_HFA_ALIGNER_H
+#endif // OTTER_INFERENCEINTERPRETERS_HFA_ALIGNER_H

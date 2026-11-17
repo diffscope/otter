@@ -1,5 +1,5 @@
-#ifndef OTTER_API_COMMONAPIL1_H
-#define OTTER_API_COMMONAPIL1_H
+#ifndef OTTER_API_COMMON_1_COMMONAPIL1_H
+#define OTTER_API_COMMON_1_COMMONAPIL1_H
 
 #include <functional>
 #include <vector>
@@ -106,4 +106,4 @@ namespace otter::Api::Common::L1 {
 
 }
 
-#endif // OTTER_API_COMMONAPIL1_H
+#endif // OTTER_API_COMMON_1_COMMONAPIL1_H

@@ -1,5 +1,5 @@
-#ifndef OTTER_API_NOTEAPIL1_H
-#define OTTER_API_NOTEAPIL1_H
+#ifndef OTTER_API_NOTE_1_NOTEAPIL1_H
+#define OTTER_API_NOTE_1_NOTEAPIL1_H
 
 #include <functional>
 #include <memory>
@@ -306,4 +306,4 @@ namespace otter::Api::Note::L1 {
 
 }
 
-#endif // OTTER_API_NOTEAPIL1_H
+#endif // OTTER_API_NOTE_1_NOTEAPIL1_H
