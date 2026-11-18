@@ -9,7 +9,7 @@
 vcpkg_from_git(
     OUT_SOURCE_PATH SOURCE_PATH
     URL https://github.com/diffscope/synthrt.git
-    REF 5b56ac125a77d83f60689d43bba81115aab18185
+    REF 566717b731dcd064b32e81dbd51962560603089b
     HEAD_REF onnxruntime-builds-uptake
 )
 
