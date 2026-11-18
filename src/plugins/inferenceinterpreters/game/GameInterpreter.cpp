@@ -63,6 +63,7 @@ namespace otter::game {
         /// variant and its models and are defined once here instead of at each place where a tensor
         /// is built or read.
         namespace tensors {
+
             /// encoder: waveform, duration -> x_seg, x_est, maskT
             constexpr char WAVEFORM[] = "waveform";
             constexpr char DURATION[] = "duration";
@@ -89,6 +90,7 @@ namespace otter::game {
             constexpr char SCORES[] = "scores";
 
             // dur2bd: durations, maskT -> boundaries
+
         }
 
         /// The configuration block of this variant: the model paths and the model wiring, which are

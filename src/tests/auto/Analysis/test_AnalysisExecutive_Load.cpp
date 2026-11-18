@@ -59,6 +59,7 @@ namespace {
             << (exports.empty() ? "" : ", ") << exports << "}}";
         return root;
     }
+
 }
 
 BOOST_AUTO_TEST_SUITE(test_AnalysisExecutive_Load)

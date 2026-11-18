@@ -126,6 +126,7 @@ namespace otter::hfa {
         /// and every boundary is multiplied by it.
         float m_frameLength;
     };
+
 }
 
 #endif // OTTER_INFERENCEINTERPRETERS_HFA_ALIGNER_H

@@ -92,6 +92,7 @@ namespace otter::manifest {
     srt::Expected<void> rejectUnknownKeys(const srt::JsonObject &object,
                                           std::initializer_list<const char *> allowed,
                                           std::string_view what);
+
 }
 
 #endif // OTTER_ANALYSISUTIL_MANIFESTVALUES_H

@@ -13,6 +13,7 @@
 #include <boost/test/unit_test.hpp>
 
 namespace {
+
     struct TemporaryDirectory {
         std::filesystem::path path =
             std::filesystem::temp_directory_path() /
@@ -33,6 +34,7 @@ namespace {
             return result;
         }
     };
+
 }
 
 BOOST_AUTO_TEST_CASE(scratch_directories_are_distinct_and_float_wav_keeps_samples) {

@@ -174,6 +174,7 @@ namespace otter {
 
         Body m_body;
     };
+
 }
 
 #endif // OTTER_ANALYSIS_PROVIDER_ANALYSISTASK_H

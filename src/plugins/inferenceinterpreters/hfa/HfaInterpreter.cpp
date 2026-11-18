@@ -61,10 +61,12 @@ namespace otter::hfa {
         /// The tensor names of the exported graph, which form the contract between this variant and
         /// its model: waveform -> ph_frame_logits, ph_edge_logits, cvnt_logits.
         namespace tensors {
+
             constexpr char WAVEFORM[] = "waveform";
             constexpr char PH_FRAME_LOGITS[] = "ph_frame_logits";
             constexpr char PH_EDGE_LOGITS[] = "ph_edge_logits";
             constexpr char CVNT_LOGITS[] = "cvnt_logits";
+
         }
 
         /// The non-speech class that denotes the absence of every other non-speech class.

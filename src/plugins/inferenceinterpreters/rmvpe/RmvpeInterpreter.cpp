@@ -42,10 +42,12 @@ namespace otter::rmvpe {
         /// The tensor names of the exported graph, which form the contract between this variant and
         /// its model: waveform, threshold -> f0, uv.
         namespace tensors {
+
             constexpr char WAVEFORM[] = "waveform";
             constexpr char THRESHOLD[] = "threshold";
             constexpr char F0[] = "f0";
             constexpr char UV[] = "uv";
+
         }
 
         /// The configuration block of this variant, which contains only the model path. The audio
