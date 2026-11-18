@@ -204,7 +204,7 @@ namespace otter::tifaGgml {
         class TifaGgmlExecutive : public AlignApi::Executive {
         public:
             TifaGgmlExecutive(srt::InferenceSpec &spec, const TifaGgmlConfiguration &configuration,
-                              const AlignApi::Schema &schema)
+                              const AlignApi::Exports &schema)
                 : Executive(spec), m_configuration(configuration), m_schema(schema) {
             }
 
@@ -601,7 +601,7 @@ namespace otter::tifaGgml {
 
             // Owned by the spec, which outlives every executive created from it.
             const TifaGgmlConfiguration &m_configuration;
-            const AlignApi::Schema &m_schema;
+            const AlignApi::Exports &m_schema;
         };
 
         // The engine and the model are files the declaration names. A package whose files are
@@ -694,7 +694,7 @@ namespace otter::tifaGgml {
 
     srt::Expected<std::unique_ptr<srt::ContribExports>>
         TifaGgmlInterpreter::createExports(const srt::ContribSpec &spec) const {
-        auto schema = AlignApi::readAlignSchema(spec);
+        auto schema = AlignApi::readAlignExports(spec);
         if (!schema) {
             return schema.takeError();
         }
@@ -752,7 +752,7 @@ namespace otter::tifaGgml {
                                              const srt::InferenceRuntimeOptions &) {
         const auto configuration =
             spec.configuration() ? spec.configuration()->as<TifaGgmlConfiguration>() : nullptr;
-        const auto schema = spec.exports() ? spec.exports()->as<AlignApi::Schema>() : nullptr;
+        const auto schema = spec.exports() ? spec.exports()->as<AlignApi::Exports>() : nullptr;
         if (configuration == nullptr || schema == nullptr) {
             return srt::Error(otter::AnalysisError::Internal,
                               "this declaration carries no tifa-ggml configuration");

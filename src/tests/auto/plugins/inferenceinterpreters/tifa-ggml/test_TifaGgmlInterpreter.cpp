@@ -6,7 +6,7 @@ BOOST_AUTO_TEST_CASE(test_TifaGgmlInterpreter_ReportsWhatTheDeclarationExports) 
     Host host;
     host.write();
     auto spec = host.load();
-    auto schema = spec->exports()->as<AlignApi::Schema>();
+    auto schema = spec->exports()->as<AlignApi::Exports>();
     BOOST_REQUIRE(schema != nullptr);
 
     BOOST_CHECK_EQUAL(schema->sampleRate, RATE);

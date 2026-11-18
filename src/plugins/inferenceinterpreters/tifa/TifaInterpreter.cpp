@@ -436,7 +436,7 @@ namespace otter::tifa {
         class TifaExecutive : public otter::onnx::OnnxExecutive<AlignApi::Executive> {
         public:
             TifaExecutive(srt::InferenceSpec &spec, OpenedModels opened,
-                          const AlignApi::Schema &schema, ModelFiles files)
+                          const AlignApi::Exports &schema, ModelFiles files)
                 : OnnxExecutive(spec), m_schema(schema), m_files(std::move(files)) {
                 m_models.spectrogram = own(std::move(opened.spectrogram));
                 m_models.model = own(std::move(opened.model));
@@ -1399,7 +1399,7 @@ namespace otter::tifa {
             }
 
             Models m_models;
-            const AlignApi::Schema &m_schema;
+            const AlignApi::Exports &m_schema;
             ModelFiles m_files;
         };
 
@@ -1494,7 +1494,7 @@ namespace otter::tifa {
         // with the vocabulary, would otherwise surface as a failed execution long after the
         // package loaded, or, worse, as a result whose phonemes are in a notation the host was
         // not told to expect.
-        srt::Expected<void> checkDeclaration(const AlignApi::Schema &declared,
+        srt::Expected<void> checkDeclaration(const AlignApi::Exports &declared,
                                              const TifaConfiguration &wiring) {
             auto facts = readModelFacts(wiring.config);
             if (!facts) {
@@ -1654,7 +1654,7 @@ namespace otter::tifa {
 
     srt::Expected<std::unique_ptr<srt::ContribExports>>
         TifaInterpreter::createExports(const srt::ContribSpec &spec) const {
-        auto schema = AlignApi::readAlignSchema(spec);
+        auto schema = AlignApi::readAlignExports(spec);
         if (!schema) {
             return schema.takeError();
         }
@@ -1684,7 +1684,7 @@ namespace otter::tifa {
                                          const srt::InferenceRuntimeOptions &) {
         const auto configuration =
             spec.configuration() ? spec.configuration()->as<TifaConfiguration>() : nullptr;
-        const auto schema = spec.exports() ? spec.exports()->as<AlignApi::Schema>() : nullptr;
+        const auto schema = spec.exports() ? spec.exports()->as<AlignApi::Exports>() : nullptr;
         if (configuration == nullptr || schema == nullptr) {
             return srt::Error(otter::AnalysisError::Internal,
                               "this declaration carries no tifa configuration");

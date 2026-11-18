@@ -48,7 +48,7 @@ ExtractPitchTask::runTask()
 | 解码 | `srt::audio::AudioPipeline`（ffmpeg） | talcs `AudioFormatIO` |
 | 重采样 | 插件内部 | talcs `AudioFormatInputSource::open(bufferSize, rate)`，rate 取自模块声明 |
 | 静音切片 | 插件内部 | lite，一套统一参数 |
-| 帧间隔 | lite 硬编码 10ms | 读取 `F0::L1::Schema::interval` |
+| 帧间隔 | lite 硬编码 10ms | 读取 `F0::L1::Exports::interval` |
 | 秒 → tick | 插件内部，单一 tempo | lite 的 `Timeline`，逐点换算 |
 | 模型选择 | 在设置中选择 .onnx 文件路径 | 选择一个已安装的分析器贡献 |
 | 参数 | 无 UI，全部使用模型默认值 | 不变，仍全部使用模型默认值（见 §6） |
@@ -63,7 +63,7 @@ ExtractPitchTask::runTask()
 
 ## 3. 文件落点
 
-复核时收窄了改动面。原方案新建 `src/libs/AudioAnalysis` 库与 `src/app/Modules/Analysis` 模块目录，两者均已取消：切片器只供抽参使用，且 lite 的测试约定是直接重新编译 app 源文件，不需要库目标； `SynthrtEngine` 已是 `SynthUnit` 的门面，列举分析器只需为它增加两个方法，不必另开模块。原方案还按 `Schema` 自动生成旋钮 UI，这是独立需求，不与迁移绑定。迁移的最小形态是继续不传旋钮、全部使用模块默认值，与迁移前的行为一致。
+复核时收窄了改动面。原方案新建 `src/libs/AudioAnalysis` 库与 `src/app/Modules/Analysis` 模块目录，两者均已取消：切片器只供抽参使用，且 lite 的测试约定是直接重新编译 app 源文件，不需要库目标； `SynthrtEngine` 已是 `SynthUnit` 的门面，列举分析器只需为它增加两个方法，不必另开模块。原方案还按 `Exports` 自动生成旋钮 UI，这是独立需求，不与迁移绑定。迁移的最小形态是继续不传旋钮、全部使用模块默认值，与迁移前的行为一致。
 
 **新增**（全部位于 `src/app/Modules/Extractors/` 下，不新建库或模块目录）
 
@@ -140,7 +140,7 @@ namespace Extractors {
 
 `SlicingProfile` 以时间存储这些参数，按目标采样率实时换算为帧数，因此同一套配置适用于两种采样率。
 
-**切片器必须保证每片不超过 `Schema::maxSegmentDuration`。** 对持续有声的长音频，RMS 切片可能无法切出足够短的片，因此静音切片之后还有一道强制再分。这一步不可省略，因为 GAME 对超长片直接报错，而不是降级处理。
+**切片器必须保证每片不超过 `Exports::maxSegmentDuration`。** 对持续有声的长音频，RMS 切片可能无法切出足够短的片，因此静音切片之后还有一道强制再分。这一步不可省略，因为 GAME 对超长片直接报错，而不是降级处理。
 
 再分按**等份**进行，而非「切满上限 + 余数」：25 秒按 10 秒上限分为 3 份，每份 8.33 秒，而非 10 + 10 + 5。末尾的短碎片作为输入劣于三份均等的片。片的端点由两端反算而非累加得出，因此相邻片之间既无间隙也不重叠。
 
@@ -245,7 +245,7 @@ the game variant runs at 44100 Hz; the exports declare 22050       // game: samp
 
 `GeneralPage` 的两个 `FileSelector` 替换为两个下拉框，分别按 `interfaceName` 过滤出音高分析器与音符分析器。**本轮不做旋钮 UI。**
 
-设计理由是范围控制：迁移前 lite 没有任何抽参旋钮，全部使用模型默认值；迁移后 `StartInput` 的旋钮一律不填，行为与迁移前完全一致。按 `Schema` 自动生成设置界面是一项独立的需求，不属于迁移。将其并入本次改动会增加一整套 UI 代码，而该代码的正确性与迁移是否成功无关。契约侧已提供所需信息（`Knob` 带取值域与默认值），可在以后单独实现。
+设计理由是范围控制：迁移前 lite 没有任何抽参旋钮，全部使用模型默认值；迁移后 `StartInput` 的旋钮一律不填，行为与迁移前完全一致。按 `Exports` 自动生成设置界面是一项独立的需求，不属于迁移。将其并入本次改动会增加一整套 UI 代码，而该代码的正确性与迁移是否成功无关。契约侧已提供所需信息（`Knob` 带取值域与默认值），可在以后单独实现。
 
 ### 旧设置的处理
 
@@ -304,7 +304,7 @@ for (const auto &note : result.notes) {
 ```
 1. engine.findAnalyzer(settings.pitchAnalyzer) → AnalyzerEntry，找不到时报告「未配置分析器」
 2. spec = package.contribution(srt::InferenceCategory::NAME, id)
-3. schema = spec->exports()->as<F0::L1::Schema>() → sampleRate、interval、maxSegmentDuration、旋钮域
+3. schema = spec->exports()->as<F0::L1::Exports>() → sampleRate、interval、maxSegmentDuration、旋钮域
 4. analyzer = F0Api::createAnalyzer(*spec->as<srt::InferenceSpec>())
 5. audio = prepare(io, visibleStartMs, visibleEndMs, schema.sampleRate, cancelled, error)
 6. slices = SlicingProfile::slice(audio, schema.maxSegmentDuration)

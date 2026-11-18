@@ -129,7 +129,7 @@ SynthUnit::openPackage(...)                       // 装载模型包
        └─ 解释器（插件）读取 exports 与 configuration
 
 宿主:
-  F0Api::readF0Schema(spec)                       // 读取能力：采样率、帧间隔、旋钮域
+  F0Api::readF0Exports(spec)                       // 读取能力：采样率、帧间隔、旋钮域
   F0Api::createAnalyzer(*spec->as<InferenceSpec>())
       // = spec.createInference(ImportOptions(), RuntimeOptions())
       // → unique_ptr<Executive>
@@ -197,7 +197,7 @@ namespace otter::Api::F0::L1 {
     inline const srt::ContribContract Contract{"org.openvpi.otter.inference.F0", 1};
 
     /// 本模块公开的能力。宿主据此准备音频、生成设置界面。
-    class Schema : public srt::ContribExports {
+    class Exports : public srt::ContribExports {
     public:
         /// 模型要求的输入采样率（Hz）。宿主负责重采样到该值。
         int sampleRate = 0;
@@ -216,8 +216,8 @@ namespace otter::Api::F0::L1 {
 
     /// 读取声明的 exports 块。契约语法归接口所有，每个 variant 均经此函数读取，再各自核对
     /// 自身模型能否满足。configuration 块归 variant 所有，其类型定义在各自的提供者中。
-    OTTER_EXPORT srt::Expected<std::unique_ptr<Schema>>
-        readF0Schema(const srt::ContribSpec &spec);
+    OTTER_EXPORT srt::Expected<std::unique_ptr<Exports>>
+        readF0Exports(const srt::ContribSpec &spec);
 
     class ImportOptions : public otter::AnalysisImportOptions { /* 只标识契约 */ };
     class RuntimeOptions : public otter::AnalysisRuntimeOptions { /* 只标识契约 */ };
@@ -297,7 +297,7 @@ namespace otter::Api::Note::L1 {
         double duration = 0;
     };
 
-    class Schema : public srt::ContribExports {
+    class Exports : public srt::ContribExports {
     public:
         int sampleRate = 0;
         int channelCount = 1;
@@ -325,8 +325,8 @@ namespace otter::Api::Note::L1 {
 
     /// 读取声明的 exports 块，与 F0 相同。game variant 的 configuration（五个模型路径、timestep、
     /// 语言编号映射、扩散起点）是该 variant 自有的类型，宿主不读取。
-    OTTER_EXPORT srt::Expected<std::unique_ptr<Schema>>
-        readNoteSchema(const srt::ContribSpec &spec);
+    OTTER_EXPORT srt::Expected<std::unique_ptr<Exports>>
+        readNoteExports(const srt::ContribSpec &spec);
 
     class ImportOptions : public otter::AnalysisImportOptions { /* 同 F0 */ };
     class RuntimeOptions : public otter::AnalysisRuntimeOptions { /* 同 F0 */ };
@@ -398,7 +398,7 @@ namespace otter::Api::Align::L1 {
         std::vector<PhoneInfo> phones;   ///< 按顺序排列，恰好覆盖该词
     };
 
-    class Schema : public srt::ContribExports {
+    class Exports : public srt::ContribExports {
     public:
         int sampleRate = 0;
         int channelCount = 1;
@@ -421,8 +421,8 @@ namespace otter::Api::Align::L1 {
         Common::L1::Knob gapFill;               ///< 短于该值（秒）的词间空隙并入相邻词，而非留作静音
     };
 
-    OTTER_EXPORT srt::Expected<std::unique_ptr<Schema>>
-        readAlignSchema(const srt::ContribSpec &spec);
+    OTTER_EXPORT srt::Expected<std::unique_ptr<Exports>>
+        readAlignExports(const srt::ContribSpec &spec);
 
     class StartInput : public srt::TaskStartInput {
     public:
@@ -473,7 +473,7 @@ spec 2.4 将声明文件分为三层，三类内容分别对应：
 
 | 内容 | 落点 | 读取方 | 示例 |
 | :-- | :-- | :-- | :-- |
-| 宿主需要理解的能力与旋钮域 | `exports` → `Schema` | 宿主 | `sampleRate`、`maxSegmentDuration`、`boundaryThreshold` 的取值域与默认值 |
+| 宿主需要理解的能力与旋钮域 | `exports` → `Exports` | 宿主 | `sampleRate`、`maxSegmentDuration`、`boundaryThreshold` 的取值域与默认值 |
 | 仅解释器关心的实现参数 | `configuration` → 变体的配置类型 | 解释器 | 模型路径、`timestep`、语言编号映射、扩散起点 |
 | 每次执行的可调值 | `StartInput` | 调用方填写 | `boundaryThreshold = 0.3` |
 
@@ -628,8 +628,8 @@ TIFA 是第二个将模型自带文件一并打包的变体（A29）：五张图
 
 otter 将以下三项职责明确留给宿主，三者缺一不可：
 
-1. **重采样。** 宿主读取 `Schema::sampleRate` / `channelCount`，将音频转换为该格式。RMVPE 要求 16000 Hz 单声道，GAME 与 HFA 要求 44100 Hz 单声道，TIFA 要求 48000 Hz 单声道。各算法要求不同，宿主必须采用模块声明的值，不得写死。执行体校验输入，不匹配即失败，不会自行重采样。
-2. **切片。** 宿主以 RMS 静音切片将音频分段，每段不超过 `Schema::maxSegmentDuration`，逐段调用，并为每段正确填写 `audio.startTime`。otter 不切片（A7）。
+1. **重采样。** 宿主读取 `Exports::sampleRate` / `channelCount`，将音频转换为该格式。RMVPE 要求 16000 Hz 单声道，GAME 与 HFA 要求 44100 Hz 单声道，TIFA 要求 48000 Hz 单声道。各算法要求不同，宿主必须采用模块声明的值，不得写死。执行体校验输入，不匹配即失败，不会自行重采样。
+2. **切片。** 宿主以 RMS 静音切片将音频分段，每段不超过 `Exports::maxSegmentDuration`，逐段调用，并为每段正确填写 `audio.startTime`。otter 不切片（A7）。
 3. **时间轴换算。** otter 输出绝对秒，宿主按自身的时间轴换算为 tick，变速曲由宿主处理。
 
 在 lite 中，重采样由 talcs 完成；RMS 切片器取自 lite 历史中已删除的 `src/libs/audio-util`（该目录与 `game-infer`、`rmvpe-infer` 在同一次提交中被删除），现位于 `Modules/Extractors/AudioSlicer.h`，详见 [lite-integration.md](lite-integration.md)。三个算法共用一套切片参数（A8）。
@@ -696,11 +696,11 @@ otter 将以下三项职责明确留给宿主，三者缺一不可：
 
 ### A7 — 切片归宿主，otter 不切片
 
-**决策**：执行体只接受一段连续音频，不做静音切片。宿主负责分段并逐段调用。`Schema` 声明 `maxSegmentDuration` 作为硬约束。
+**决策**：执行体只接受一段连续音频，不做静音切片。宿主负责分段并逐段调用。`Exports` 声明 `maxSegmentDuration` 作为硬约束。
 
 **依据**：该分工由需求方规定。切片所需的信息（编辑区域、可见范围、用户选区）由宿主掌握，宿主的切片更准确；otter 也因此完全不需要音频侧代码。
 
-**代价（已接受）**：`Schema` 不声明切片参数。若将来某个算法确实需要不同的切片参数，将其加入 `exports` 词汇需要递增 Level。本方案接受该代价，不为当前明确不读取这些参数的宿主预留词汇。
+**代价（已接受）**：`Exports` 不声明切片参数。若将来某个算法确实需要不同的切片参数，将其加入 `exports` 词汇需要递增 Level。本方案接受该代价，不为当前明确不读取这些参数的宿主预留词汇。
 
 ### A8 — 各算法共用一套切片参数
 
@@ -710,9 +710,9 @@ otter 将以下三项职责明确留给宿主，三者缺一不可：
 
 ### A9 — 旋钮一律为 `std::optional`，缺省取模块默认值
 
-**决策**：`StartInput` 中每个旋钮为 `std::optional<T>`；未填写时解释器采用声明 `exports.knobs` 中的默认值（A17 起默认值与取值域一同归契约）。`Schema` 同时声明本模块是否采用该旋钮、取值域与默认值；对于模块未采用的旋钮，调用方给出的值被忽略。
+**决策**：`StartInput` 中每个旋钮为 `std::optional<T>`；未填写时解释器采用声明 `exports.knobs` 中的默认值（A17 起默认值与取值域一同归契约）。`Exports` 同时声明本模块是否采用该旋钮、取值域与默认值；对于模块未采用的旋钮，调用方给出的值被忽略。
 
-**依据**：与 dsinfer 的 `AcousticStartInput::depth` 加 `AcousticConfiguration::useVariableDepth` 做法相同。宿主可以依据 `Schema` 自动生成设置界面；新算法增加旋钮时，不填写该旋钮的宿主行为不变。
+**依据**：与 dsinfer 的 `AcousticStartInput::depth` 加 `AcousticConfiguration::useVariableDepth` 做法相同。宿主可以依据 `Exports` 自动生成设置界面；新算法增加旋钮时，不填写该旋钮的宿主行为不变。
 
 **备选与否决理由**：
 - *开放的 JSON 字典*：新算法增加参数时宿主无须修改，但完全丧失编译期类型安全，且不同算法可能以不同键名表示同一参数，契约因此失去约束力。否决。
@@ -748,7 +748,7 @@ otter 将以下三项职责明确留给宿主，三者缺一不可：
 
 ### A12 — 对齐模式经 `knownNotes` 表达，补回 `dur2bd` session
 
-**决策**：`StartInput::knownNotes` 非空即为对齐模式；解释器经 `dur2bd` 将已知时长转换为边界，送入 segmenter 的 `known_boundaries`。`Schema::supportsKnownNotes` 声明本模块是否接受已知音符。
+**决策**：`StartInput::knownNotes` 非空即为对齐模式；解释器经 `dur2bd` 将已知时长转换为边界，送入 segmenter 的 `known_boundaries`。`Exports::supportsKnownNotes` 声明本模块是否接受已知音符。
 
 **依据**：该能力由模型提供：旧 `GameModel` 包含 `runDur2bd` 与 `InferenceInput::known_durations`； refactor 的 `GameExtractor` 迁移时遗漏了该 session，`inferSlice` 中的 `knownBoundaries` 恒为全零。移植时按旧实现补回。
 
@@ -794,7 +794,7 @@ otter 将以下三项职责明确留给宿主，三者缺一不可：
 
 > **接口名与扩展 ID 部分已被 A26 取代。** 接口名现为 `org.openvpi.otter.inference.*`，扩展已删除； `exports` 与 `configuration` 的分工仍然有效。
 
-**决策**：采样率、声道数、帧间隔、段上限、语言标识、`supportsKnownNotes` 与全部旋钮域写在声明的 `exports` 中，由库中每份契约各一个的读取函数（`readF0Schema` / `readNoteSchema` / `readAlignSchema`）解析，并发布 JSON Schema（`docs/schemas/`）。`configuration` 只包含变体私有内容：rmvpe 的模型路径； game 的五个模型路径、`timestep`、语言编号映射与 `scheduleStart`；hfa 的模型、mel 配置、词表的路径与语言编号映射（词典由词表定位，见 A21）。变体在加载期将两块内容相互核对：模型无法支持的采样率、声明了但缺少模型的对齐路径、词表中缺少对应词典的语言，均在加载期拒绝。接口名当时改为 `org.openvpi.otter.analysis.F0` / `.Note` / `.Align`，扩展 ID 改为 `org.openvpi.otter.extension.*`。
+**决策**：采样率、声道数、帧间隔、段上限、语言标识、`supportsKnownNotes` 与全部旋钮域写在声明的 `exports` 中，由库中每份契约各一个的读取函数（`readF0Exports` / `readNoteExports` / `readAlignExports`）解析，并发布 JSON Schema（`docs/schemas/`）。`configuration` 只包含变体私有内容：rmvpe 的模型路径； game 的五个模型路径、`timestep`、语言编号映射与 `scheduleStart`；hfa 的模型、mel 配置、词表的路径与语言编号映射（词典由词表定位，见 A21）。变体在加载期将两块内容相互核对：模型无法支持的采样率、声明了但缺少模型的对齐路径、词表中缺少对应词典的语言，均在加载期拒绝。接口名当时改为 `org.openvpi.otter.analysis.F0` / `.Note` / `.Align`，扩展 ID 改为 `org.openvpi.otter.extension.*`。
 
 **依据**：spec 2.4 §「三个语法块的归属」规定，`exports` 语法归 `interface + level`、由导入方读取， `configuration` 全部归 `variant`；「需要参与跨模块契约的内容应由 `exports` 公开，而不是作为 `configuration` 中的契约字段」。若将契约事实放入各变体的 `configuration` 再派生 `exports`，每增加一个变体就要为同一批事实另立一套键，`DataOnly` 模式读不到能力，文档示例也与 lint 规则相反。`hfa` 作为第三个变体验证了这一分工：其 `configuration` 只含私有的文件路径与语言映射，没有重复任何契约事实。接口名采用与 `org.openvpi.dsinfer.inference.*`、`org.openvpi.wolf.inference.*` 一致的项目段写法，并在尚无已发布包时完成改名。
 
@@ -985,7 +985,7 @@ otter 将以下三项职责明确留给宿主，三者缺一不可：
 
 ### A34 — 契约身份与变体配置分离
 
-2026-11-17：公开契约使用 ContribContract 对象统一 interface 与 level，类型名去掉命名空间已表达的前缀。Schema、ImportOptions、RuntimeOptions 不接收 variant，配置仍保存完整 ContribContractTriplet。契约解析函数不再接收 variant。输入与结果通过静态 Contract 引用向 AnalysisTask 提供身份。插件内部 Triplet 保存具体实现身份，库与插件及宿主须配套重建。实现与迁移说明见 [ContractApiMigration.md](codex/ContractApiMigration.md)。
+2026-11-17：公开契约使用 ContribContract 对象统一 interface 与 level，类型名去掉命名空间已表达的前缀。Exports、ImportOptions、RuntimeOptions 不接收 variant，配置仍保存完整 ContribContractTriplet。契约解析函数不再接收 variant。输入与结果通过静态 Contract 引用向 AnalysisTask 提供身份。插件内部 Triplet 保存具体实现身份，库与插件及宿主须配套重建。实现与迁移说明见 [ContractApiMigration.md](codex/ContractApiMigration.md)。
 
 ## 9.5 联合审计（实施后）
 
@@ -998,7 +998,7 @@ otter 将以下三项职责明确留给宿主，三者缺一不可：
 | **X3** | 契约 | `knownNotes` 的时间基准不一致：头文件规定与音频同一时间轴（绝对时间），实现却按相对于片段起点处理，而输出为绝对时间。宿主分析第一段时结果无差异，之后每一段均出错且无任何提示 | 统一为绝对时间；提供者减去 `startTime` 并校验落在片段内。用例改为 `startTime = 30` |
 | **X4** | 规范符合度 | `createImportOptions` 无条件报错，使 spec 2.4 允许的情形变为加载失败；规范明确允许 import 一个不提供 Factory 的类别的贡献，加载器也接受空工厂 | 返回空 options 与惰性 binding；只有显式写出 options 时才拒绝（Level 1 契约不读取 import options） |
 | **X5** | 健壮性 | `AnalysisRunner::spawn` 创建线程抛出异常时 `running` 永久为真，分析器此后拒绝一切执行 | 捕获异常并释放认领；任务面中由 `startAsync()` 处理，`startWorker()` 失败时返回 `NoWorker` |
-| **X6** | 契约 | Schema 声明了旋钮的取值域但无任何校验，`steps = -1` 会生成空张量并送入模型 | `otter::chooseKnob()` 按声明的取值域校验，越界即拒绝，不做钳位 |
+| **X6** | 契约 | Exports 声明了旋钮的取值域但无任何校验，`steps = -1` 会生成空张量并送入模型 | `otter::chooseKnob()` 按声明的取值域校验，越界即拒绝，不做钳位 |
 | **X7** | 测试有效性 | 桩提供者不做任何校验，与真实提供者行为不同，针对桩编写的契约用例因此不能证明契约成立 | 桩改为调用同一套库函数；X1、X2、X6 正是在桩上的用例失败后暴露的 |
 
 X1、X2、X6 的共同原因是两个提供者各自实现同一套校验，实现必然产生分歧。与 `AnalysisTask` 相同，校验也下沉到库中（`otter/Analysis/Provider/AnalysisInput.h`），各实现因此保持一致。

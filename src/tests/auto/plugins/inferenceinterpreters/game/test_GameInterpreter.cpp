@@ -109,7 +109,7 @@ BOOST_AUTO_TEST_SUITE(test_GameInterpreter)
 BOOST_AUTO_TEST_CASE(test_GameInterpreter_ReportsWhatTheDeclarationExports) {
     Host host;
     auto spec = host.load();
-    auto schema = spec->exports()->as<NoteApi::Schema>();
+    auto schema = spec->exports()->as<NoteApi::Exports>();
     BOOST_REQUIRE(schema != nullptr);
 
     // The exports are the declaration's values, read through the contract's reader, and the

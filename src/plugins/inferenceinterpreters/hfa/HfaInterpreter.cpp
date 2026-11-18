@@ -321,7 +321,7 @@ namespace otter::hfa {
         class HfaExecutive : public otter::onnx::OnnxExecutive<AlignApi::Executive> {
         public:
             HfaExecutive(srt::InferenceSpec &spec, std::unique_ptr<ds::InferenceSession> session,
-                         const AlignApi::Schema &schema, const HfaConfiguration &configuration)
+                         const AlignApi::Exports &schema, const HfaConfiguration &configuration)
                 : OnnxExecutive(spec), m_session(own(std::move(session))), m_schema(schema),
                   m_configuration(configuration) {
             }
@@ -708,7 +708,7 @@ namespace otter::hfa {
             ds::InferenceSession *m_session;
 
             // Owned by the spec, which outlives every executive created from it.
-            const AlignApi::Schema &m_schema;
+            const AlignApi::Exports &m_schema;
             const HfaConfiguration &m_configuration;
         };
 
@@ -725,7 +725,7 @@ namespace otter::hfa {
         //
         // \return An empty value, or \c srt::Error::InvalidFormat or \c srt::Error::FileNotFound
         //         for the first mismatch.
-        srt::Expected<void> checkAgainstModel(const AlignApi::Schema &declared,
+        srt::Expected<void> checkAgainstModel(const AlignApi::Exports &declared,
                                               const HfaConfiguration &wiring) {
             const auto &model = wiring.facts;
             if (declared.sampleRate != model.sampleRate) {
@@ -828,7 +828,7 @@ namespace otter::hfa {
         }
 
         /// Reads the dictionary of every language the exports declare.
-        srt::Expected<void> loadDictionaries(const AlignApi::Schema &declared,
+        srt::Expected<void> loadDictionaries(const AlignApi::Exports &declared,
                                              HfaConfiguration &wiring) {
             for (const auto &entry : declared.languages) {
                 // checkAgainstModel() has verified the code and the dictionary's name.
@@ -900,7 +900,7 @@ namespace otter::hfa {
 
     srt::Expected<std::unique_ptr<srt::ContribExports>>
         HfaInterpreter::createExports(const srt::ContribSpec &spec) const {
-        auto schema = AlignApi::readAlignSchema(spec);
+        auto schema = AlignApi::readAlignExports(spec);
         if (!schema) {
             return schema.takeError();
         }
@@ -927,7 +927,7 @@ namespace otter::hfa {
         if (!configuration) {
             return configuration.takeError();
         }
-        auto schema = AlignApi::readAlignSchema(spec);
+        auto schema = AlignApi::readAlignExports(spec);
         if (!schema) {
             return schema.takeError();
         }
@@ -951,7 +951,7 @@ namespace otter::hfa {
                                         const srt::InferenceRuntimeOptions &) {
         const auto configuration =
             spec.configuration() ? spec.configuration()->as<HfaConfiguration>() : nullptr;
-        const auto schema = spec.exports() ? spec.exports()->as<AlignApi::Schema>() : nullptr;
+        const auto schema = spec.exports() ? spec.exports()->as<AlignApi::Exports>() : nullptr;
         if (configuration == nullptr || schema == nullptr) {
             return srt::Error(otter::AnalysisError::Internal,
                               "this declaration carries no hfa configuration");

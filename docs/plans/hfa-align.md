@@ -17,7 +17,7 @@
 
 HFA 是**强制对齐器**：输入是「音频 + 已知歌词文本」，输出是**音素/词的时间区间**。它既不是 F0（基频曲线）也不是 Note（音符区间），输入与输出都与两者根本不同。按规范 2.4「输入输出根本不同时另立 `interface`」，必须新立契约。otter 已为它预留了名字与类别位置（`docs/otter-design.md` §1 表：`Align`，音素/词的时间区间；方案制定时名为 `org.openvpi.otter.analysis.Align`，现为 `org.openvpi.otter.inference.Align`），并把契约面列为未决项；该未决项现已由台账 A19 与 §5.4 落地。本方案的内容：
 
-1. **立契约**：`Align` Level 1（Schema / StartInput / Result / Executive / 读取函数 / JSON Schema / lint 规则）。
+1. **立契约**：`Align` Level 1（Exports / StartInput / Result / Executive / 读取函数 / JSON Schema / lint 规则）。
 2. **移植变体**：将 dataset-tools 的 C++ HFA 推理移植为解释器插件（方案制定时位于 `src/plugins/analysisproviders/hfa`，现位于 `src/plugins/inferenceinterpreters/hfa`），外壳按 game/rmvpe 的结构重写，算法逐行保留，以保证与参考实现数值可比。
 3. **打包**：`packages/hfa` 形状的声明 + HubertFA `v0.0.7` 模型 → `otter-hfa-0.1.0.0.zip`（**现行仍为 0.1.0.0**；A26 后曾升为 0.2.0.0，A31 起回到 0.1.0.0，随 `models-v0.1` 发布）。
 4. **发布**：按当时已发布的 `models-v0.1.0.0`（**历史标签，已删除**）的形状（zip + `manifest.json`）发布新版本（发布形态见 D2，**历史**：当时发的是 `models-v0.2.0.0`）。
@@ -48,7 +48,7 @@ HFA 是**强制对齐器**：输入是「音频 + 已知歌词文本」，输出
 | :-- | :-- |
 | `Align` 只登记了名字与类别，未定义类型 | `docs/otter-design.md` §1 表与当时的 §11 未决条目（现为台账 A19） |
 | lint 已把 `Align` 列为保留接口，但不在「已实现」集合中 | `scripts/check-declarations.py` |
-| 契约三件套的形状（Schema / StartInput+Result / Executive + 扩展 traits ID） | `include/otter/Api/Note/1/NoteApiL1.h` |
+| 契约三件套的形状（Exports / StartInput+Result / Executive + 扩展 traits ID） | `include/otter/Api/Note/1/NoteApiL1.h` |
 | 声明读取集中在库内，每份契约一个函数 | `src/lib/Api/Note/1/NoteApiL1.cpp` |
 | 解释器形状（执行体 / 会话开启 / Provider / 插件 IID） | `src/plugins/analysisproviders/game/main.cpp`（现为 `src/plugins/inferenceinterpreters/game/main.cpp`） |
 | **加载期互检**：exports 与 configuration 必须自洽，否则包在装载期被拒绝 | 同上，`createExports` |
@@ -102,7 +102,7 @@ namespace otter::Api::Align::L1 {
     struct WordInfo { std::string text; double start = 0; double duration = 0;
                       std::vector<PhoneInfo> phones; };
 
-    class Schema : public srt::ContribExports {
+    class Exports : public srt::ContribExports {
         int sampleRate = 0;                  // 契约事实，宿主按它准备音频
         int channelCount = 1;
         double maxSegmentDuration = 0;       // hfa：60
@@ -114,8 +114,8 @@ namespace otter::Api::Align::L1 {
         Common::L1::Knob gapFill;                // 秒
     };
 
-    OTTER_EXPORT srt::Expected<std::unique_ptr<Schema>>
-        readAlignSchema(const srt::ContribSpec &spec);
+    OTTER_EXPORT srt::Expected<std::unique_ptr<Exports>>
+        readAlignExports(const srt::ContribSpec &spec);
 
     class RuntimeOptions : public otter::AnalysisRuntimeOptions { /* 壳 */ };
 
@@ -262,7 +262,7 @@ otter-hfa/
 
 | 层 | 手段 | 通过标准 |
 | :-- | :-- | :-- |
-| 契约读取 | `test_ManifestValues` 中同类新用例：`readAlignSchema` 正反例 | 反例必须报错（缺 sampleRate、未知键、旋钮域倒置等） |
+| 契约读取 | `test_ManifestValues` 中同类新用例：`readAlignExports` 正反例 | 反例必须报错（缺 sampleRate、未知键、旋钮域倒置等） |
 | 装载互检 | 由 `scripts/make-test-packages.cmake` 生成、不入库的 package fixture ＋ `test_AnalysisLoad` | §4.2 前五条各有一例被拒绝（第 6 条按设计不拒绝） |
 | 执行面 | `test_Hfa`：`make-model-fixtures.py` 新增 hfa 图（真实签名、假权重，输出可预测） | 词/音素时间位置、旋钮确实传入图、取消返回 Cancelled、绝对秒锚定（`startTime=30`） |
 | 真实权重 | 用 v0.0.7 模型 + 真实演唱片段运行一次，检查区间单调、覆盖整段（现以 `silenceLabel` 非空为条件，见 `docs/otter-design.md:450-452`）、AP 段位置 | 无异常、区间自洽 |

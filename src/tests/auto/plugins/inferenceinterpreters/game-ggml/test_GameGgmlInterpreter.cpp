@@ -6,7 +6,7 @@ BOOST_AUTO_TEST_CASE(test_GameGgmlInterpreter_ReportsWhatTheDeclarationExports) 
     Host host;
     host.write();
     auto spec = host.load();
-    auto schema = spec->exports()->as<NoteApi::Schema>();
+    auto schema = spec->exports()->as<NoteApi::Exports>();
     BOOST_REQUIRE(schema != nullptr);
 
     BOOST_CHECK_EQUAL(schema->sampleRate, RATE);

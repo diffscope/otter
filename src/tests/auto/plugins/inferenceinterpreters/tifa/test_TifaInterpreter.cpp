@@ -230,7 +230,7 @@ namespace {
         }
     };
 
-    Lyrics fixtureLyrics(const AlignApi::Schema &schema) {
+    Lyrics fixtureLyrics(const AlignApi::Exports &schema) {
         const auto directory = fs::path(OTTER_TEST_FIXTURE_DIR) / PACKAGE / "dictionaries";
         BOOST_REQUIRE_MESSAGE(fs::is_directory(directory),
                               "the fixture should carry its dictionaries beside the declaration");
@@ -366,7 +366,7 @@ BOOST_AUTO_TEST_SUITE(test_TifaInterpreter)
 BOOST_AUTO_TEST_CASE(test_TifaInterpreter_ReportsWhatTheDeclarationExports) {
     Host host;
     auto spec = host.load();
-    auto schema = spec->exports()->as<AlignApi::Schema>();
+    auto schema = spec->exports()->as<AlignApi::Exports>();
     BOOST_REQUIRE(schema != nullptr);
 
     // The exports are the declaration's own words, read through the contract's reader, and the
@@ -407,7 +407,7 @@ BOOST_AUTO_TEST_CASE(test_TifaInterpreter_ReportsWhatTheDeclarationExports) {
 
 BOOST_AUTO_TEST_CASE(test_TifaInterpreter_PlacesTheWordsTheLyricsName) {
     Host host;
-    auto schema = host.load()->exports()->as<AlignApi::Schema>();
+    auto schema = host.load()->exports()->as<AlignApi::Exports>();
     BOOST_REQUIRE(schema != nullptr);
     const auto words = fixtureLyrics(*schema);
 
@@ -483,7 +483,7 @@ BOOST_AUTO_TEST_CASE(test_TifaInterpreter_PlacesTheWordsTheLyricsName) {
 /// cover the span rather than end somewhere inside it.
 BOOST_AUTO_TEST_CASE(test_TifaInterpreter_NamesWhatTheModelPlacedNoWordOver) {
     Host host;
-    auto schema = host.load()->exports()->as<AlignApi::Schema>();
+    auto schema = host.load()->exports()->as<AlignApi::Exports>();
     BOOST_REQUIRE(schema != nullptr);
     const auto words = fixtureLyrics(*schema);
     auto analyzer = host.open();
@@ -518,7 +518,7 @@ BOOST_AUTO_TEST_CASE(test_TifaInterpreter_NamesWhatTheModelPlacedNoWordOver) {
 
 BOOST_AUTO_TEST_CASE(test_TifaInterpreter_RefusesWhatItCannotHonor) {
     Host host;
-    auto schema = host.load()->exports()->as<AlignApi::Schema>();
+    auto schema = host.load()->exports()->as<AlignApi::Exports>();
     BOOST_REQUIRE(schema != nullptr);
     const auto words = fixtureLyrics(*schema);
     auto analyzer = host.open();
@@ -587,7 +587,7 @@ BOOST_AUTO_TEST_CASE(test_TifaInterpreter_RefusesWhatItCannotHonor) {
 /// the next execution afterwards: a stop belongs to the execution it was aimed at.
 BOOST_AUTO_TEST_CASE(test_TifaInterpreter_ReportsAStopAsACancellation) {
     Host host;
-    auto schema = host.load()->exports()->as<AlignApi::Schema>();
+    auto schema = host.load()->exports()->as<AlignApi::Exports>();
     BOOST_REQUIRE(schema != nullptr);
     const auto words = fixtureLyrics(*schema);
     auto analyzer = host.open();
@@ -721,7 +721,7 @@ BOOST_AUTO_TEST_CASE(test_TifaInterpreter_DropsAWordTheVocabularyCannotSpell) {
     // The dictionary of the language the package aligns by default, told from the others by the
     // phonemes the declaration lists for it, exactly as the lyrics are chosen above.
     Host probe;
-    auto probeSchema = probe.load()->exports()->as<AlignApi::Schema>();
+    auto probeSchema = probe.load()->exports()->as<AlignApi::Exports>();
     BOOST_REQUIRE(probeSchema != nullptr);
     const auto words = fixtureLyrics(*probeSchema);
     std::set<std::string> declared;
@@ -817,7 +817,7 @@ BOOST_AUTO_TEST_CASE(test_TifaInterpreter_PicksOneReadingOfAWordTheDictionarySpe
     // That language's dictionary is told from the other one by the phonemes the declaration lists
     // for it, exactly as the default language's dictionary is found above.
     Host probe;
-    auto schema = probe.load()->exports()->as<AlignApi::Schema>();
+    auto schema = probe.load()->exports()->as<AlignApi::Exports>();
     BOOST_REQUIRE(schema != nullptr);
     std::set<std::string> declared;
     for (const auto &language : schema->languages) {

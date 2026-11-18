@@ -9,7 +9,7 @@
 
 namespace otter::Api::F0::L1 {
 
-    srt::Expected<std::unique_ptr<Schema>> readF0Schema(const srt::ContribSpec &spec) {
+    srt::Expected<std::unique_ptr<Exports>> readF0Exports(const srt::ContribSpec &spec) {
         const auto &value = spec.manifestExports();
         if (!value.isObject()) {
             return srt::Error(srt::Error::InvalidFormat,
@@ -24,7 +24,7 @@ namespace otter::Api::F0::L1 {
             return checked.takeError();
         }
 
-        auto result = std::make_unique<Schema>();
+        auto result = std::make_unique<Exports>();
 
         const auto rate = object.find("sampleRate");
         if (rate == object.end()) {

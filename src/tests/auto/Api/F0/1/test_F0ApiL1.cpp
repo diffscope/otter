@@ -8,7 +8,7 @@
 namespace Api = otter::Api::F0::L1;
 
 BOOST_AUTO_TEST_CASE(contract_identity_and_task_identity_are_preserved) {
-    Api::Schema schema{};
+    Api::Exports schema{};
     Api::ImportOptions options{};
     Api::RuntimeOptions runtime{};
     const srt::ContribSpecPayload *specPayloads[] = {&schema, &options, &runtime};

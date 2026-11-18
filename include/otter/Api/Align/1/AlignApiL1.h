@@ -51,7 +51,7 @@ namespace otter::Api::Align::L1 {
         LyricsForm lyrics = LyricsForm::Scheme;
 
         /// Every phoneme label that a result in this language can contain, excluding
-        /// \c Schema::silenceLabel and \c Schema::nonSpeechPhonemes.
+        /// \c Exports::silenceLabel and \c Exports::nonSpeechPhonemes.
         std::vector<std::string> phonemes;
     };
 
@@ -93,9 +93,9 @@ namespace otter::Api::Align::L1 {
     /// This is the contract's \c exports block, read by the host before it prepares any audio.
     /// Its syntax belongs to the interface and level, not to a variant. The machine readable
     /// schema is docs/schemas/align-1-exports.schema.json.
-    class Schema : public srt::ContribExports {
+    class Exports : public srt::ContribExports {
     public:
-        inline Schema() : srt::ContribExports(Contract) {
+        inline Exports() : srt::ContribExports(Contract) {
         }
 
         /// Input sample rate in hertz. The host resamples its audio to this rate.
@@ -164,8 +164,8 @@ namespace otter::Api::Align::L1 {
     /// declared, and the default non-speech labels must be among the declared labels.
     ///
     /// \return The schema, or an \c InvalidFormat error that describes the first invalid value.
-    OTTER_EXPORT srt::Expected<std::unique_ptr<Schema>>
-        readAlignSchema(const srt::ContribSpec &spec);
+    OTTER_EXPORT srt::Expected<std::unique_ptr<Exports>>
+        readAlignExports(const srt::ContribSpec &spec);
 
     /// Contains the import options of an Align analysis module, which identify only the contract.
     ///
@@ -202,7 +202,7 @@ namespace otter::Api::Align::L1 {
         Common::L1::ProgressCallback progress;
 
         /// Language identifier, which the module must declare. If unset, the declared
-        /// \c Schema::defaultLanguage applies.
+        /// \c Exports::defaultLanguage applies.
         std::optional<std::string> language;
 
         /// Scheme of \c language. An unset scheme is accepted if the module declares the language
@@ -218,7 +218,7 @@ namespace otter::Api::Align::L1 {
         std::string lyrics;
 
         /// The declared non-speech labels to detect. If empty, the declared
-        /// \c Schema::defaultNonSpeechPhonemes apply. An undeclared label is rejected rather
+        /// \c Exports::defaultNonSpeechPhonemes apply. An undeclared label is rejected rather
         /// than ignored: the module cannot produce the requested label, and an empty result would
         /// be indistinguishable from a result without detections.
         std::vector<std::string> nonSpeechPhonemes;
@@ -251,10 +251,10 @@ namespace otter::Api::Align::L1 {
 
         /// Words in ascending order of start time, in seconds on the host's timeline.
         ///
-        /// The words cover the span without gaps when \c Schema::silenceLabel is not empty:
+        /// The words cover the span without gaps when \c Exports::silenceLabel is not empty:
         /// the first word starts at the start of the audio, each word ends at the start of the
         /// next word, and the last word ends at the end of the audio. A gap that the aligner did
-        /// not attribute to a word becomes a word labelled \c Schema::silenceLabel. A module
+        /// not attribute to a word becomes a word labelled \c Exports::silenceLabel. A module
         /// whose label is empty does not report silence as a word, so its words may leave part of
         /// the span uncovered and the host pads that part from the audio boundaries. A module that
         /// does not support an empty label rejects the declaration or the execution instead of

@@ -223,7 +223,7 @@ namespace otter::game {
         class GameExecutive : public otter::onnx::OnnxExecutive<NoteApi::Executive> {
         public:
             GameExecutive(srt::InferenceSpec &spec, OpenedModels models,
-                          const NoteApi::Schema &schema, const GameConfiguration &configuration)
+                          const NoteApi::Exports &schema, const GameConfiguration &configuration)
                 : OnnxExecutive(spec), m_schema(schema), m_configuration(configuration) {
                 m_models.encoder = own(std::move(models.encoder));
                 m_models.segmenter = own(std::move(models.segmenter));
@@ -751,7 +751,7 @@ namespace otter::game {
             Models<ds::InferenceSession *> m_models;
 
             // Owned by the spec, which outlives every executive created from it.
-            const NoteApi::Schema &m_schema;
+            const NoteApi::Exports &m_schema;
             const GameConfiguration &m_configuration;
         };
 
@@ -829,7 +829,7 @@ namespace otter::game {
 
     srt::Expected<std::unique_ptr<srt::ContribExports>>
         GameInterpreter::createExports(const srt::ContribSpec &spec) const {
-        auto schema = NoteApi::readNoteSchema(spec);
+        auto schema = NoteApi::readNoteExports(spec);
         if (!schema) {
             return schema.takeError();
         }
@@ -900,7 +900,7 @@ namespace otter::game {
                                          const srt::InferenceRuntimeOptions &) {
         const auto configuration =
             spec.configuration() ? spec.configuration()->as<GameConfiguration>() : nullptr;
-        const auto schema = spec.exports() ? spec.exports()->as<NoteApi::Schema>() : nullptr;
+        const auto schema = spec.exports() ? spec.exports()->as<NoteApi::Exports>() : nullptr;
         if (configuration == nullptr || schema == nullptr) {
             return srt::Error(otter::AnalysisError::Internal,
                               "this declaration carries no game configuration");

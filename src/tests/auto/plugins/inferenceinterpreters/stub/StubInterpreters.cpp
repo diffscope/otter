@@ -108,10 +108,10 @@ namespace otter::stub {
         /// The base of the stub executives: the schema that supplies the audio format and the
         /// knobs, the settings, and the shared validation call. The lifecycle is inherited from the
         /// contract.
-        template <class Contract, class Schema>
+        template <class Contract, class Exports>
         class StubExecutive : public Contract {
         public:
-            StubExecutive(srt::InferenceSpec &spec, const Schema &schema, StubSettings settings)
+            StubExecutive(srt::InferenceSpec &spec, const Exports &schema, StubSettings settings)
                 : Contract(spec), m_schema(schema), m_settings(settings) {
             }
 
@@ -137,11 +137,11 @@ namespace otter::stub {
             }
 
             /// Owned by the spec, which outlives every executive created from it.
-            const Schema &m_schema;
+            const Exports &m_schema;
             StubSettings m_settings;
         };
 
-        class StubF0Executive : public StubExecutive<F0Api::Executive, F0Api::Schema> {
+        class StubF0Executive : public StubExecutive<F0Api::Executive, F0Api::Exports> {
         public:
             using StubExecutive::StubExecutive;
 
@@ -192,7 +192,7 @@ namespace otter::stub {
             }
         };
 
-        class StubNoteExecutive : public StubExecutive<NoteApi::Executive, NoteApi::Schema> {
+        class StubNoteExecutive : public StubExecutive<NoteApi::Executive, NoteApi::Exports> {
         public:
             using StubExecutive::StubExecutive;
 
@@ -287,7 +287,7 @@ namespace otter::stub {
             }
         };
 
-        class StubAlignExecutive : public StubExecutive<AlignApi::Executive, AlignApi::Schema> {
+        class StubAlignExecutive : public StubExecutive<AlignApi::Executive, AlignApi::Exports> {
         public:
             using StubExecutive::StubExecutive;
 
@@ -421,14 +421,14 @@ namespace otter::stub {
         };
 
         /// Creates one stub analyzer from a loaded declaration. \a Implementation is the class that
-        /// implements the contract whose exports are \a Schema.
+        /// implements the contract whose exports are \a Exports.
         ///
         /// \return The executive. A ForeignExecutive if the configuration sets foreignExecutive;
         ///         \c AnalysisError::Internal if the spec carries no stub exports or configuration.
-        template <class Schema, class Implementation>
+        template <class Exports, class Implementation>
         srt::Expected<std::unique_ptr<srt::InferenceExecutive>>
             createStub(srt::InferenceSpec &spec) {
-            const auto schema = spec.exports() ? spec.exports()->as<Schema>() : nullptr;
+            const auto schema = spec.exports() ? spec.exports()->as<Exports>() : nullptr;
             const auto configuration =
                 spec.configuration() ? spec.configuration()->as<StubConfiguration>() : nullptr;
             if (schema == nullptr || configuration == nullptr) {
@@ -489,7 +489,7 @@ namespace otter::stub {
 
     srt::Expected<std::unique_ptr<srt::ContribExports>>
         StubF0Interpreter::createExports(const srt::ContribSpec &spec) const {
-        auto schema = F0Api::readF0Schema(spec);
+        auto schema = F0Api::readF0Exports(spec);
         if (!schema) {
             return schema.takeError();
         }
@@ -510,12 +510,12 @@ namespace otter::stub {
         StubF0Interpreter::createInference(srt::InferenceSpec &spec,
                                            const srt::ContribImportOptions &,
                                            const srt::InferenceRuntimeOptions &) {
-        return createStub<F0Api::Schema, StubF0Executive>(spec);
+        return createStub<F0Api::Exports, StubF0Executive>(spec);
     }
 
     srt::Expected<std::unique_ptr<srt::ContribExports>>
         StubNoteInterpreter::createExports(const srt::ContribSpec &spec) const {
-        auto schema = NoteApi::readNoteSchema(spec);
+        auto schema = NoteApi::readNoteExports(spec);
         if (!schema) {
             return schema.takeError();
         }
@@ -536,12 +536,12 @@ namespace otter::stub {
         StubNoteInterpreter::createInference(srt::InferenceSpec &spec,
                                              const srt::ContribImportOptions &,
                                              const srt::InferenceRuntimeOptions &) {
-        return createStub<NoteApi::Schema, StubNoteExecutive>(spec);
+        return createStub<NoteApi::Exports, StubNoteExecutive>(spec);
     }
 
     srt::Expected<std::unique_ptr<srt::ContribExports>>
         StubAlignInterpreter::createExports(const srt::ContribSpec &spec) const {
-        auto schema = AlignApi::readAlignSchema(spec);
+        auto schema = AlignApi::readAlignExports(spec);
         if (!schema) {
             return schema.takeError();
         }
@@ -562,7 +562,7 @@ namespace otter::stub {
         StubAlignInterpreter::createInference(srt::InferenceSpec &spec,
                                               const srt::ContribImportOptions &,
                                               const srt::InferenceRuntimeOptions &) {
-        return createStub<AlignApi::Schema, StubAlignExecutive>(spec);
+        return createStub<AlignApi::Exports, StubAlignExecutive>(spec);
     }
 
 }

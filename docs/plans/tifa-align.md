@@ -75,7 +75,7 @@ ALIGN 的语言表文案也按 variant 取名（`:553`）；`make-model-fixtures
 
 | 事实 | 证据 |
 | :-- | :-- |
-| Align 是独立契约 `org.openvpi.otter.inference.Align` Level 1；读取函数 `readAlignSchema` 对所有变体共用 | `include/otter/Api/Align/1/AlignApiL1.h:23`、`:26`、`:157-169` |
+| Align 是独立契约 `org.openvpi.otter.inference.Align` Level 1；读取函数 `readAlignExports` 对所有变体共用 | `include/otter/Api/Align/1/AlignApiL1.h:23`、`:26`、`:157-169` |
 | 结果类型只有 `language`/`scheme`/`words[{text,start,duration,phones[{text,start,duration}]}]`；结果必须**铺满整段**（未归属的间隔成为 `silenceLabel` 的词） | `AlignApiL1.h:261-271`；`silenceLabel` 为空则「不命名静音、不保证铺满」（`otter-design.md:467`） |
 | 声明面：`sampleRate` 必填，`channelCount`/`maxSegmentDuration`/`languages[]`/`defaultLanguage`/`nonSpeechPhonemes`/`defaultNonSpeechPhonemes`/`silenceLabel`/knobs 可选 | `AlignApiL1.h:99-154`、`AlignApiL1.h:164-169`（必填/可选语义）；`src/lib/Api/Align/1/AlignApiL1.cpp:205-207`（knobs 白名单） |
 | Align 目前只有三个 knob：`nonSpeechThreshold` / `nonSpeechMinDuration` / `gapFill`（白名单硬编码） | `AlignApiL1.h:145-154`；`scripts/check-declarations.py:190-191` |
@@ -306,7 +306,7 @@ src/plugins/inferenceinterpreters/tifa/
 ### 4.6 P2 实现要点（只读核实所得，快照 `2049afd`；引用前请回源码复核）
 
 1. **骨架与加载**：`plugin.json` 的 `name` 必须等于库文件名，也就是 CMake 工程名 `ottertifa`（bundle 解析器按 `{"","lib"}×{"",".dll",".so",".dylib"}` 在该目录里找）；bundle 目录为 `inferenceinterpreters/tifa`；`interpreters[]` 的三元组不得重复。注册点在 `src/plugins/inferenceinterpreters/CMakeLists.txt:56-90` 的 `OTTER_HAS_DSINFER` 块内（tifa 的注册在 `src/plugins/inferenceinterpreters/CMakeLists.txt:85-89`；**不要**放进 `OTTER_BUILD_TESTS` 块，那是 stub 的位置），新目录的 `CMakeLists.txt` 逐行照 `hfa/CMakeLists.txt:1-30`。（**迁移修正**：这一段已过时——注册点不再是 `add_subdirectory` 里的逐行照抄，而是 `OTTER_HAS_DSINFER` 块内的一句 `otter_add_interpreter_plugin(ottertifa tifa SOURCES… LINKS…)` 集中声明，插件目录里**没有** `CMakeLists.txt`；行号也请以新头快照为准。）
-2. **声明的读取时机**：`readAlignSchema` 只强制 `sampleRate`，未知键与未知 knob 键直接拒。**`createExports` 先于 `createConfiguration` 被调用**，所以在 `createExports` 里**不能**读 `spec.configuration()`——要用 `spec.manifestConfiguration()` 自己再读一遍（hfa 即如此）。
+2. **声明的读取时机**：`readAlignExports` 只强制 `sampleRate`，未知键与未知 knob 键直接拒。**`createExports` 先于 `createConfiguration` 被调用**，所以在 `createExports` 里**不能**读 `spec.configuration()`——要用 `spec.manifestConfiguration()` 自己再读一遍（hfa 即如此）。
 3. **模型自带文件的读取**：dsinfer 的公共 API **没有包内文件读取接口**，包内文件由共享的 ONNX 支持层读（`otter::onnx::readTextFile` 里的 `std::ifstream`：`src/plugins/inferenceinterpreters/onnx/OnnxSupport.cpp:89`；JSON 入口 `otter::onnx::readJsonObject` 在同文件 `:102-104`），基准是 `spec.declarationPath().parent_path()`（`src/plugins/inferenceinterpreters/hfa/main.cpp:933`、`src/plugins/inferenceinterpreters/tifa/main.cpp:1457`）。tifa 的 `config.json`/`vocabulary.json`/四本词典同法，声明里的相对路径按此基准解析。
 4. **五会话**：先例是 game 变体（多模型容器 + 循环开会话 + 失败即整体回滚）。驱动比会话活得久；镜像按 (realpath, useCpu) 引用计数共享。**`SessionOpenArgs2` 在本 dsinfer 版本不存在**，只有 `ds::Api::Onnx::SessionOpenArgs{bool useCpu}`；建议把 `prepare`/`score`/`select` 这三张纯 i64/bool 图设为 `useCpu=true`，避开 DirectML/CUDA 对 i64 算子的不确定性（**推断，未实测**）。
 5. **取消与析构**：`stop()`/`waitForFinished()` 必须先调基类，再逐会话 stop/waitForFinished；`OnnxSession::stop()` 在空闲时报错，必须吞掉。

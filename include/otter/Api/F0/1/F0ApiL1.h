@@ -29,9 +29,9 @@ namespace otter::Api::F0::L1 {
     /// Its syntax belongs to the interface and level, not to a variant, so every variant of this
     /// contract declares the same keys and a host reads them the same way. The machine readable
     /// schema is docs/schemas/f0-1-exports.schema.json.
-    class Schema : public srt::ContribExports {
+    class Exports : public srt::ContribExports {
     public:
-        inline Schema() : srt::ContribExports(Contract) {
+        inline Exports() : srt::ContribExports(Contract) {
         }
 
         /// Input sample rate in hertz. The host resamples its audio to this rate.
@@ -63,7 +63,8 @@ namespace otter::Api::F0::L1 {
     /// \c maxSegmentDuration to no limit, and a knob that is not declared is not honored.
     ///
     /// \return The schema, or an \c InvalidFormat error that describes the first invalid value.
-    OTTER_EXPORT srt::Expected<std::unique_ptr<Schema>> readF0Schema(const srt::ContribSpec &spec);
+    OTTER_EXPORT srt::Expected<std::unique_ptr<Exports>>
+        readF0Exports(const srt::ContribSpec &spec);
 
     /// Contains the import options of an F0 analysis module, which identify only the contract.
     ///

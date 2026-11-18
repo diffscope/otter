@@ -62,7 +62,7 @@ namespace otter::rmvpe {
         class RmvpeExecutive : public otter::onnx::OnnxExecutive<F0Api::Executive> {
         public:
             RmvpeExecutive(srt::InferenceSpec &spec, std::unique_ptr<ds::InferenceSession> session,
-                           const F0Api::Schema &schema)
+                           const F0Api::Exports &schema)
                 : OnnxExecutive(spec), m_session(own(std::move(session))), m_schema(schema) {
             }
 
@@ -177,14 +177,14 @@ namespace otter::rmvpe {
             ds::InferenceSession *m_session;
 
             /// Owned by the spec, which outlives every executive created from it.
-            const F0Api::Schema &m_schema;
+            const F0Api::Exports &m_schema;
         };
 
     }
 
     srt::Expected<std::unique_ptr<srt::ContribExports>>
         RmvpeInterpreter::createExports(const srt::ContribSpec &spec) const {
-        auto schema = F0Api::readF0Schema(spec);
+        auto schema = F0Api::readF0Exports(spec);
         if (!schema) {
             return schema.takeError();
         }
@@ -245,7 +245,7 @@ namespace otter::rmvpe {
                                           const srt::InferenceRuntimeOptions &) {
         const auto configuration =
             spec.configuration() ? spec.configuration()->as<RmvpeConfiguration>() : nullptr;
-        const auto schema = spec.exports() ? spec.exports()->as<F0Api::Schema>() : nullptr;
+        const auto schema = spec.exports() ? spec.exports()->as<F0Api::Exports>() : nullptr;
         if (configuration == nullptr || schema == nullptr) {
             return srt::Error(otter::AnalysisError::Internal,
                               "this declaration carries no rmvpe configuration");

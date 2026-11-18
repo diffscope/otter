@@ -91,7 +91,7 @@ BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_Load_ReadsBothContracts) {
 
     // The values that the host reads before it creates an analyzer: the audio format to produce,
     // and the knobs that this module honors.
-    auto schema = f0->exports()->as<F0Api::Schema>();
+    auto schema = f0->exports()->as<F0Api::Exports>();
     BOOST_REQUIRE(schema != nullptr);
     BOOST_CHECK_EQUAL(schema->sampleRate, 16000);
     BOOST_CHECK_EQUAL(schema->channelCount, 1);
@@ -104,7 +104,7 @@ BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_Load_ReadsBothContracts) {
     auto note = package.contribution(srt::InferenceCategory::NAME, "note");
     BOOST_REQUIRE(note != nullptr);
     BOOST_CHECK_EQUAL(note->triplet().interfaceId(), NoteApi::Contract.interfaceId());
-    auto noteSchema = note->exports()->as<NoteApi::Schema>();
+    auto noteSchema = note->exports()->as<NoteApi::Exports>();
     BOOST_REQUIRE(noteSchema != nullptr);
     BOOST_CHECK(noteSchema->supportsKnownNotes);
     BOOST_REQUIRE_EQUAL(noteSchema->languages.size(), 1u);
@@ -223,7 +223,7 @@ BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_Load_ReadsTheAlignContract) {
     auto package = opened.take();
     auto align = package.contribution(srt::InferenceCategory::NAME, "align");
     BOOST_REQUIRE(align != nullptr);
-    auto schema = align->exports()->as<AlignApi::Schema>();
+    auto schema = align->exports()->as<AlignApi::Exports>();
     BOOST_REQUIRE(schema != nullptr);
     BOOST_CHECK_EQUAL(schema->sampleRate, 16000);
     BOOST_REQUIRE_EQUAL(schema->languages.size(), 3u);

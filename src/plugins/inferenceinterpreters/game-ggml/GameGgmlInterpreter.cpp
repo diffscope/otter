@@ -119,7 +119,7 @@ namespace otter::gameGgml {
         ///
         /// \return The settings, or the error of the first knob outside its declared range.
         srt::Expected<Settings> chooseSettings(const NoteApi::StartInput &input,
-                                               const NoteApi::Schema &schema,
+                                               const NoteApi::Exports &schema,
                                                const GameGgmlConfiguration &configuration) {
             double boundaryThreshold = 0;
             double noteThreshold = 0;
@@ -166,7 +166,7 @@ namespace otter::gameGgml {
         ///         \c srt::Error::InvalidArgument if neither is specified and the model numbers its
         ///         languages, or if the language is not declared or not numbered.
         srt::Expected<std::int64_t> chooseLanguage(const NoteApi::StartInput &input,
-                                                   const NoteApi::Schema &schema,
+                                                   const NoteApi::Exports &schema,
                                                    const GameGgmlConfiguration &configuration) {
             const auto &wanted = input.language.value_or(schema.defaultLanguage);
             if (wanted.empty()) {
@@ -292,7 +292,7 @@ namespace otter::gameGgml {
         class GameGgmlExecutive : public NoteApi::Executive {
         public:
             GameGgmlExecutive(srt::InferenceSpec &spec, const GameGgmlConfiguration &configuration,
-                              const NoteApi::Schema &schema)
+                              const NoteApi::Exports &schema)
                 : Executive(spec), m_configuration(configuration), m_schema(schema) {
             }
 
@@ -530,7 +530,7 @@ namespace otter::gameGgml {
 
             // Owned by the spec, which outlives every executive created from it.
             const GameGgmlConfiguration &m_configuration;
-            const NoteApi::Schema &m_schema;
+            const NoteApi::Exports &m_schema;
         };
 
         // The engine and the model are files the declaration names. A package whose files are
@@ -618,7 +618,7 @@ namespace otter::gameGgml {
 
     srt::Expected<std::unique_ptr<srt::ContribExports>>
         GameGgmlInterpreter::createExports(const srt::ContribSpec &spec) const {
-        auto schema = NoteApi::readNoteSchema(spec);
+        auto schema = NoteApi::readNoteExports(spec);
         if (!schema) {
             return schema.takeError();
         }
@@ -678,7 +678,7 @@ namespace otter::gameGgml {
                                              const srt::InferenceRuntimeOptions &) {
         const auto configuration =
             spec.configuration() ? spec.configuration()->as<GameGgmlConfiguration>() : nullptr;
-        const auto schema = spec.exports() ? spec.exports()->as<NoteApi::Schema>() : nullptr;
+        const auto schema = spec.exports() ? spec.exports()->as<NoteApi::Exports>() : nullptr;
         if (configuration == nullptr || schema == nullptr) {
             return srt::Error(otter::AnalysisError::Internal,
                               "this declaration carries no game-ggml configuration");

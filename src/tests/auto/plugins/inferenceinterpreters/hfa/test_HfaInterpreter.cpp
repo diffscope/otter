@@ -170,7 +170,7 @@ BOOST_AUTO_TEST_SUITE(test_HfaInterpreter)
 BOOST_AUTO_TEST_CASE(test_HfaInterpreter_ReportsWhatTheDeclarationExports) {
     Host host;
     auto spec = host.load();
-    auto schema = spec->exports()->as<AlignApi::Schema>();
+    auto schema = spec->exports()->as<AlignApi::Exports>();
     BOOST_REQUIRE(schema != nullptr);
 
     // The exports are the declaration's values, read through the contract's reader, and the

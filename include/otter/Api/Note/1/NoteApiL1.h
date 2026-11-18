@@ -65,9 +65,9 @@ namespace otter::Api::Note::L1 {
     /// This is the contract's \c exports block, read by the host before it prepares any audio.
     /// Its syntax belongs to the interface and level, not to a variant. The machine readable
     /// schema is docs/schemas/note-1-exports.schema.json.
-    class Schema : public srt::ContribExports {
+    class Exports : public srt::ContribExports {
     public:
-        inline Schema() : srt::ContribExports(Contract) {
+        inline Exports() : srt::ContribExports(Contract) {
         }
 
         /// Input sample rate in hertz. The host resamples its audio to this rate.
@@ -121,8 +121,8 @@ namespace otter::Api::Note::L1 {
     /// declared is not honored.
     ///
     /// \return The schema, or an \c InvalidFormat error that describes the first invalid value.
-    OTTER_EXPORT srt::Expected<std::unique_ptr<Schema>>
-        readNoteSchema(const srt::ContribSpec &spec);
+    OTTER_EXPORT srt::Expected<std::unique_ptr<Exports>>
+        readNoteExports(const srt::ContribSpec &spec);
 
     /// Contains the import options of a Note analysis module, which identify only the contract.
     ///
