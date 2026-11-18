@@ -2,7 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
   "name": "synthrt-main",
   "version-string": "onnxruntime-builds-uptake",
-  "port-version": 4,
+  "port-version": 5,
   "description": [
     "SVS Synthesis Runtime Library, main line.",
     "The port is not named synthrt because the shared overlay contains a port of that name pinned to the refactor line; this overlay is searched first, so a port of the same name here would shadow that port without notice."
