@@ -216,11 +216,12 @@ namespace otter::tifaGgml {
                 (void) waitForFinished();
             }
 
+        protected:
             /// Requests cancellation and also kills the running tool, because the tool call is what
             /// a stopped execution is blocked on. The process is reaped by the execution thread,
             /// which is the only thread that owns it.
-            srt::Expected<void> stop() override {
-                (void) Executive::stop();
+            srt::Expected<void> quit() override {
+                (void) Executive::quit();
                 std::lock_guard lock(m_activeLock);
                 if (m_active) {
                     (void) m_active->kill();
@@ -228,7 +229,6 @@ namespace otter::tifaGgml {
                 return srt::Expected<void>();
             }
 
-        protected:
             srt::Expected<std::unique_ptr<AlignApi::Result>>
                 run(const AlignApi::StartInput &input) override {
                 const auto &audio = input.audio;

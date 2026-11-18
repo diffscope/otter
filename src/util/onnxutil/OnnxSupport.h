@@ -109,20 +109,21 @@ namespace otter::onnx {
     /// The executive of a provider whose models run in ONNX sessions.
     ///
     /// \a Contract is the contract's executive class. This class owns the sessions and forwards a
-    /// stop and a wait to them after the contract's own stop and wait. A derived executive passes
+    /// stop and a wait to them after the contract's own quit and wait. A derived executive passes
     /// its sessions to own() and calls shutDown() at the start of its destructor, before any member
     /// that its body reads is destroyed.
     template <class Contract>
     class OnnxExecutive : public Contract {
     public:
+    protected:
         /// Requests cancellation and also stops every session, because a session inside a forward
         /// pass is the component that blocks. A session without a running pass returns an error
         /// that indicates only this condition. The error is therefore not reported as a failed
         /// stop.
         ///
         /// \return An empty value in every case.
-        srt::Expected<void> stop() override {
-            (void) Contract::stop();
+        srt::Expected<void> quit() override {
+            (void) Contract::quit();
             for (const auto &session : m_sessions) {
                 (void) session->stop();
             }
@@ -134,8 +135,8 @@ namespace otter::onnx {
         /// session running.
         ///
         /// \return An empty value if every session finished. Otherwise the first session failure.
-        srt::Expected<void> waitForFinished() override {
-            (void) Contract::waitForFinished();
+        srt::Expected<void> wait() override {
+            (void) Contract::wait();
             std::optional<srt::Error> failure;
             for (const auto &session : m_sessions) {
                 if (auto waited = session->waitForFinished(); !waited && !failure) {
@@ -148,7 +149,6 @@ namespace otter::onnx {
             return srt::Expected<void>();
         }
 
-    protected:
         explicit OnnxExecutive(srt::InferenceSpec &spec) : Contract(spec) {
         }
 

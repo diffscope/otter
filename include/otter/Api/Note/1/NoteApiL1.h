@@ -230,20 +230,20 @@ namespace otter::Api::Note::L1 {
             return m_task.state();
         }
 
+    protected:
         /// Requests cancellation of the current execution. A provider whose model session blocks
         /// overrides this function, calls it, and then also cancels the session.
-        srt::Expected<void> stop() override {
+        srt::Expected<void> quit() override {
             return m_task.stop();
         }
 
         /// Waits for the current execution and, for an asynchronous execution, its callback. A
         /// provider with model sessions overrides this function, calls it, and then also waits
         /// for the sessions.
-        srt::Expected<void> waitForFinished() override {
+        srt::Expected<void> wait() override {
             return m_task.waitForFinished();
         }
 
-    protected:
         /// Runs the body of one execution. It is the only function that a provider implements.
         ///
         /// The function runs on the caller's thread for start() and on a worker thread for

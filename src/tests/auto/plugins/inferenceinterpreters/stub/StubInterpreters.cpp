@@ -410,11 +410,12 @@ namespace otter::stub {
                 return srt::ITask::Idle;
             }
 
-            srt::Expected<void> stop() override {
+        protected:
+            srt::Expected<void> quit() override {
                 return srt::Expected<void>();
             }
 
-            srt::Expected<void> waitForFinished() override {
+            srt::Expected<void> wait() override {
                 return srt::Expected<void>();
             }
         };

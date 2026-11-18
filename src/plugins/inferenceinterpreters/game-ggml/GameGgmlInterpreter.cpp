@@ -306,11 +306,12 @@ namespace otter::gameGgml {
                 terminateEngine();
             }
 
+        protected:
             /// Requests cancellation and also kills the engine, because the request frame in flight
             /// is what a stopped execution is blocked on. The process and its pipes are reaped by
             /// the execution thread, which is the only thread that owns them.
-            srt::Expected<void> stop() override {
-                (void) Executive::stop();
+            srt::Expected<void> quit() override {
+                (void) Executive::quit();
                 std::lock_guard lock(m_serveLock);
                 if (m_serve) {
                     (void) m_serve->kill();
@@ -318,7 +319,6 @@ namespace otter::gameGgml {
                 return srt::Expected<void>();
             }
 
-        protected:
             srt::Expected<std::unique_ptr<NoteApi::Result>>
                 run(const NoteApi::StartInput &input) override {
                 const auto &audio = input.audio;

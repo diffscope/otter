@@ -48,34 +48,28 @@ namespace otter {
     /// the Package owns the spec, and the executive is destroyed before the Package is released.
     /// An executive that outlived its Package would read freed declaration objects. A host
     /// therefore must not keep an executive beyond the lifetime of the handle of its Package.
+    ///
+    /// The public stop() and waitForFinished() functions inherited from \c ContribExecutive
+    /// operate on the analyzer and its descendants. A cancellation request does not specify how
+    /// much of the input is consumed. An execution that detects the request returns no result,
+    /// neither partial nor complete: its start() returns an error whose code is
+    /// \c AnalysisError::Cancelled, the callback of startAsync() receives the same error, and
+    /// state() then returns \c Canceled. An execution that had already produced its result, or
+    /// failed for another reason, when the request arrived keeps that outcome and the
+    /// corresponding state.
+    ///
+    /// This behavior differs deliberately from wolf's linguists. A stopped conversion of a
+    /// linguist returns the words completed before the stop, with state() \c Canceled, and those
+    /// words are usable without further processing. A partial analysis would be a curve, a note
+    /// list or an alignment that covers an unknown part of the span and has the same shape as a
+    /// complete result over shorter audio. A partial analysis is therefore not returned.
     class OTTER_EXPORT AnalysisExecutive : public srt::InferenceExecutive {
     public:
         explicit AnalysisExecutive(srt::InferenceSpec &spec);
         ~AnalysisExecutive();
 
-    public:
         /// Returns the state of the current or most recently completed execution.
         srt::ITask::State state() const noexcept override = 0;
-
-        /// Requests cancellation of the current execution.
-        ///
-        /// A cancellation request does not specify how much of the input is consumed. An
-        /// execution that detects the request returns no result, neither partial nor complete:
-        /// its start() returns an error whose code is \c AnalysisError::Cancelled, the callback of
-        /// startAsync() receives the same error, and state() then returns \c Canceled. An
-        /// execution that had already produced its result, or failed for another reason, when the
-        /// request arrived keeps that outcome and the corresponding state.
-        ///
-        /// This behavior differs deliberately from wolf's linguists. A stopped conversion of a
-        /// linguist returns the words completed before the stop, with state() \c Canceled, and
-        /// those words are usable without further processing. A partial analysis would be a
-        /// curve, a note list or an alignment that covers an unknown part of the span and has the
-        /// same shape as a complete result over shorter audio. A partial analysis is therefore not
-        /// returned.
-        srt::Expected<void> stop() override = 0;
-
-        /// Waits for the current execution to finish without ending this analyzer's lifetime.
-        srt::Expected<void> waitForFinished() override = 0;
     };
 
 }
