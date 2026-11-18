@@ -5,7 +5,6 @@
 #include <functional>
 #include <memory>
 #include <string>
-#include <system_error>
 #include <utility>
 
 #include <synthrt/Support/Expected.h>
@@ -31,7 +30,7 @@ namespace otter {
         /// cancelledError() if the flag is set. A cancelled execution reports \c Canceled and no
         /// result.
         bool cancelled() const noexcept {
-            return stopRequested();
+            return m_stopToken.stopRequested();
         }
 
     protected:
@@ -44,29 +43,24 @@ namespace otter {
         ///
         /// The function may throw. An exception is reported as \c AnalysisError::Internal.
         virtual srt::Expected<std::unique_ptr<srt::TaskResult>>
-            execute(const srt::TaskStartInput &input) = 0;
+            execute(const srt::TaskStartInput &input, const srt::TaskStopToken &token) = 0;
 
-        srt::Expected<void> validateInput(const srt::TaskStartInput &input) const override;
-
-        State classifyOutcome(
-            const srt::Expected<std::unique_ptr<srt::TaskResult>> &outcome) noexcept override;
-
-        srt::Error exceptionError(const std::exception &error) const override;
-
-        srt::Error unknownExceptionError() const override;
-
-        srt::Error workerStartError(const std::system_error &error) const override;
+        State classifyOutcome(const srt::Expected<std::unique_ptr<srt::TaskResult>> &outcome,
+                              bool stopRequested) noexcept override;
 
         /// Starts a detached thread running \a work.
         ///
         /// Throws \c std::system_error when no thread can be started, which startAsync() reports
         /// as \c AnalysisError::NoWorker. The function is virtual so that tests can simulate
         /// the failure.
-        virtual void startWorker(std::function<void()> work);
+        virtual srt::Expected<void> startWorker(std::function<void()> work);
+
+        void setStopToken(srt::TaskStopToken token) noexcept {
+            m_stopToken = std::move(token);
+        }
 
     private:
-        const char *m_inputType;
-        int m_inputVersion;
+        srt::TaskStopToken m_stopToken;
     };
 
     /// Task interface of an analyzer of one contract, which extends AnalysisTaskBase with the
@@ -114,7 +108,7 @@ namespace otter {
                 return srt::Error(srt::Error::InvalidArgument,
                                   "an asynchronous callback must not be empty");
             }
-            return ITask::startAsync(
+            auto started = ITask::startAsync(
                 std::static_pointer_cast<const srt::TaskStartInput>(std::move(input)),
                 [this, callback = std::move(callback)](
                     srt::Expected<std::unique_ptr<srt::TaskResult>> result) mutable {
@@ -124,15 +118,33 @@ namespace otter {
                     }
                     callback(toResult(result.take()));
                 });
+            if (!started) {
+                return started.takeError();
+            }
+            return {};
         }
         /// \}
 
     protected:
         srt::Expected<std::unique_ptr<srt::TaskResult>>
-            execute(const srt::TaskStartInput &input) override {
-            auto result = m_body(static_cast<const Input &>(input));
+            execute(const srt::TaskStartInput &input, const srt::TaskStopToken &token) override {
+            setStopToken(token);
+            srt::Expected<std::unique_ptr<Result>> result =
+                srt::Error(AnalysisError::Internal, "the analysis produced no result");
+            try {
+                result = m_body(static_cast<const Input &>(input));
+            } catch (const std::exception &error) {
+                result = srt::Error(AnalysisError::Internal, "the analysis threw an exception: " +
+                                                                 std::string(error.what()));
+            } catch (...) {
+                result = srt::Error(AnalysisError::Internal, "the analysis threw an exception");
+            }
+            setStopToken({});
             if (!result) {
                 return result.takeError();
+            }
+            if (!*result) {
+                return srt::Error(AnalysisError::Internal, "the analysis produced no result");
             }
             return std::unique_ptr<srt::TaskResult>(result.take().release());
         }

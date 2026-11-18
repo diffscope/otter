@@ -48,7 +48,7 @@ namespace {
 
     protected:
         srt::Expected<std::unique_ptr<srt::TaskResult>>
-            execute(const srt::TaskStartInput &) override {
+            execute(const srt::TaskStartInput &, const srt::TaskStopToken &) override {
             if (!completed) {
                 return std::unique_ptr<srt::TaskResult>();
             }

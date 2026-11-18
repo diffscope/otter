@@ -717,7 +717,7 @@ namespace {
 
     protected:
         srt::Expected<std::unique_ptr<srt::TaskResult>>
-            execute(const srt::TaskStartInput &) override {
+            execute(const srt::TaskStartInput &, const srt::TaskStopToken &) override {
             return std::unique_ptr<srt::TaskResult>(new NoteApi::Result());
         }
     };
@@ -775,9 +775,8 @@ namespace {
         }
 
     protected:
-        void startWorker(std::function<void()>) override {
-            throw std::system_error(std::make_error_code(std::errc::resource_unavailable_try_again),
-                                    "no thread for the test");
+        srt::Expected<void> startWorker(std::function<void()>) override {
+            return srt::Error(otter::AnalysisError::NoWorker, "no thread for the test");
         }
     };
 
