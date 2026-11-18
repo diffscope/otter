@@ -327,7 +327,9 @@ namespace otter::hfa {
             }
 
             ~HfaExecutive() override {
-                shutDown();
+                (void) quit();
+                (void) wait();
+                closeSessions();
             }
 
         protected:

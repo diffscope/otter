@@ -715,8 +715,9 @@ namespace {
                   }) {
         }
 
+    protected:
         srt::Expected<std::unique_ptr<srt::TaskResult>>
-            start(const srt::TaskStartInput &) override {
+            execute(const srt::TaskStartInput &) override {
             return std::unique_ptr<srt::TaskResult>(new NoteApi::Result());
         }
     };
@@ -729,6 +730,7 @@ BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_RefusesAResultOfAnotherContract) {
     auto converted = task.run(input);
     BOOST_REQUIRE(!converted);
     BOOST_CHECK(converted.error().code() == otter::AnalysisError::ContractViolation);
+    BOOST_CHECK_EQUAL(task.state(), srt::ITask::Failed);
 }
 
 /// An interpreter may come from a third party, so the executive it creates is checked to belong

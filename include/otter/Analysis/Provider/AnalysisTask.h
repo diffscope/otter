@@ -1,12 +1,11 @@
 #ifndef OTTER_ANALYSIS_PROVIDER_ANALYSISTASK_H
 #define OTTER_ANALYSIS_PROVIDER_ANALYSISTASK_H
 
-#include <atomic>
-#include <cstdint>
+#include <exception>
 #include <functional>
 #include <memory>
 #include <string>
-#include <thread>
+#include <system_error>
 #include <utility>
 
 #include <synthrt/Support/Expected.h>
@@ -19,36 +18,9 @@ namespace otter {
 
     /// Task interface of one analyzer, built on \c srt::ITask.
     ///
-    /// Every analyzer has the same obligations: one execution at a time, a state that a host can
-    /// read, a worker thread for the asynchronous entry point, a \c Canceled state for an
-    /// execution that reports \c AnalysisError::Cancelled, and a destructor that does not return
-    /// while a worker is inside the body. \c srt::ITask already provides the state, the
-    /// cancellation flag and the wait. This class adds only the rules that the analysis contracts
-    /// impose and the framework's default execution lacks:
-    ///
-    /// - A stop request applies to the execution that it targets. The claim, which is the
-    ///   exclusive right to run one execution, is taken on the caller's thread, in start() and
-    ///   startAsync(), and the stop request of the previous execution is discarded at that point.
-    ///   A stop() that arrives after startAsync() has returned and before the worker reaches the
-    ///   body therefore applies to the new execution instead of being cleared by it. An execution
-    ///   started synchronously from inside a callback inherits the claim rather than taking it.
-    ///   Such an execution discards the stop request after it detects the callback context.
-    /// - A callback may start the next execution or destroy the analyzer. The worker that
-    ///   delivers the callback releases the execution only after the callback returns, so that a
-    ///   waiter also waits for the callback. A start from inside the callback takes over the
-    ///   running state from its predecessor rather than being rejected as a second concurrent
-    ///   execution. An exception thrown by a callback is caught at the point of delivery, as in
-    ///   the framework's default execution, because an exception that leaves a worker thread
-    ///   terminates the process.
-    /// - The state of a finished execution is determined by its error code, never by the stop
-    ///   flag: the code \c AnalysisError::Cancelled yields \c Canceled, any other error yields
-    ///   \c Failed, and a result yields \c Succeeded. A caller that branches on the code and a
-    ///   caller that reads the state therefore reach the same conclusion, including when a stop
-    ///   request arrives just after a body returned a result or failed for another reason. An
-    ///   exception thrown by the body is reported as \c AnalysisError::Internal.
-    ///
-    /// This class implements these rules once, in the library. AnalysisTask adds only the
-    /// conversions between the untyped payloads and the payloads of a contract.
+    /// \c srt::ITask provides the execution claim, callback delivery, cancellation barrier and
+    /// state machine. This class adds only the payload identity check and the rule that
+    /// \c AnalysisError::Cancelled yields \c Canceled.
     class OTTER_EXPORT AnalysisTaskBase : public srt::ITask {
     public:
         ~AnalysisTaskBase() override;
@@ -59,50 +31,8 @@ namespace otter {
         /// cancelledError() if the flag is set. A cancelled execution reports \c Canceled and no
         /// result.
         bool cancelled() const noexcept {
-            return m_stopRequested.load();
+            return stopRequested();
         }
-
-        /// \name Untyped ITask interface
-        /// \{
-
-        /// Runs the body on the calling thread.
-        ///
-        /// A direct call is a synchronous execution and takes the claim itself. A call from the
-        /// worker of startAsync() uses the claim that startAsync() already took.
-        ///
-        /// This function is the public entry point of srt::ITask, so \a input may be a payload of
-        /// any contract. Its type() and version() must equal the input type and version for which
-        /// the task was created. Any other payload is rejected with \c InvalidArgument before the
-        /// claim is taken, so that a rejected call leaves the state of the analyzer unchanged.
-        ///
-        /// \return The result of the body. An \c InvalidArgument error for a payload of another
-        /// contract or during another execution. An \c AnalysisError::Internal error if the body
-        /// throws or returns no result. Otherwise the error that the body returned.
-        srt::Expected<std::unique_ptr<srt::TaskResult>>
-            start(const srt::TaskStartInput &input) override;
-
-        /// Runs the body on a worker thread and delivers the outcome to \a callback.
-        ///
-        /// \return An empty value if the worker started. An \c InvalidArgument error if \a input
-        /// or \a callback is empty, if \a input is a payload of another contract, or if another
-        /// execution is running. An \c AnalysisError::NoWorker error if no worker thread could be
-        /// started.
-        srt::Expected<void> startAsync(std::shared_ptr<const srt::TaskStartInput> input,
-                                       AsyncCallback callback) override;
-
-        /// Requests cancellation of the current execution.
-        ///
-        /// \return An empty value. The request cannot fail.
-        srt::Expected<void> stop() override;
-
-        /// Waits for the current execution and, for an asynchronous execution, its callback.
-        ///
-        /// The function returns immediately if it is called from the worker of that execution,
-        /// so that a callback that destroys the analyzer does not deadlock.
-        ///
-        /// \return An empty value.
-        srt::Expected<void> waitForFinished() override;
-        /// \}
 
     protected:
         /// Initializes the task for start inputs of payload type \a inputType and version
@@ -116,6 +46,17 @@ namespace otter {
         virtual srt::Expected<std::unique_ptr<srt::TaskResult>>
             execute(const srt::TaskStartInput &input) = 0;
 
+        srt::Expected<void> validateInput(const srt::TaskStartInput &input) const override;
+
+        State classifyOutcome(
+            const srt::Expected<std::unique_ptr<srt::TaskResult>> &outcome) noexcept override;
+
+        srt::Error exceptionError(const std::exception &error) const override;
+
+        srt::Error unknownExceptionError() const override;
+
+        srt::Error workerStartError(const std::system_error &error) const override;
+
         /// Starts a detached thread running \a work.
         ///
         /// Throws \c std::system_error when no thread can be started, which startAsync() reports
@@ -124,36 +65,8 @@ namespace otter {
         virtual void startWorker(std::function<void()> work);
 
     private:
-        srt::Expected<void> checkInput(const srt::TaskStartInput &input) const;
-
-        bool claimedByThisThread() const;
-
-        // Returns whether the calling thread is a worker currently delivering its callback.
-        //
-        // The result distinguishes the body of an execution from an execution started inside the
-        // callback of the preceding execution: both run on the same thread and hold the claim.
-        bool deliveringCallback() const;
-
-        // Takes the claim for a synchronous execution on the calling thread.
-        srt::Expected<void> claim();
-
-        void release();
-
         const char *m_inputType;
         int m_inputVersion;
-
-        std::atomic_bool m_stopRequested = false;
-
-        // Number of claims taken, which lets the worker that delivered a callback determine
-        // whether the running state it is about to release still belongs to its execution. The
-        // counter is shared because the worker may outlive this object.
-        std::shared_ptr<std::atomic<std::uint64_t>> m_generation;
-
-        // Identifier of the worker currently inside its callback, or a default-constructed
-        // identifier if no worker is inside a callback. The value is shared for the same reason
-        // as the generation counter: the callback may destroy this object, and the worker must
-        // still reset the value afterwards.
-        std::shared_ptr<std::atomic<std::thread::id>> m_callbackWorker;
     };
 
     /// Task interface of an analyzer of one contract, which extends AnalysisTaskBase with the
@@ -185,7 +98,7 @@ namespace otter {
         /// \return The result of the body, the error of start(), or an
         /// \c AnalysisError::ContractViolation error if the result belongs to another contract.
         srt::Expected<std::unique_ptr<Result>> run(const Input &input) {
-            auto result = start(static_cast<const srt::TaskStartInput &>(input));
+            auto result = ITask::start(input);
             if (!result) {
                 return result.takeError();
             }
@@ -201,15 +114,16 @@ namespace otter {
                 return srt::Error(srt::Error::InvalidArgument,
                                   "an asynchronous callback must not be empty");
             }
-            return startAsync(std::static_pointer_cast<const srt::TaskStartInput>(std::move(input)),
-                              [callback = std::move(callback)](
-                                  srt::Expected<std::unique_ptr<srt::TaskResult>> result) mutable {
-                                  if (!result) {
-                                      callback(result.takeError());
-                                      return;
-                                  }
-                                  callback(toResult(result.take()));
-                              });
+            return ITask::startAsync(
+                std::static_pointer_cast<const srt::TaskStartInput>(std::move(input)),
+                [this, callback = std::move(callback)](
+                    srt::Expected<std::unique_ptr<srt::TaskResult>> result) mutable {
+                    if (!result) {
+                        callback(result.takeError());
+                        return;
+                    }
+                    callback(toResult(result.take()));
+                });
         }
         /// \}
 
@@ -231,13 +145,14 @@ namespace otter {
         // missing result is an internal fault of the analyzer and is reported as
         // \c AnalysisError::Internal, and a result of another contract is reported as
         // \c AnalysisError::ContractViolation.
-        static srt::Expected<std::unique_ptr<Result>>
-            toResult(std::unique_ptr<srt::TaskResult> result) {
+        srt::Expected<std::unique_ptr<Result>> toResult(std::unique_ptr<srt::TaskResult> result) {
             if (!result) {
+                setState(Failed);
                 return srt::Error(AnalysisError::Internal, "the analysis produced no result");
             }
             if (result->type() != Result::Contract.interfaceId() ||
                 result->version() != Result::Contract.level()) {
+                setState(Failed);
                 return srt::Error(AnalysisError::ContractViolation,
                                   "the analysis produced a " + result->type() + " level " +
                                       std::to_string(result->version()) + " result");

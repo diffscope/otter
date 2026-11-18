@@ -233,7 +233,9 @@ namespace otter::game {
             }
 
             ~GameExecutive() override {
-                shutDown();
+                (void) quit();
+                (void) wait();
+                closeSessions();
             }
 
         protected:

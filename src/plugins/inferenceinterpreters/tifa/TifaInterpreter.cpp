@@ -448,7 +448,9 @@ namespace otter::tifa {
             ~TifaExecutive() override {
                 // The sessions are owned by this object, so an execution still in flight has to be
                 // stopped and waited out before they are closed: the body reads them.
-                shutDown();
+                (void) quit();
+                (void) wait();
+                closeSessions();
             }
 
         protected:

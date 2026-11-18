@@ -67,7 +67,9 @@ namespace otter::rmvpe {
             }
 
             ~RmvpeExecutive() override {
-                shutDown();
+                (void) quit();
+                (void) wait();
+                closeSessions();
             }
 
         protected:

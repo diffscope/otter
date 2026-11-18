@@ -1,9 +1,10 @@
 cmake_minimum_required(VERSION 3.19)
 
-# 0.1.0.0 is the first version to carry the Level 1 contract surface. otter makes no ABI promise
-# before 1.0; see README, "Versioning and ABI".
+# 0.1.0.0 is the first version to carry the Level 1 contract surface.
+# 0.2.0.0 moves Task cancellation and callback semantics into the shared synthrt execution kernel.
+# otter makes no ABI promise before 1.0; see README, "Versioning and ABI".
 project(synthrt-otter
-    VERSION 0.1.0.0
+    VERSION 0.2.0.0
     LANGUAGES CXX
     DESCRIPTION "Orchestratable Transcription, Timing and Expression Runtime"
     HOMEPAGE_URL "https://github.com/diffscope/otter"

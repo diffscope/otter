@@ -301,8 +301,8 @@ namespace otter::gameGgml {
                 // stopped and waited out before the process is torn down, which happens when the
                 // members of this derived part are destroyed, before the base part and with it the
                 // task.
-                (void) stop();
-                (void) waitForFinished();
+                (void) quit();
+                (void) wait();
                 terminateEngine();
             }
 

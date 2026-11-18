@@ -782,7 +782,7 @@ otter 将以下三项职责明确留给宿主，三者缺一不可：
 
 **代价（已接受）**：增加一个类型。否则三个执行体须各自实现同一段并发代码，而该代码的错误不会产生任何可见症状。
 
-**补记（2026-09-13）**：最初的实现类 `AnalysisRunner` 与 `srt::ITask` 在状态、取消标志、工作线程与等待四个方面重复，现已由任务面取代。A28 之后的结构为：导出的非模板基类 `otter::AnalysisTaskBase` 派生自 `srt::ITask`，覆盖 `start()` / `startAsync()` / `stop()` / `waitForFinished()`；模板 `otter::AnalysisTask<Input, Result>` 只负责载荷类型转换。任务面保持本条决策的两条规则：认领与清除标志在调用方线程上进行；回调结束后才释放执行，回调内启动的下一次执行按代数接管 running 状态，而不是被当作并发执行拒绝。同步入口 `start()` 使用同一份 running 状态认领，因此 `waitForFinished()` 同时等待同步与异步执行。任务由契约类（`Executive` / `Executive` / `Executive`）持有，契约类实现 `start` / `startAsync` / `state` / `stop` / `waitForFinished`；提供者只实现受保护的 `run()`，需要同时停止模型会话的提供者覆盖 `stop()` / `waitForFinished()` 并先调用基类实现。X5 所述「建线程失败后永久拒绝执行」的缺陷在任务面中同样由 `startAsync()` 释放认领来避免。
+**补记（2026-11-18）**：claim、generation、同步/异步互斥、callback 交付、异常捕获和等待屏障已经上移到 synthrt 的统一 `srt::ITask` 内核。`otter::AnalysisTaskBase` 不再保存第二套 running/cancellation 状态，只检查输入类型、把取消错误分类为 `Canceled`，并通过错误映射钩子保留 `AnalysisError::Internal` 与 `NoWorker`。模板 `otter::AnalysisTask<Input, Result>` 负责 typed body、结果转换和 typed callback。同步与异步入口共用同一个 claim，空闲 `stop()` 不预取消下一次执行，callback 可以启动下一次执行或销毁分析器。完整协议见 `synthrt/docs/codex/TaskLifecycle.md`。
 
 ### A16 — 进度回调位于 `StartInput`
 
@@ -902,7 +902,7 @@ otter 将以下三项职责明确留给宿主，三者缺一不可：
 - F0 的清音插值移入私有库（`otter::support::interpolateUnvoiced`），由 rmvpe 与桩共用：锚点为频率大于 0 的浊音帧，频率为 0 Hz 的浊音帧既不作锚点也不被改写，其两侧照常插值（此前会使其后的整段清音保持模型原值）；插值单遍完成，不再对每个清音帧重新扫描整段。
 - `otter::prepareSamples()` 的返回类型由 `std::vector<float>` 改为 `otter::PreparedSamples`：单声道片段以调用方缓冲区的视图返回，不再整体复制；多声道片段仍平均到自有缓冲区。视图的有效期与 `AudioSegment` 相同。
 - linter 与加载器对齐，原则是「加载器拒绝的声明，linter 必须拒绝」：补齐变体事实（rmvpe 16000 Hz / 0.01 s、 game 44100 Hz、三个变体均为单声道）、hfa 的 `configuration.languages` 必填、`config.json` 的 `hop_size` 与 `vocab.json` 的三个必需键、`silenceLabel` 必须声明且是词表的类、game 的 `timestep > 0` 与 `scheduleStart ∈ [0, 1]`、整数上界 2^31−1、包 id 与贡献 id 的文法、版本号各段不超过 int，以及写给本包分析器的 `imports[].options` 非空即拒绝；相对路径中的 `\` 按 `/` 解析。版本文法与加载器一致，为 1 至 4 段，不要求四段（已发布的包使用四段，但加载器不作要求）。自测逐条覆盖上述拒绝规则，并断言键表与 `docs/schemas` 一致；三份 exports JSON Schema 为 `sampleRate`、`channelCount` 与整数旋钮补上与读取器一致的上界。 `make-package.py` 改用 linter 的 JSON 读取器与 `MODEL_KEYS`，分块写入，不再因文件名相同而使伴随文件相互覆盖；同一输入两次打包的结果逐字节一致。
-- `AnalysisTask<Input, Result>` 的线程与状态逻辑移入导出的非模板基类 `otter::AnalysisTaskBase`（在库内实现，不再在每份契约中各实例化一份），模板只保留载荷的类型转换。基类的受保护虚函数 `startWorker()` 负责启动工作线程，可被覆盖以测试建线程失败的路径。线程语义不变。
+- `AnalysisTask<Input, Result>` 的通用线程与状态逻辑由 `srt::ITask` 统一提供。`otter::AnalysisTaskBase` 只保留载荷身份验证、`AnalysisError::Cancelled` 分类和异常/worker 错误映射；模板负责 typed body、结果转换和 typed callback。`startWorker()` 仍可覆盖以测试建线程失败。三个分析契约与所有提供者共享同一套 claim、callback、等待和 active-only stop 语义。
 - 三个 ONNX 提供者重复的会话外壳（stop / wait 转发、取消翻译、驱动获取与会话创建、模型调用与输出检查、 `readFloats`、路径读取、波形张量、插件守卫）移入私有静态库 `otter_onnx_support`（今为 `onnxutil`，见 A33）；插件的 CMake 目标由函数 `otter_add_interpreter_plugin` 声明，桩插件改名为 `otterstub`（A33 起为测试里的静态插件）。桩实现 Align 契约，使 Align 读取器在不含 dsinfer 的构建中也有测试覆盖。
 - 以上改动不改变当时三个出厂包的声明（历史）：随 `models-v0.3.0.0` 发布的 `otter-rmvpe`、`otter-game`、`otter-hfa` 照常载入，版本保持 0.2.0.0；A31 起包版本回到 0.1.0.0，现行发布为 `models-v0.1` 下的四个包。
 
@@ -1018,21 +1018,21 @@ X1、X2、X6 的共同原因是两个提供者各自实现同一套校验，实�
 
 ### 测试集
 
-ctest 共注册 16 个测试；注册数以 `src/tests/auto/Analysis/CMakeLists.txt`、`src/tests/auto/util/analysisutil/CMakeLists.txt`、`src/tests/auto/util/onnxutil/CMakeLists.txt` 与 `src/tests/auto/plugins/CMakeLists.txt` 为准，条件见下表：
+当前 ctest 共注册 30 个测试，其中两个真实 GGML 引擎用例在缺少对应引擎时跳过；完整名称与条件以各 `tests/auto/CMakeLists.txt` 为准。下表列出主要入口：
 
 | 测试 | 内容 | 条件 |
 | :-- | :-- | :-- |
-| `test_AnalysisContrib` | 链接 otter 不注册任何类别 | 始终构建 |
-| `test_AnalysisLoad` | 经静态插件形式的测试桩（`otterstub`）的包加载，不设插件路径、`DataOnly` 模式、声明读取与拒绝规则、其他模块对分析器的引用 | 始终构建 |
-| `test_AnalysisRuntime` | 经静态插件形式的测试桩的分析器创建与执行、旋钮、输入校验与取消 | 始终构建 |
+| `test_ContribInterpreterPlugin_Otter` | 链接 otter 不注册任何类别 | 始终构建 |
+| `test_AnalysisExecutive_Load` | 经静态插件形式的测试桩（`otterstub`）的包加载，不设插件路径、`DataOnly` 模式、声明读取与拒绝规则、其他模块对分析器的引用 | 始终构建 |
+| `test_AnalysisExecutive` | 经静态插件形式的测试桩的分析器创建、执行、旋钮、输入校验、取消、callback 再启动/销毁和共享 Task 语义 | 始终构建 |
 | `test_ManifestValues` | 私有声明读取器 | 始终构建，链接 `analysisutil` |
 | `test_F0Curve` | 清音插值 | 始终构建，链接 `analysisutil` |
 | `test_RmvpeInterpreter` / `test_GameInterpreter` / `test_HfaInterpreter` / `test_TifaInterpreter` | 四个提供者在生成的 ONNX fixture 上的完整链路：链接各插件的 `<target>_objects`，以插件的 `plugin.json` 把被测解释器注册为静态插件，不从插件目录加载插件 | 仅在含 dsinfer 的构建中存在；没有带 onnx 与 numpy 的 Python 时注册为禁用；运行期缺少 fixture、驱动或运行时时以退出码 77 报告跳过 |
 | `test_OnnxSupport` | 四个提供者共享的 ONNX 读取器与执行器封装：输出缺失与类型不符的区分，空结果与缺少输出的拒绝 | 仅在含 dsinfer 的构建中存在（要求 `onnxutil` 目标） |
 | `test_CheckDeclarations` | `scripts/test_*.py`（当前两份：声明 linter 与打包脚本的自测；测试包生成器没有自测） | 找到 Python 解释器时注册 |
 | `test_InstalledSurface` | 安装树形态（`check-installed-surface.cmake` 装入 scratch 前缀），含不得安装的私有头文件 | `OTTER_INSTALL` 打开时注册 |
-| `test_TifaDecode` | tifa 的逐帧解码，期望值取自参考实现，链接 `ottertifa_objects`，不需要模型 | 仅在含 dsinfer 的构建中存在 |
-| `test_HfaG2p` | hfa 的发音词典：分隔符的位置、词典缺词、条目首尾的分隔符、CRLF，链接 `otterhfa_objects`，不需要模型 | 仅在含 dsinfer 的构建中存在 |
+| `test_Decode` | tifa 的逐帧解码，期望值取自参考实现，链接 `ottertifa_objects`，不需要模型 | 仅在含 dsinfer 的构建中存在 |
+| `test_G2p` | hfa 的发音词典：分隔符的位置、词典缺词、条目首尾的分隔符、CRLF，链接 `otterhfa_objects`，不需要模型 | 仅在含 dsinfer 的构建中存在 |
 
 ### 验证状态
 

@@ -110,8 +110,8 @@ namespace otter::onnx {
     ///
     /// \a Contract is the contract's executive class. This class owns the sessions and forwards a
     /// stop and a wait to them after the contract's own quit and wait. A derived executive passes
-    /// its sessions to own() and calls shutDown() at the start of its destructor, before any member
-    /// that its body reads is destroyed.
+    /// its sessions to own(). Its destructor calls quit() and wait() before closing the sessions
+    /// and before any member that its body reads is destroyed.
     template <class Contract>
     class OnnxExecutive : public Contract {
     public:
@@ -162,14 +162,8 @@ namespace otter::onnx {
             return m_sessions.back().get();
         }
 
-        /// Stops the execution and the sessions, waits for both, and closes the sessions.
-        ///
-        /// A derived destructor calls this first. The contract's destructor also waits, but it runs
-        /// after the derived part has been destroyed, and a session must not be closed while a
-        /// forward pass is still in progress.
-        void shutDown() {
-            (void) stop();
-            (void) waitForFinished();
+        /// Closes every session after quit() and wait() have left no forward pass in progress.
+        void closeSessions() {
             for (const auto &session : m_sessions) {
                 (void) session->close();
             }

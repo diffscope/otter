@@ -46,8 +46,9 @@ namespace {
             return 0;
         }
 
+    protected:
         srt::Expected<std::unique_ptr<srt::TaskResult>>
-            start(const srt::TaskStartInput &) override {
+            execute(const srt::TaskStartInput &) override {
             if (!completed) {
                 return std::unique_ptr<srt::TaskResult>();
             }
@@ -58,14 +59,6 @@ namespace {
             auto started = std::make_unique<OnnxApi::SessionResult>();
             started->outputs = result.outputs;
             return std::move(started);
-        }
-
-        srt::Expected<void> stop() override {
-            return srt::Expected<void>();
-        }
-
-        srt::Expected<void> waitForFinished() override {
-            return srt::Expected<void>();
         }
     };
 

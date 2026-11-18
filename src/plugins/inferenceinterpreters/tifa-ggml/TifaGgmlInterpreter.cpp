@@ -212,8 +212,8 @@ namespace otter::tifaGgml {
                 // The body runs the tool, so an execution still in flight has to be stopped and
                 // waited out before the members of this derived part are destroyed, before the base
                 // part and with it the task.
-                (void) stop();
-                (void) waitForFinished();
+                (void) quit();
+                (void) wait();
             }
 
         protected:
