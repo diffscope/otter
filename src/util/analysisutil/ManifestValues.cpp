@@ -290,8 +290,9 @@ namespace otter::manifest {
                                           std::initializer_list<const char *> allowed,
                                           std::string_view what) {
         for (const auto &[key, item] : object) {
+            const auto &name = key;
             const bool known = std::any_of(allowed.begin(), allowed.end(),
-                                           [&key](const char *one) { return key == one; });
+                                           [&name](const char *one) { return name == one; });
             if (!known) {
                 return srt::Error(srt::Error::InvalidFormat,
                                   std::string(what) + " carries an unknown key: " + key);
