@@ -148,18 +148,18 @@ class Packages(unittest.TestCase):
             },
         }
         manifest.update(desc or {})
-        # The declarations are written with LF line endings, which the lint requires: write_text
-        # would otherwise translate \n to the line separator of the platform this test runs on, and
+        # The declarations are written with LF line endings, which the lint requires: write_bytes
+        # writes the encoded bytes without the line-ending translation that text mode applies, so
         # a fixture with CRLF line endings would be rejected for a reason the case does not test.
-        (package / "desc.json").write_text(json.dumps(manifest), encoding="utf-8", newline="\n")
-        (directory / "inference.json").write_text(json.dumps({
+        (package / "desc.json").write_bytes(json.dumps(manifest).encode("utf-8"))
+        (directory / "inference.json").write_bytes(json.dumps({
             "interface": interface,
             "level": 1,
             "variant": variant,
             "name": name,
             "exports": exports,
             "configuration": configuration,
-        }), encoding="utf-8", newline="\n")
+        }).encode("utf-8"))
         # The lint requires every path named by a configuration to exist and be non-empty.
         for key, value in configuration.items():
             if isinstance(value, str) and value.endswith(".onnx"):
@@ -559,16 +559,16 @@ class Packages(unittest.TestCase):
         package = self.write("importing", lint.F0, "rmvpe", F0_EXPORTS, {"model": "./m.onnx"})
         importing = package / "inferences" / "importer"
         importing.mkdir()
-        (importing / "inference.json").write_text(json.dumps({
+        (importing / "inference.json").write_bytes(json.dumps({
             "interface": lint.F0, "level": 1, "variant": "rmvpe", "name": "importer",
             "exports": F0_EXPORTS, "configuration": {"model": "../f0/m.onnx"},
             "imports": [{"role": "analysis/reference", "ref": ":inference/f0",
                          "options": {"depth": 2}}],
-        }), encoding="utf-8", newline="\n")
+        }).encode("utf-8"))
         manifest = json.loads((package / "desc.json").read_text(encoding="utf-8"))
         manifest["contributions"]["inference"].append(
             {"id": "importer", "path": "./inferences/importer/inference.json"})
-        (package / "desc.json").write_text(json.dumps(manifest), encoding="utf-8", newline="\n")
+        (package / "desc.json").write_bytes(json.dumps(manifest).encode("utf-8"))
         self.assertGreater(self.check(package).errors, 0)
 
     def test_what_the_loader_accepts_the_lint_accepts(self):

@@ -39,6 +39,8 @@ The script performs no network access and publishes nothing: it writes the archi
 fragment under ``--output``. Publication is a separate step.
 """
 
+from __future__ import annotations
+
 import argparse
 import hashlib
 import importlib.util

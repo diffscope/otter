@@ -7,6 +7,8 @@ keeping an expression of their own. A second expression is a second answer, and 
 drift until a package ships a version nobody thinks to question.
 """
 
+from __future__ import annotations
+
 import re
 from pathlib import Path
 
