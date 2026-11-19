@@ -25,7 +25,6 @@
 #include <filesystem>
 #include <map>
 #include <memory>
-#include <mutex>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -217,15 +216,12 @@ namespace otter::tifaGgml {
             }
 
         protected:
-            /// Requests cancellation and also kills the running tool, because the tool call is what
-            /// a stopped execution is blocked on. The process is reaped by the execution thread,
-            /// which is the only thread that owns it.
+            /// Requests cancellation of the running execution. The tool itself is killed by the
+            /// execution thread, which reads the stop request before each wait slice. A kill from
+            /// here would have to take the lock that the slices hold, and the holder wins the
+            /// relock on Linux every time, which postpones the kill without limit.
             srt::Expected<void> quit() override {
                 (void) Executive::quit();
-                std::lock_guard lock(m_activeLock);
-                if (m_active) {
-                    (void) m_active->kill();
-                }
                 return srt::Expected<void>();
             }
 
@@ -553,22 +549,23 @@ namespace otter::tifaGgml {
                     return srt::Error(process->errorCode(),
                                       "cannot spawn the tifa CLI: " + process->errorMessage());
                 }
+                m_active = std::move(process);
                 {
                     // A stop that arrived before the tool existed had nothing to kill, so the tool
                     // of a cancelled execution is killed as soon as it is held.
-                    std::lock_guard lock(m_activeLock);
-                    m_active = std::move(process);
                     if (cancelled()) {
                         (void) m_active->kill();
                     }
                 }
 
-                // The wait is made in slices, each under the lock, so that a stop takes the lock
-                // between two slices to kill the tool.
+                // The wait is made in slices so that a stop is noticed between two of them and
+                // kills the tool.
                 std::optional<int> code;
                 std::error_code failure;
                 while (!code && !failure) {
-                    std::lock_guard lock(m_activeLock);
+                    if (cancelled()) {
+                        (void) m_active->kill();
+                    }
                     if (m_active->wait(WaitSlice)) {
                         code = m_active->returnCode();
                     } else if (m_active->errorCode() &&
@@ -577,11 +574,7 @@ namespace otter::tifaGgml {
                     }
                 }
 
-                std::unique_ptr<stdc::Popen> finished;
-                {
-                    std::lock_guard lock(m_activeLock);
-                    finished = std::move(m_active);
-                }
+                auto finished = std::move(m_active);
                 if (!code) {
                     return srt::Error(failure,
                                       "cannot wait for the tifa CLI: " + finished->errorMessage());
@@ -590,14 +583,12 @@ namespace otter::tifaGgml {
             }
 
             // The length in milliseconds of one slice of the wait for the tool, which bounds how
-            // long a stop waits for the lock.
+            // long a stop waits for the tool to be killed.
             static constexpr int WaitSlice = 50;
 
-            // The tool of the execution in flight, if any. The execution thread alone starts and
-            // reaps it. stop() kills it from another thread. m_activeLock serializes the calls of
-            // stdc::Popen, which synchronizes none of them.
+            // The tool of the execution in flight, if any. The execution thread alone starts,
+            // waits for, kills and reaps it.
             std::unique_ptr<stdc::Popen> m_active;
-            std::mutex m_activeLock;
 
             // Owned by the spec, which outlives every executive created from it.
             const TifaGgmlConfiguration &m_configuration;
