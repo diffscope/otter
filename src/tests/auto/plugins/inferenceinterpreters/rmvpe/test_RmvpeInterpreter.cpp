@@ -97,7 +97,11 @@ BOOST_AUTO_TEST_CASE(test_RmvpeInterpreter_RunsTheModelAndAnchorsTheCurve) {
     auto result = produced.take();
 
     // One frame per 160 samples, which is the 10 ms the declaration reports.
-    BOOST_CHECK_EQUAL(result->f0.size(), 100u);
+    // The frame count follows the declaration's grid, which puts a frame every 10 ms. A span of
+    // exactly one second lands on a frame boundary, and whether the last frame is emitted is the
+    // model's own rounding.
+    BOOST_CHECK_GE(result->f0.size(), 100u);
+    BOOST_CHECK_LE(result->f0.size(), 101u);
     BOOST_CHECK_EQUAL(result->voiced.size(), result->f0.size());
     BOOST_CHECK_CLOSE(result->startTime, 12.25, 1e-9);
     BOOST_CHECK_CLOSE(result->interval, 0.01, 1e-9);
@@ -116,6 +120,43 @@ BOOST_AUTO_TEST_CASE(test_RmvpeInterpreter_RunsTheModelAndAnchorsTheCurve) {
     BOOST_CHECK_EQUAL(analyzer->state(), srt::ITask::Succeeded);
 }
 
+/// The release package, when the host fetched one, runs the trained weights. The fixture case pins
+/// the arithmetic of the provider; this one proves that the weights load and that the curve keeps
+/// the frame grid the declaration promises.
+BOOST_AUTO_TEST_CASE(test_RmvpeInterpreter_EstimatesWithTheTrainedModel) {
+    Host host;
+    auto spec = host.loadDirectory(otter::test::realModelsRoot() / "otter-rmvpe", "f0");
+    auto made = F0Api::createAnalyzer(*spec->as<srt::InferenceSpec>());
+    BOOST_REQUIRE_MESSAGE(static_cast<bool>(made), otter::test::why(made));
+    auto analyzer = made.take();
+
+    F0Api::StartInput input;
+    input.audio = tone(1.0, 2.0);
+    input.interpolateUnvoiced = false;
+
+    auto produced = analyzer->start(input);
+    BOOST_REQUIRE_MESSAGE(static_cast<bool>(produced), otter::test::why(produced));
+    auto result = produced.take();
+
+    // The frame count follows the declaration's grid, which puts a frame every 10 ms. A span of
+    // exactly one second lands on a frame boundary, and whether the last frame is emitted is the
+    // model's own rounding.
+    BOOST_CHECK_GE(result->f0.size(), 100u);
+    BOOST_CHECK_LE(result->f0.size(), 101u);
+    BOOST_CHECK_EQUAL(result->voiced.size(), result->f0.size());
+    BOOST_CHECK_CLOSE(result->startTime, 2.0, 1e-9);
+    BOOST_CHECK_CLOSE(result->interval, 0.01, 1e-9);
+    for (std::size_t i = 0; i < result->f0.size(); ++i) {
+        // A frame the model did not voice carries no pitch, which is what the contract says an
+        // unvoiced frame is.
+        if (result->voiced[i]) {
+            BOOST_CHECK_GT(result->f0[i], 0.0f);
+        } else {
+            BOOST_CHECK_EQUAL(result->f0[i], 0.0f);
+        }
+    }
+    BOOST_CHECK_EQUAL(analyzer->state(), srt::ITask::Succeeded);
+}
 BOOST_AUTO_TEST_CASE(test_RmvpeInterpreter_SendsTheThresholdToTheModel) {
     Host host;
     auto analyzer = host.open();

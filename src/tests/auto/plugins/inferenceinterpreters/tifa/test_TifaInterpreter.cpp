@@ -585,6 +585,27 @@ BOOST_AUTO_TEST_CASE(test_TifaInterpreter_RefusesWhatItCannotHonor) {
 
 /// A host that stops what it started gets a cancellation and no result, on an analyzer that runs
 /// the next execution afterwards: a stop belongs to the execution it was aimed at.
+/// The release package, when the host fetched one, runs the trained weights. The fixture cases pin
+/// the arithmetic of the provider; this one proves that the weights load and that the result keeps
+/// the coverage the contract promises for any model.
+BOOST_AUTO_TEST_CASE(test_TifaInterpreter_AlignsWithTheTrainedModel) {
+    Host host;
+    auto spec = host.loadFrom(otter::test::realModelsRoot() / "otter-tifa");
+    auto made = AlignApi::createAnalyzer(*spec->as<srt::InferenceSpec>());
+    BOOST_REQUIRE_MESSAGE(static_cast<bool>(made), otter::test::why(made));
+    auto analyzer = made.take();
+
+    AlignApi::StartInput input;
+    input.audio = tone(1.5, 0.5);
+    input.lyrics = "ni hao";
+
+    auto produced = analyzer->start(input);
+    BOOST_REQUIRE_MESSAGE(static_cast<bool>(produced), otter::test::why(produced));
+    auto result = produced.take();
+
+    checkCoverage(*result, 0.5, 1.5);
+    BOOST_CHECK_EQUAL(analyzer->state(), srt::ITask::Succeeded);
+}
 BOOST_AUTO_TEST_CASE(test_TifaInterpreter_ReportsAStopAsACancellation) {
     Host host;
     auto schema = host.load()->exports()->as<AlignApi::Exports>();

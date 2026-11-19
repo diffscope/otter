@@ -57,6 +57,34 @@ namespace otter::test {
         return root;
     }
 
+    /// Returns the directory holding the release model packages that the real model tests read.
+    ///
+    /// The packages are the trained weights and are hundreds of megabytes, so they are not part of
+    /// the fixture tree. The release script scripts/fetch-models.cmake writes them:
+    ///
+    ///     cmake -DOTTER_FETCH_OUTPUT=<dir> -DOTTER_FETCH_VARIANTS=all -P
+    ///     scripts/fetch-models.cmake
+    ///
+    /// A run that is not told where they are reports that it did not run, which ctest shows as a
+    /// skip.
+    inline std::filesystem::path realModelsRoot() {
+        const char *given = std::getenv("OTTER_TEST_MODELS_DIR");
+        if (given == nullptr || *given == '\0') {
+            std::cerr << "SKIP: no real model packages; fetch them with\n"
+                         "    cmake -DOTTER_FETCH_OUTPUT=<dir> -DOTTER_FETCH_VARIANTS=all -P "
+                         "scripts/fetch-models.cmake\n"
+                         "and point OTTER_TEST_MODELS_DIR at that directory\n";
+            std::exit(OTTER_TEST_SKIP_EXIT_CODE);
+        }
+        const std::filesystem::path root(given);
+        if (!std::filesystem::is_directory(root)) {
+            std::cerr << "OTTER_TEST_MODELS_DIR is set to " << root.string()
+                      << ", which is not a directory\n";
+            std::exit(EXIT_FAILURE);
+        }
+        return root;
+    }
+
 }
 
 // Helpers shared by the tests against the model fixtures. The build defines
@@ -135,8 +163,15 @@ namespace otter::test {
 
         /// Loads the fixture package \a name and returns its module \a contribution.
         srt::ContribSpec *load(const std::string &name, const char *contribution) {
-            auto opened = unit.openPackage(std::filesystem::path(OTTER_TEST_FIXTURE_DIR) / name,
-                                           srt::SynthUnit::Load);
+            return loadDirectory(std::filesystem::path(OTTER_TEST_FIXTURE_DIR) / name,
+                                 contribution);
+        }
+
+        /// Loads the package at \a directory and returns its module \a contribution. The real
+        /// model tests load a release package through this overload.
+        srt::ContribSpec *loadDirectory(const std::filesystem::path &directory,
+                                        const char *contribution) {
+            auto opened = unit.openPackage(directory, srt::SynthUnit::Load);
             BOOST_REQUIRE_MESSAGE(static_cast<bool>(opened), why(opened));
             package = opened.take();
             auto spec = package.contribution(srt::InferenceCategory::NAME, contribution);

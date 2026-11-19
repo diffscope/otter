@@ -163,6 +163,42 @@ BOOST_AUTO_TEST_CASE(test_GameInterpreter_ChainsTheStagesAndPlacesNotesInSeconds
     BOOST_CHECK_EQUAL(analyzer->state(), srt::ITask::Succeeded);
 }
 
+/// The release package, when the host fetched one, runs the trained graphs. The fixture cases pin
+/// the arithmetic of the provider; this one proves that the weights load and that a transcript
+/// arrives on the caller's timeline.
+BOOST_AUTO_TEST_CASE(test_GameInterpreter_TranscribesWithTheTrainedModel) {
+    Host host;
+    auto spec = host.loadDirectory(otter::test::realModelsRoot() / "otter-game", "note");
+    auto made = NoteApi::createAnalyzer(*spec->as<srt::InferenceSpec>());
+    BOOST_REQUIRE_MESSAGE(static_cast<bool>(made), otter::test::why(made));
+    auto analyzer = made.take();
+
+    NoteApi::StartInput input;
+    input.audio = tone(2.0, 1.5);
+    // The cutoff of the declaration drops frames the model is unsure about. A synthetic tone is
+    // not what the model was trained on, so the test asks it to keep every frame it produced.
+    input.notePresenceCutoff = 0.0;
+
+    auto produced = analyzer->start(input);
+    BOOST_REQUIRE_MESSAGE(static_cast<bool>(produced), otter::test::why(produced));
+    auto result = produced.take();
+
+    // A trained estimator answers with what it heard rather than a fixed schedule, so only the
+    // properties that hold for any transcript are asserted.
+    BOOST_REQUIRE(!result->notes.empty());
+    for (std::size_t i = 0; i < result->notes.size(); ++i) {
+        const auto &note = result->notes[i];
+        BOOST_CHECK_GE(note.start, 1.5 - TOLERANCE);
+        BOOST_CHECK_LE(note.start + note.duration, 3.5 + TOLERANCE);
+        BOOST_CHECK_GT(note.duration, 0.0);
+        BOOST_CHECK_GE(note.key, 0);
+        BOOST_CHECK_LE(note.key, 127);
+        if (i > 0) {
+            BOOST_CHECK_GE(note.start, result->notes[i - 1].start);
+        }
+    }
+    BOOST_CHECK_EQUAL(analyzer->state(), srt::ITask::Succeeded);
+}
 BOOST_AUTO_TEST_CASE(test_GameInterpreter_SendsTheKnobsToTheModels) {
     Host host;
     auto analyzer = host.open();

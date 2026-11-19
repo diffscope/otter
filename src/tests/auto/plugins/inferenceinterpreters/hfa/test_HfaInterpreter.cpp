@@ -290,6 +290,38 @@ BOOST_AUTO_TEST_CASE(test_HfaInterpreter_PlacesTheWordsTheLyricsName) {
     BOOST_CHECK_EQUAL(analyzer->state(), srt::ITask::Succeeded);
 }
 
+/// The release package, when the host fetched one, runs the trained weights. The fixture cases pin
+/// the arithmetic of the provider; this one proves that the weights load and that the words land
+/// on the caller's timeline.
+BOOST_AUTO_TEST_CASE(test_HfaInterpreter_AlignsWithTheTrainedModel) {
+    Host host;
+    auto spec = host.loadDirectory(otter::test::realModelsRoot() / "otter-hfa", "align");
+    auto made = AlignApi::createAnalyzer(*spec->as<srt::InferenceSpec>());
+    BOOST_REQUIRE_MESSAGE(static_cast<bool>(made), otter::test::why(made));
+    auto analyzer = made.take();
+
+    AlignApi::StartInput input;
+    lyrics(input, "ni hao", 0.5);
+
+    auto produced = analyzer->start(input);
+    BOOST_REQUIRE_MESSAGE(static_cast<bool>(produced), otter::test::why(produced));
+    auto result = produced.take();
+
+    // A trained aligner answers with what it found rather than a fixed schedule, so only the
+    // properties that hold for any alignment are asserted: ordered words, inside the span, and of
+    // no zero length.
+    BOOST_REQUIRE(!result->words.empty());
+    for (std::size_t i = 0; i < result->words.size(); ++i) {
+        const auto &word = result->words[i];
+        BOOST_CHECK_GE(word.start, 0.5 - 1e-3);
+        BOOST_CHECK_LE(word.start + word.duration, 1.5 + 1e-3);
+        BOOST_CHECK_GT(word.duration, 0.0);
+        if (i > 0) {
+            BOOST_CHECK_GE(word.start, result->words[i - 1].start);
+        }
+    }
+    BOOST_CHECK_EQUAL(analyzer->state(), srt::ITask::Succeeded);
+}
 BOOST_AUTO_TEST_CASE(test_HfaInterpreter_SendsTheKnobsToTheDecoder) {
     Host host;
     auto analyzer = host.open();
