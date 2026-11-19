@@ -23,6 +23,7 @@
 #include <iostream>
 #include <memory>
 #include <mutex>
+#include <random>
 #include <string>
 #include <vector>
 
@@ -132,7 +133,10 @@ namespace {
         std::filesystem::path root;
 
         Host() {
-            root = std::filesystem::temp_directory_path() / "otter-game-ggml-test";
+            const auto suffix =
+                std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + "-" +
+                std::to_string(std::random_device{}());
+            root = std::filesystem::temp_directory_path() / ("otter-game-ggml-test-" + suffix);
             std::filesystem::remove_all(root);
             std::filesystem::create_directories(root / "package" / "inferences" / "note");
         }
