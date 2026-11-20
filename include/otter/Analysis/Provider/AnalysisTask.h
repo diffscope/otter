@@ -37,7 +37,7 @@ namespace otter {
         /// Initializes the task for start inputs of payload type \a inputType and version
         /// \a inputVersion, which are those of the contract. \a inputType must outlive this
         /// object, as a string literal does.
-        AnalysisTaskBase(const char *inputType, int inputVersion);
+        explicit AnalysisTaskBase(const srt::ContribContract &inputContract);
 
         /// Runs the body on an input that has already been checked to belong to the contract.
         ///
@@ -78,8 +78,7 @@ namespace otter {
         using TypedCallback = std::function<void(srt::Expected<std::unique_ptr<Result>> result)>;
 
         explicit AnalysisTask(Body body)
-            : AnalysisTaskBase(Input::Contract.interfaceId().c_str(), Input::Contract.level()),
-              m_body(std::move(body)) {
+            : AnalysisTaskBase(Input::Contract), m_body(std::move(body)) {
         }
 
         ~AnalysisTask() override = default;
@@ -162,12 +161,11 @@ namespace otter {
                 setState(Failed);
                 return srt::Error(AnalysisError::Internal, "the analysis produced no result");
             }
-            if (result->type() != Result::Contract.interfaceId() ||
-                result->version() != Result::Contract.level()) {
+            if (result->contract() != Result::Contract) {
                 setState(Failed);
                 return srt::Error(AnalysisError::ContractViolation,
-                                  "the analysis produced a " + result->type() + " level " +
-                                      std::to_string(result->version()) + " result");
+                                  "the analysis produced a " + result->contract().toString() +
+                                      " result");
             }
             return std::unique_ptr<Result>(static_cast<Result *>(result.release()));
         }

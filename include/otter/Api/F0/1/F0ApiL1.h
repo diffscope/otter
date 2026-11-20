@@ -94,7 +94,7 @@ namespace otter::Api::F0::L1 {
         /// class.
         inline static const auto &Contract = L1::Contract;
 
-        inline StartInput() : srt::TaskStartInput(Contract.interfaceId(), Contract.level()) {
+        inline StartInput() : srt::TaskStartInput(Contract) {
         }
 
         /// Audio to analyze.
@@ -118,7 +118,7 @@ namespace otter::Api::F0::L1 {
         /// this class.
         inline static const auto &Contract = L1::Contract;
 
-        inline Result() : srt::TaskResult(Contract.interfaceId(), Contract.level()) {
+        inline Result() : srt::TaskResult(Contract) {
         }
 
         /// Time of the first frame in seconds, equal to the input's startTime.

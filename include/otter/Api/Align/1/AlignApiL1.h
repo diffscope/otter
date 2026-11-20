@@ -192,7 +192,7 @@ namespace otter::Api::Align::L1 {
         /// class.
         inline static const auto &Contract = L1::Contract;
 
-        inline StartInput() : srt::TaskStartInput(Contract.interfaceId(), Contract.level()) {
+        inline StartInput() : srt::TaskStartInput(Contract) {
         }
 
         /// Audio to align.
@@ -242,7 +242,7 @@ namespace otter::Api::Align::L1 {
         /// this class.
         inline static const auto &Contract = L1::Contract;
 
-        inline Result() : srt::TaskResult(Contract.interfaceId(), Contract.level()) {
+        inline Result() : srt::TaskResult(Contract) {
         }
 
         /// The language of the execution, and the scheme of its phonemes.

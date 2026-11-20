@@ -149,7 +149,7 @@ namespace otter::Api::Note::L1 {
         /// class.
         inline static const auto &Contract = L1::Contract;
 
-        inline StartInput() : srt::TaskStartInput(Contract.interfaceId(), Contract.level()) {
+        inline StartInput() : srt::TaskStartInput(Contract) {
         }
 
         /// Audio to transcribe.
@@ -190,7 +190,7 @@ namespace otter::Api::Note::L1 {
         /// this class.
         inline static const auto &Contract = L1::Contract;
 
-        inline Result() : srt::TaskResult(Contract.interfaceId(), Contract.level()) {
+        inline Result() : srt::TaskResult(Contract) {
         }
 
         /// Notes in ascending order of start time, in seconds on the host's timeline.

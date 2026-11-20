@@ -4,8 +4,8 @@
 
 namespace otter {
 
-    AnalysisTaskBase::AnalysisTaskBase(const char *inputType, int inputVersion)
-        : ITask(inputType ? inputType : "", inputVersion) {
+    AnalysisTaskBase::AnalysisTaskBase(const srt::ContribContract &inputContract)
+        : ITask(inputContract) {
     }
 
     AnalysisTaskBase::~AnalysisTaskBase() = default;

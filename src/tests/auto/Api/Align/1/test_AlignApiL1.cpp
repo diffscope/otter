@@ -18,10 +18,8 @@ BOOST_AUTO_TEST_CASE(contract_identity_and_task_identity_are_preserved) {
 
     Api::StartInput input;
     Api::Result result;
-    BOOST_CHECK_EQUAL(input.type(), Api::Contract.interfaceId());
-    BOOST_CHECK_EQUAL(input.version(), Api::Contract.level());
-    BOOST_CHECK_EQUAL(result.type(), Api::Contract.interfaceId());
-    BOOST_CHECK_EQUAL(result.version(), Api::Contract.level());
+    BOOST_CHECK(input.contract() == Api::Contract);
+    BOOST_CHECK(result.contract() == Api::Contract);
     auto moved = std::move(input);
-    BOOST_CHECK_EQUAL(moved.type(), Api::Contract.interfaceId());
+    BOOST_CHECK(moved.contract() == Api::Contract);
 }
