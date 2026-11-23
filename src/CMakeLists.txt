@@ -18,6 +18,9 @@ if(OTTER_BUILD_TESTS)
 endif()
 
 otter_install()
+if(COMMAND x_vcpkg_install_local_dependencies)
+    x_vcpkg_install_local_dependencies(TARGETS synthrt-otter DESTINATION bin)
+endif()
 
 otter_finish_buildsystem()
 
