@@ -52,27 +52,27 @@ namespace otter::game {
 
         constexpr int MODEL_SAMPLE_RATE = 44100;
 
-        /// Knob values used if the declaration does not honor the corresponding knob.
+        // Knob values used if the declaration does not honor the corresponding knob.
         constexpr int FALLBACK_STEPS = 8;
         constexpr double FALLBACK_BOUNDARY_THRESHOLD = 0.2;
         constexpr double FALLBACK_BOUNDARY_RADIUS = 0.02;
         constexpr double FALLBACK_NOTE_THRESHOLD = 0.2;
         constexpr double FALLBACK_NOTE_PRESENCE_CUTOFF = 0.5;
 
-        /// The tensor names of the five exported graphs. They form the contract between this
-        /// variant and its models and are defined once here instead of at each place where a tensor
-        /// is built or read.
+        // The tensor names of the five exported graphs. They form the contract between this
+        // variant and its models and are defined once here instead of at each place where a tensor
+        // is built or read.
         namespace tensors {
 
-            /// encoder: waveform, duration -> x_seg, x_est, maskT
+            // encoder: waveform, duration -> x_seg, x_est, maskT
             constexpr char WAVEFORM[] = "waveform";
             constexpr char DURATION[] = "duration";
             constexpr char X_SEG[] = "x_seg";
             constexpr char X_EST[] = "x_est";
             constexpr char MASK_T[] = "maskT";
 
-            /// segmenter: x_seg, maskT, known_boundaries, prev_boundaries, language, threshold,
-            /// radius, t -> boundaries
+            // segmenter: x_seg, maskT, known_boundaries, prev_boundaries, language, threshold,
+            // radius, t -> boundaries
             constexpr char KNOWN_BOUNDARIES[] = "known_boundaries";
             constexpr char PREV_BOUNDARIES[] = "prev_boundaries";
             constexpr char LANGUAGE[] = "language";
@@ -81,11 +81,11 @@ namespace otter::game {
             constexpr char SCHEDULE_TIME[] = "t";
             constexpr char BOUNDARIES[] = "boundaries";
 
-            /// bd2dur: boundaries, maskT -> durations, maskN
+            // bd2dur: boundaries, maskT -> durations, maskN
             constexpr char DURATIONS[] = "durations";
             constexpr char MASK_N[] = "maskN";
 
-            /// estimator: x_est, boundaries, maskT, maskN, threshold -> presence, scores
+            // estimator: x_est, boundaries, maskT, maskN, threshold -> presence, scores
             constexpr char PRESENCE[] = "presence";
             constexpr char SCORES[] = "scores";
 
@@ -93,9 +93,9 @@ namespace otter::game {
 
         }
 
-        /// The configuration block of this variant: the model paths and the model wiring, which are
-        /// internal to the variant and not visible to the host. The audio format, the language
-        /// identifiers and the knobs are contract facts and are declared in exports.
+        // The configuration block of this variant: the model paths and the model wiring, which are
+        // internal to the variant and not visible to the host. The audio format, the language
+        // identifiers and the knobs are contract facts and are declared in exports.
         class GameConfiguration : public srt::ContribConfiguration {
         public:
             GameConfiguration() : srt::ContribConfiguration(Triplet) {
@@ -106,28 +106,28 @@ namespace otter::game {
             std::filesystem::path estimator;
             std::filesystem::path boundaryToDuration;
 
-            /// Empty if this package ships no alignment model.
+            // Empty if this package ships no alignment model.
             std::filesystem::path durationToBoundary;
 
-            /// Model frame rate in seconds. Used only to convert boundaryRadius into frames.
+            // Model frame rate in seconds. Used only to convert boundaryRadius into frames.
             double timestep = 0.01;
 
-            /// Maps the language identifiers listed in the exports to the model's own numbering.
-            ///
-            /// The contract uses identifiers because the internal numbering is specific to each
-            /// model: the number 1 need not denote the same language in two models.
+            // Maps the language identifiers listed in the exports to the model's own numbering.
+            //
+            // The contract uses identifiers because the internal numbering is specific to each
+            // model: the number 1 need not denote the same language in two models.
             std::map<std::string, int> languages;
 
-            /// Start of the sampling schedule.
+            // Start of the sampling schedule.
             double scheduleStart = 0;
         };
 
         using otter::onnx::TensorPtr;
 
-        /// Returns the sampling schedule: \a steps evenly spaced points from \a start up to, but
-        /// excluding, one.
-        ///
-        /// \return The schedule points, or an empty vector if \a steps is not positive.
+        // Returns the sampling schedule: \a steps evenly spaced points from \a start up to, but
+        // excluding, one.
+        //
+        // \return The schedule points, or an empty vector if \a steps is not positive.
         std::vector<float> schedule(double start, int steps) {
             std::vector<float> result;
             if (steps <= 0) {
@@ -163,10 +163,10 @@ namespace otter::game {
             return TensorPtr(tensor.take());
         }
 
-        /// Reads a bool tensor as one byte per element.
-        ///
-        /// \return One value per element, 0 or 1, or \c AnalysisError::ModelFailed if \a tensor is
-        ///         null and \c AnalysisError::ModelMismatch if it is not a bool tensor.
+        // Reads a bool tensor as one byte per element.
+        //
+        // \return One value per element, 0 or 1, or \c AnalysisError::ModelFailed if \a tensor is
+        //         null and \c AnalysisError::ModelMismatch if it is not a bool tensor.
         srt::Expected<std::vector<std::uint8_t>> readFlags(const TensorPtr &tensor,
                                                            const char *what) {
             if (!tensor) {
@@ -185,15 +185,15 @@ namespace otter::game {
             return result;
         }
 
-        /// Reads a confidence that an export may have written as either a number or a flag.
-        ///
-        /// The shipped GAME model indicates the presence of a note with a boolean. The contract
-        /// requires a confidence between zero and one, and a flag is a confidence with two values.
-        /// The tensor records its own data type, so both forms are read without a declaration.
-        ///
-        /// \return One confidence per element, or \c AnalysisError::ModelFailed if \a tensor is
-        ///         null and \c AnalysisError::ModelMismatch if it is neither a bool nor a float
-        ///         tensor.
+        // Reads a confidence that an export may have written as either a number or a flag.
+        //
+        // The shipped GAME model indicates the presence of a note with a boolean. The contract
+        // requires a confidence between zero and one, and a flag is a confidence with two values.
+        // The tensor records its own data type, so both forms are read without a declaration.
+        //
+        // \return One confidence per element, or \c AnalysisError::ModelFailed if \a tensor is
+        //         null and \c AnalysisError::ModelMismatch if it is neither a bool nor a float
+        //         tensor.
         srt::Expected<std::vector<float>> readConfidences(const TensorPtr &tensor,
                                                           const char *what) {
             if (tensor && tensor->dataType() == ds::ITensor::Bool) {
@@ -208,7 +208,7 @@ namespace otter::game {
             return otter::onnx::readFloats(tensor, what);
         }
 
-        /// The sessions of one analyzer, one session per model, as the interpreter opens them.
+        // The sessions of one analyzer, one session per model, as the interpreter opens them.
         template <class Session>
         struct Models {
             Session encoder{};
@@ -216,7 +216,7 @@ namespace otter::game {
             Session estimator{};
             Session boundaryToDuration{};
 
-            /// Empty if the package ships no alignment model.
+            // Empty if the package ships no alignment model.
             Session durationToBoundary{};
         };
 
@@ -343,7 +343,7 @@ namespace otter::game {
                 }
 
                 // A stop that arrived during the last model call may not have reached the session
-                // in time. The contract requires a cancelled execution to report Canceled and no
+                // in time. The contract requires a canceled execution to report Canceled and no
                 // result.
                 if (auto stopped = checkCancelled(); !stopped) {
                     return stopped.takeError();
@@ -353,31 +353,31 @@ namespace otter::game {
             }
 
         private:
-            /// The knob values of one execution, in the units the models take.
+            // The knob values of one execution, in the units the models take.
             struct Settings {
                 float boundaryThreshold = 0;
                 float noteThreshold = 0;
                 double cutoff = 0;
 
-                /// The smallest interval between boundaries, in the model's frames.
+                // The smallest interval between boundaries, in the model's frames.
                 std::int64_t radius = 1;
 
                 int steps = 0;
             };
 
-            /// The encoder output: the features that the other models read, and the frame mask.
+            // The encoder output: the features that the other models read, and the frame mask.
             struct Encoded {
                 otter::onnx::Tensors features;
                 std::vector<std::uint8_t> frames;
             };
 
-            /// The bd2dur output: its tensors, which the estimator reads, and the note durations.
+            // The bd2dur output: its tensors, which the estimator reads, and the note durations.
             struct Measured {
                 otter::onnx::Tensors lengths;
                 std::vector<float> durations;
             };
 
-            /// The estimator output, one entry per note.
+            // The estimator output, one entry per note.
             struct Estimated {
                 std::vector<float> confidences;
                 std::vector<float> keys;
@@ -385,9 +385,9 @@ namespace otter::game {
 
             // Returns the model's number for the language of an execution.
             //
-            // \return The model's number for the requested or default language; 0 if neither is
-            //         specified and the model has no language numbering;
-            //         \c srt::Error::InvalidArgument if neither is specified and the model numbers
+            // Returns the model's number for the requested or default language. Zero if neither
+            // is specified and the model has no language numbering.
+            // \c srt::Error::InvalidArgument if neither is specified and the model numbers
             //         its languages, or if the language is not declared or not numbered.
             //
             // Zero is not a neutral language number: it is one of the model's own numbers, and the

@@ -7,8 +7,8 @@
 // Here the whole pipeline lives inside the engine's command line tool, which the provider launches
 // once per execution: the span and the lyrics travel as files, the tool answers with a TextGrid of
 // the three tiers its dataset workflow writes, and what this variant adds on top is the contract
-// side — the words of the texts tier, the phones of the phones tier, and the gaps the tool left to
-// nothing reported as words of the declaration's silence label, the same shape the ONNX variant
+// side: the words of the texts tier, the phones of the phones tier, and the gaps the tool left to
+// nothing, reported as words of the declaration's silence label, the same shape the ONNX variant
 // reports.
 //
 // This port differs from the ONNX variant in the same two observable ways as its note sibling:
@@ -52,61 +52,61 @@ namespace otter::tifaGgml {
 
     namespace {
 
-        /// The name the span travels under inside the scratch directory. The tool names its outputs
-        /// after the audio file, so the fixed stem is what tells the provider where the TextGrid
-        /// lands.
+        // The name the span travels under inside the scratch directory. The tool names its outputs
+        // after the audio file, so the fixed stem is what tells the provider where the TextGrid
+        // lands.
         constexpr char SPAN_STEM[] = "span";
 
-        /// The configuration block of this variant: the engine's command line tool, the model it
-        /// runs, the directory its G2P dictionaries live in, and the map from the host's language
-        /// identifiers to the engine's own codes. The audio format and the languages are contract
-        /// facts and are declared in exports.
+        // The configuration block of this variant: the engine's command line tool, the model it
+        // runs, the directory its G2P dictionaries live in, and the map from the host's language
+        // identifiers to the engine's own codes. The audio format and the languages are contract
+        // facts and are declared in exports.
         class TifaGgmlConfiguration : public srt::ContribConfiguration {
         public:
             TifaGgmlConfiguration() : srt::ContribConfiguration(Triplet) {
             }
 
-            /// The engine's command line tool, as shipped in its release.
+            // The engine's command line tool, as shipped in its release.
             std::filesystem::path cli;
 
-            /// The GGUF model the tool runs.
+            // The GGUF model the tool runs.
             std::filesystem::path model;
 
-            /// The directory the tool resolves its G2P dictionary references against. Empty when
-            /// the package ships no dictionaries, in which case the tool reads them from beside the
-            /// model, as its own tooling does.
+            // The directory the tool resolves its G2P dictionary references against. Empty when
+            // the package ships no dictionaries, in which case the tool reads them from beside the
+            // model, as its own tooling does.
             std::filesystem::path dictionaries;
 
-            /// Maps the identifiers the exports list to the codes the engine speaks. A package
-            /// whose model carries one unprefixed vocabulary may map nothing, and the engine then
-            /// reads the lyrics without a language.
+            // Maps the identifiers the exports list to the codes the engine speaks. A package
+            // whose model carries one unprefixed vocabulary may map nothing, and the engine then
+            // reads the lyrics without a language.
             std::map<std::string, std::string> languages;
         };
 
-        /// One interval of one TextGrid tier, as the tool writes them: half open, in seconds.
+        // One interval of one TextGrid tier, as the tool writes them: half open, in seconds.
         struct GridInterval {
             double start = 0;
             double end = 0;
             std::string text;
         };
 
-        /// The two tiers of the tool's TextGrid that the contract is built from: the semantic words
-        /// the caller wrote, and the phones those words were pronounced with.
+        // The two tiers of the tool's TextGrid that the contract is built from: the semantic words
+        // the caller wrote, and the phones those words were pronounced with.
         struct GridTiers {
             std::vector<GridInterval> texts;
             std::vector<GridInterval> phones;
         };
 
-        /// Reads the intervals of the `texts` and `phones` tiers of a TextGrid.
-        ///
-        /// The tool writes the long Praat text format, whose intervals are one `xmin`, `xmax` and
-        /// `text` triple after another inside the tier they belong to; the tier a triple belongs to
-        /// is the one whose `name` line came before it. A line the format does not define is
-        /// skipped, so a tier this variant does not read passes through.
-        ///
-        /// \return The tiers, or an \c AnalysisError::ModelFailed error if the file cannot be read
-        /// or
-        ///         holds no tier pair the tool could have written.
+        // Reads the intervals of the texts and phones tiers of a TextGrid.
+        //
+        // The tool writes the long Praat text format, whose intervals are one xmin, xmax and text
+        // triple after another inside the tier they belong to. The tier a triple belongs to is the
+        // one whose name line came before it. A line the format does not define is
+        // skipped, so a tier this variant does not read passes through.
+        //
+        // \return The tiers, or an \c AnalysisError::ModelFailed error if the file cannot be read
+        // or
+        //         holds no tier pair the tool could have written.
         srt::Expected<GridTiers> readTextGrid(const std::filesystem::path &path) {
             std::FILE *file = std::fopen(path.string().c_str(), "rb");
             if (file == nullptr) {
@@ -120,8 +120,8 @@ namespace otter::tifaGgml {
             // one.
             std::string pendingTier;
             // Whether an interval of the current tier is open. A tier states its own xmin and xmax
-            // in its header, and those lines are not an interval; only a triple that follows an
-            // "intervals [" line is one.
+            // in its header, and those lines are not an interval. Only a triple that follows a
+            // line starting with intervals [ is one.
             bool inInterval = false;
             std::optional<double> xmin;
             std::optional<double> xmax;
@@ -169,7 +169,7 @@ namespace otter::tifaGgml {
                                    ? std::string(view.substr(begin + 1, end - begin - 1))
                                    : std::string();
                 } else if (begins("intervals [")) {
-                    // A new interval of one tier starts; the triple before it is complete.
+                    // A new interval of one tier starts. The triple before it is complete.
                     flush();
                     inInterval = true;
                 } else if (!inInterval) {
@@ -216,10 +216,10 @@ namespace otter::tifaGgml {
             }
 
         protected:
-            /// Requests cancellation of the running execution. The tool itself is killed by the
-            /// execution thread, which reads the stop request before each wait slice. A kill from
-            /// here would have to take the lock that the slices hold, and the holder wins the
-            /// relock on Linux every time, which postpones the kill without limit.
+            // Requests cancellation of the running execution. The tool itself is killed by the
+            // execution thread, which reads the stop request before each wait slice. A kill from
+            // here would have to take the lock that the slices hold, and the holder wins the
+            // relock on Linux every time, which postpones the kill without limit.
             srt::Expected<void> quit() override {
                 (void) Executive::quit();
                 return srt::Expected<void>();
@@ -346,8 +346,8 @@ namespace otter::tifaGgml {
             //
             // The span and the lyrics travel as files of a scratch directory that is removed when
             // the execution is over. The tool reports the failures of its own layer through its
-            // exit code and its standard error, which goes to the host's; a tool that died mid-run
-            // is reported as a model failure, unless the execution was cancelled, whose stop is the
+            // exit code and its standard error, which goes to the host's. A tool that died mid-run
+            // is reported as a model failure, unless the execution was canceled, whose stop is the
             // reason it died.
             srt::Expected<GridTiers> align(const otter::PreparedSamples &waveform,
                                            const std::string &lyrics,
@@ -426,7 +426,7 @@ namespace otter::tifaGgml {
             srt::Expected<std::vector<AlignApi::WordInfo>>
                 place(const GridTiers &tiers, double length, double anchor) const {
                 // The words of the result, in the order the texts tier wrote them. An interval the
-                // tool left empty is a stretch of no word, which the silence below fills; an
+                // tool left empty is a stretch of no word, which the silence below fills. An
                 // interval its phones did not reach is a word of no audio, which is dropped,
                 // because the contract has no way to express a word of no length.
                 struct Word {
@@ -552,7 +552,7 @@ namespace otter::tifaGgml {
                 m_active = std::move(process);
                 {
                     // A stop that arrived before the tool existed had nothing to kill, so the tool
-                    // of a cancelled execution is killed as soon as it is held.
+                    // of a canceled execution is killed as soon as it is held.
                     if (cancelled()) {
                         (void) m_active->kill();
                     }
@@ -718,7 +718,8 @@ namespace otter::tifaGgml {
             }
         }
         // The engine detects no non-speech sound: it cannot report a breath or a cough, so
-        // promising one would make "none found" and "nothing was looked for" the same answer.
+        // promising one would make a search that found nothing and a search that never ran the same
+        // answer.
         if (!declared.nonSpeechPhonemes.empty()) {
             return srt::Error(srt::Error::InvalidFormat,
                               "the tifa-ggml model detects no non-speech sound, so the exports "

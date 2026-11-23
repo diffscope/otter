@@ -9,34 +9,34 @@ namespace otter::tifa {
 
     namespace {
 
-        /// The language separator the model's symbols carry, as in <tt>zh/a</tt>.
+        // The language separator the model's symbols carry, as in <tt>zh/a</tt>.
         constexpr char LANGUAGE_SEPARATOR = '/';
 
-        /// One cell of an aligned profile: which token of that row's candidate sits there, numbered
-        /// from one, or zero where the candidate has no token in that slot.
+        // One cell of an aligned profile: which token of that row's candidate sits there, numbered
+        // from one, or zero where the candidate has no token in that slot.
         using Slot = std::size_t;
 
-        /// A word's candidates laid out over shared slots: one row per slot, one entry per
-        /// candidate.
+        // A word's candidates laid out over shared slots: one row per slot, one entry per
+        // candidate.
         using Profile = std::vector<std::vector<Slot>>;
 
-        /// Where a candidate's token ends up once it is merged into a profile.
+        // Where a candidate's token ends up once it is merged into a profile.
         struct Merge {
-            /// Whether the slot takes the next token of every candidate already in the profile, or
-            /// is one only the new candidate reaches.
+            // Whether the slot takes the next token of every candidate already in the profile, or
+            // is one only the new candidate reaches.
             std::vector<bool> shares;
 
-            /// The new candidate's token at each slot, numbered from one: zero for a slot it does
-            /// not reach.
+            // The new candidate's token at each slot, numbered from one: zero for a slot it does
+            // not reach.
             std::vector<Slot> added;
         };
 
-        /// Aligns \a candidate against the profile's consensus.
-        ///
-        /// The cost is zero for equal tokens and one for everything else, and the walk back prefers
-        /// a match to a deletion and a deletion to an insertion. That preference is not a detail:
-        /// it is what decides which of two equally distant alignments of a repeated token comes
-        /// out, and the two put the token in different slots.
+        // Aligns \a candidate against the profile's consensus.
+        //
+        // The cost is zero for equal tokens and one for everything else, and the walk back prefers
+        // a match to a deletion and a deletion to an insertion. That preference is not a detail:
+        // it is what decides which of two equally distant alignments of a repeated token comes
+        // out, and the two put the token in different slots.
         Merge alignTo(const std::vector<std::int64_t> &consensus,
                       const std::vector<std::int64_t> &candidate) {
             const std::size_t n = consensus.size();
@@ -86,7 +86,7 @@ namespace otter::tifa {
             return merge;
         }
 
-        /// The token of \a candidate at \a slot of \a profile, or zero where it has none.
+        // The token of \a candidate at \a slot of \a profile, or zero where it has none.
         std::int64_t tokenAt(const Profile &profile,
                              const std::vector<std::vector<std::int64_t>> &numbers,
                              std::size_t candidate, std::size_t slot) {
@@ -94,13 +94,13 @@ namespace otter::tifa {
             return cell == 0 ? 0 : numbers[candidate][cell - 1];
         }
 
-        /// The profile's own reading of each slot: the token most of its candidates hold there.
-        ///
-        /// It is a reference to align the next candidate against rather than a decision: a slot the
-        /// candidates disagree about is still one slot, and which token they disagree about is what
-        /// the aligner walks along. A tie keeps the token of the earliest candidate that reaches
-        /// the slot, which is what makes the whole profile a function of the dictionary's own
-        /// order.
+        // The profile's own reading of each slot: the token most of its candidates hold there.
+        //
+        // It is a reference to align the next candidate against rather than a decision: a slot the
+        // candidates disagree about is still one slot, and which token they disagree about is what
+        // the aligner walks along. A tie keeps the token of the earliest candidate that reaches
+        // the slot, which is what makes the whole profile a function of the dictionary's own
+        // order.
         std::vector<std::int64_t>
             consensusOf(const Profile &profile,
                         const std::vector<std::vector<std::int64_t>> &numbers) {
@@ -131,13 +131,13 @@ namespace otter::tifa {
             return consensus;
         }
 
-        /// Lays every candidate of one word out over the slots they share.
-        ///
-        /// The first candidate's tokens are the slots to begin with, and every later one is aligned
-        /// against what the earlier ones agree on, which is how a slot keeps meaning the same place
-        /// in the word as candidates are added rather than becoming an artifact of the pairing
-        /// order. Both sides expand at once: a candidate's token the profile does not have takes a
-        /// new slot, and the candidates already in it take a gap there.
+        // Lays every candidate of one word out over the slots they share.
+        //
+        // The first candidate's tokens are the slots to begin with, and every later one is aligned
+        // against what the earlier ones agree on, which is how a slot keeps meaning the same place
+        // in the word as candidates are added rather than becoming an artifact of the pairing
+        // order. Both sides expand at once: a candidate's token the profile does not have takes a
+        // new slot, and the candidates already in it take a gap there.
         Profile alignCandidates(const std::vector<std::vector<std::int64_t>> &numbers) {
             Profile profile;
             if (numbers.empty()) {

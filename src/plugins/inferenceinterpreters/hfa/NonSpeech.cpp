@@ -10,12 +10,12 @@ namespace otter::hfa {
 
     namespace {
 
-        /// Converts the class logits of one frame into probabilities.
-        ///
-        /// The computation stays in \c float throughout, as in the reference: every returned
-        /// probability is compared against a threshold and never multiplied into a time, so an
-        /// earlier widening would gain no accuracy and make the comparison diverge from the
-        /// reference.
+        // Converts the class logits of one frame into probabilities.
+        //
+        // The computation stays in \c float throughout, as in the reference: every returned
+        // probability is compared against a threshold and never multiplied into a time, so an
+        // earlier widening would gain no accuracy and make the comparison diverge from the
+        // reference.
         std::vector<float> softmax(const std::vector<float> &logits) {
             const auto largest = *std::max_element(logits.begin(), logits.end());
             std::vector<float> probabilities(logits.size());
@@ -110,7 +110,8 @@ namespace otter::hfa {
             const auto found = std::find(m_classNames.begin(), m_classNames.end(), label);
             if (found == m_classNames.end()) {
                 // The caller requested a class that this model does not define. An empty result
-                // for the class would be indistinguishable from "none found", so the label is
+                // for the class would be indistinguishable from a search that found nothing, so the
+                // label is
                 // rejected instead.
                 return srt::Error(srt::Error::InvalidArgument,
                                   "the caller asked for the non-speech phoneme " + label +

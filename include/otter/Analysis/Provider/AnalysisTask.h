@@ -27,7 +27,7 @@ namespace otter {
         /// Returns whether a stop has been requested for the claimed execution.
         ///
         /// A body checks this flag at the granularity at which it can stop, and returns
-        /// cancelledError() if the flag is set. A cancelled execution reports \c Canceled and no
+        /// cancelledError() if the flag is set. A canceled execution reports \c Canceled and no
         /// result.
         bool cancelled() const noexcept {
             return m_stopToken.stopRequested();

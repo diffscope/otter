@@ -27,7 +27,7 @@ BOOST_AUTO_TEST_CASE(test_GameGgmlInterpreter_TranscribesAToneWithTheRealEngine)
     auto result = produced.take();
 
     // The notes are ordered, non-overlapping, lie inside the span, and sit on the host's timeline
-    // in seconds. What the engine makes of a constant tone is its own business; where it placed
+    // in seconds. What the engine makes of a constant tone is its own business. Where it placed
     // them is the provider's promise.
     for (std::size_t i = 0; i < result->notes.size(); ++i) {
         const auto &note = result->notes[i];

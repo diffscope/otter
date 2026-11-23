@@ -32,9 +32,9 @@ namespace CommonApi = otter::Api::Common::L1;
 
 namespace {
 
-    /// The plugin that main.cpp of game declares, around the interpreter that this test
-    /// links. The test registers it as a static plugin with the plugin.json of game, so that
-    /// discovery selects this class rather than the library in the plugin tree.
+    // The plugin that main.cpp of game declares, around the interpreter that this test
+    // links. The test registers it as a static plugin with the plugin.json of game, so that
+    // discovery selects this class rather than the library in the plugin tree.
     class GamePlugin : public srt::InferenceInterpreterPlugin {
     public:
         srt::Expected<std::unique_ptr<srt::ContribInterpreter>>
@@ -59,9 +59,9 @@ namespace {
 
     constexpr int RATE = 44100;
 
-    /// The models compute in float32, so a duration of a fifth of a second is returned as
-    /// 0.19999998. BOOST_CHECK_CLOSE takes a percentage, and this value corresponds to float
-    /// precision.
+    // The models compute in float32, so a duration of a fifth of a second is returned as
+    // 0.19999998. BOOST_CHECK_CLOSE takes a percentage, and this value corresponds to float
+    // precision.
     constexpr double TOLERANCE = 1e-4;
 
     using FixturesOrSkip = otter::test::FixturesOrSkip;
@@ -79,9 +79,9 @@ namespace {
         }
     };
 
-    /// A host that loads a package whose graphs include the one that converts durations into
-    /// boundaries, although its exports promise no alignment on known notes. The variant accepts
-    /// such a declaration, because that model is required only of a declaration that promises it.
+    // A host that loads a package whose graphs include the one that converts durations into
+    // boundaries, although its exports promise no alignment on known notes. The variant accepts
+    // such a declaration, because that model is required only of a declaration that promises it.
     struct HostWithoutKnownNotes : otter::test::ModelHost {
         std::unique_ptr<NoteApi::Executive> open() {
             auto spec = ModelHost::load("fixture-note-no-known-notes", "note");
@@ -163,9 +163,9 @@ BOOST_AUTO_TEST_CASE(test_GameInterpreter_ChainsTheStagesAndPlacesNotesInSeconds
     BOOST_CHECK_EQUAL(analyzer->state(), srt::ITask::Succeeded);
 }
 
-/// The release package, when the host fetched one, runs the trained graphs. The fixture cases pin
-/// the arithmetic of the provider; this one proves that the weights load and that a transcript
-/// arrives on the caller's timeline.
+// The release package, when the host fetched one, runs the trained graphs. The fixture cases pin
+// the arithmetic of the provider. This one proves that the weights load and that a transcript
+// arrives on the caller's timeline.
 BOOST_AUTO_TEST_CASE(test_GameInterpreter_TranscribesWithTheTrainedModel) {
     Host host;
     auto spec = host.loadDirectory(otter::test::realModelsRoot() / "otter-game", "note");
@@ -332,13 +332,13 @@ BOOST_AUTO_TEST_CASE(test_GameInterpreter_RefusesWhatItCannotHonor) {
     BOOST_CHECK(!analyzer->start(wrongKnob));
 }
 
-/// A declaration that promises no alignment on known notes loads, because the model that converts
-/// durations into boundaries is required only of a declaration that promises it. An execution that
-/// receives known notes is then refused, rather than having them ignored, and the message names
-/// the missing capability. This package carries that model as well, so only the declaration can
-/// refuse these notes: a build that dropped that half of the check would accept them. The same
-/// package transcribes a span without them, which is what tells this refusal apart from a package
-/// that failed to load.
+// A declaration that promises no alignment on known notes loads, because the model that converts
+// durations into boundaries is required only of a declaration that promises it. An execution that
+// receives known notes is then refused, rather than having them ignored, and the message names
+// the missing capability. This package carries that model as well, so only the declaration can
+// refuse these notes: a build that dropped that half of the check would accept them. The same
+// package transcribes a span without them, which is what tells this refusal apart from a package
+// that failed to load.
 BOOST_AUTO_TEST_CASE(test_GameInterpreter_RefusesKnownNotesItDidNotPromise) {
     HostWithoutKnownNotes host;
     auto analyzer = host.open();
@@ -364,10 +364,10 @@ BOOST_AUTO_TEST_CASE(test_GameInterpreter_RefusesKnownNotesItDidNotPromise) {
     BOOST_REQUIRE_MESSAGE(static_cast<bool>(transcribed), otter::test::why(transcribed));
 }
 
-/// The two blocks of a declaration must agree. A language that the exports declare but the model
-/// cannot number, or an alignment path declared without the model that performs it, is rejected
-/// at load time, where both blocks are available, instead of being discovered by a failing
-/// execution.
+// The two blocks of a declaration must agree. A language that the exports declare but the model
+// cannot number, or an alignment path declared without the model that performs it, is rejected
+// at load time, where both blocks are available, instead of being discovered by a failing
+// execution.
 BOOST_AUTO_TEST_CASE(test_GameInterpreter_RefusesALanguageTheModelCannotNumber) {
     Host host;
     BOOST_CHECK(host.refusal("fixture-note-unnumbered").find("numbering") != std::string::npos);
@@ -379,20 +379,20 @@ BOOST_AUTO_TEST_CASE(test_GameInterpreter_RefusesAnAlignmentPromiseWithoutTheMod
                 std::string::npos);
 }
 
-/// A host may request a transcription without specifying a language, in which case the declared
-/// default applies. Exports that list languages without a default leave that case undefined, and
-/// the execution would otherwise run in the language the model numbers zero, which is not a neutral
-/// choice and, in the packages that ship this variant, not a declared language.
+// A host may request a transcription without specifying a language, in which case the declared
+// default applies. Exports that list languages without a default leave that case undefined, and
+// the execution would otherwise run in the language the model numbers zero, which is not a neutral
+// choice and, in the packages that ship this variant, not a declared language.
 BOOST_AUTO_TEST_CASE(test_GameInterpreter_RefusesNumberedLanguagesWithoutADefault) {
     Host host;
     BOOST_CHECK(host.refusal("fixture-note-no-default").find("defaultLanguage") !=
                 std::string::npos);
 }
 
-/// The five models take one channel each, and the variant mixes nothing down: a declaration of two
-/// describes audio that a host prepares and the provider would silently reduce before the encoder
-/// saw it. The count is checked where the declaration is read, and no value of the models
-/// contradicts it, which is why the package carries the same four models as the ones above.
+// The five models take one channel each, and the variant mixes nothing down: a declaration of two
+// describes audio that a host prepares and the provider would silently reduce before the encoder
+// saw it. The count is checked where the declaration is read, and no value of the models
+// contradicts it, which is why the package carries the same four models as the ones above.
 BOOST_AUTO_TEST_CASE(test_GameInterpreter_RefusesADeclarationOfTwoChannels) {
     Host host;
     const auto refusal = host.refusalError("fixture-note-two-channels");
@@ -402,10 +402,10 @@ BOOST_AUTO_TEST_CASE(test_GameInterpreter_RefusesADeclarationOfTwoChannels) {
     BOOST_CHECK(refusal.message().find("declare 2") != std::string::npos);
 }
 
-/// A stop requested between two models makes the execution report Cancelled and no result, and it
-/// does not carry over to the next execution. The stop is requested from the progress callback,
-/// which the provider calls on the executing thread after the encoder, so the timing is not left
-/// to a race with models that take milliseconds.
+// A stop requested between two models makes the execution report Cancelled and no result, and it
+// does not carry over to the next execution. The stop is requested from the progress callback,
+// which the provider calls on the executing thread after the encoder, so the timing is not left
+// to a race with models that take milliseconds.
 BOOST_AUTO_TEST_CASE(test_GameInterpreter_ReportsACancellation) {
     Host host;
     auto analyzer = host.open();

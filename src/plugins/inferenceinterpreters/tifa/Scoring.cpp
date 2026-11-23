@@ -10,10 +10,10 @@ namespace otter::tifa {
 
     namespace {
 
-        /// One place the walk can be: the segment it last entered, and how many of that segment's
-        /// MASK slots it has spent. The offset is what the table is indexed by, so it is part of
-        /// the state rather than a running total: two candidates that reach a segment with a
-        /// different number of slots spent are in different places.
+        // One place the walk can be: the segment it last entered, and how many of that segment's
+        // MASK slots it has spent. The offset is what the table is indexed by, so it is part of
+        // the state rather than a running total: two candidates that reach a segment with a
+        // different number of slots spent are in different places.
         struct State {
             std::int64_t segment = 0;
             std::int64_t used = 0;
@@ -30,31 +30,31 @@ namespace otter::tifa {
             }
         };
 
-        /// What reached one state: the total the path scored, the state it stepped from and the
-        /// candidate it took: the parent the choices are read back through.
+        // What reached one state: the total the path scored, the state it stepped from and the
+        // candidate it took: the parent the choices are read back through.
         struct Arrival {
             State state;
             double total = 0.0;
             State source;
             std::int64_t candidate = 0;
 
-            /// How a tie is broken: the rank of the state stepped from, then the candidate. Which
-            /// of two paths that scored the same wins is then a property of the grid rather than of
-            /// the order the table happened to be walked in.
+            // How a tie is broken: the rank of the state stepped from, then the candidate. Which
+            // of two paths that scored the same wins is then a property of the grid rather than of
+            // the order the table happened to be walked in.
             std::pair<std::int64_t, std::int64_t> key;
         };
 
-        /// The MASK slots of a segment, which is how many rows the graph reported for it.
+        // The MASK slots of a segment, which is how many rows the graph reported for it.
         std::int64_t slotsOf(const std::vector<std::int64_t> &slots, std::int64_t segment) {
             return segment < static_cast<std::int64_t>(slots.size()) ? slots[segment] : 0;
         }
 
-        /// Whether the table describes a grid the walk can be run on at all.
-        ///
-        /// The table is the graph's own account of a grid the caller handed over, so the two can
-        /// disagree: a fragment that names a word or a segment the tensors do not carry would be
-        /// read past its own end, and one that holds more slots than a segment's offset axis has
-        /// places for would be indexed outside it. Refusing beats indexing past the end of either.
+        // Whether the table describes a grid the walk can be run on at all.
+        //
+        // The table is the graph's own account of a grid the caller handed over, so the two can
+        // disagree: a fragment that names a word or a segment the tensors do not carry would be
+        // read past its own end, and one that holds more slots than a segment's offset axis has
+        // places for would be indexed outside it. Refusing beats indexing past the end of either.
         srt::Expected<void> checkTable(const Fragments &table,
                                        const std::vector<std::vector<bool>> &valid) {
             if (table.fragments == 0 || table.candidates == 0 ||
@@ -102,13 +102,13 @@ namespace otter::tifa {
             return srt::Expected<void>();
         }
 
-        /// Walks every fragment a candidate owns, and reports the state and the score it left the
-        /// walk in, or nothing when the candidate does not fit the segment it is walking.
-        ///
-        /// A candidate is never scored fragment by fragment on its own: the slots it spends are
-        /// what the next fragment's offset is read at, so the walk carries the state through all of
-        /// them. The SPACE suffix is charged once, where the walk leaves a segment for another, and
-        /// the last one where the phrase ends.
+        // Walks every fragment a candidate owns, and reports the state and the score it left the
+        // walk in, or nothing when the candidate does not fit the segment it is walking.
+        //
+        // A candidate is never scored fragment by fragment on its own: the slots it spends are
+        // what the next fragment's offset is read at, so the walk carries the state through all of
+        // them. The SPACE suffix is charged once, where the walk leaves a segment for another, and
+        // the last one where the phrase ends.
         std::optional<std::pair<State, double>>
             advance(State from, const std::vector<std::size_t> &pieces, std::size_t candidate,
                     const Fragments &table, const std::vector<std::int64_t> &slots) {
@@ -130,10 +130,10 @@ namespace otter::tifa {
             return std::make_pair(from, score);
         }
 
-        /// Numbers the states of one layer in the order the ties of the next layer are broken in.
-        ///
-        /// The sort is stable over the layer's own order, which is what makes the run repeatable
-        /// when two states carry the same key.
+        // Numbers the states of one layer in the order the ties of the next layer are broken in.
+        //
+        // The sort is stable over the layer's own order, which is what makes the run repeatable
+        // when two states carry the same key.
         std::unordered_map<State, std::int64_t, StateHash>
             numberStates(const std::vector<Arrival> &layer) {
             std::vector<std::size_t> order(layer.size());

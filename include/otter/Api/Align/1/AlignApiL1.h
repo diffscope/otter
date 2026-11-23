@@ -254,7 +254,7 @@ namespace otter::Api::Align::L1 {
         /// The words cover the span without gaps when \c Exports::silenceLabel is not empty:
         /// the first word starts at the start of the audio, each word ends at the start of the
         /// next word, and the last word ends at the end of the audio. A gap that the aligner did
-        /// not attribute to a word becomes a word labelled \c Exports::silenceLabel. A module
+        /// not attribute to a word becomes a word labeled \c Exports::silenceLabel. A module
         /// whose label is empty does not report silence as a word, so its words may leave part of
         /// the span uncovered and the host pads that part from the audio boundaries. A module that
         /// does not support an empty label rejects the declaration or the execution instead of

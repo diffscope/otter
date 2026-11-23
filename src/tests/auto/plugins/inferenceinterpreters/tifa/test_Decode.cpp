@@ -17,7 +17,7 @@ BOOST_AUTO_TEST_SUITE(test_Decode)
 
 // The frame decode against the reference's own answers: the numbers below were read back from the
 // reference on these very inputs rather than reasoned out here, and the run's authoritative
-// readings are in docs/plans/tifa-align.md §11.11 (the decode differencing in §11.12). A caller
+// readings are in docs/plans/TifaAlign.md §11.11 (the decode differencing in §11.12). A caller
 // that drops zero-width tokens sees the same result either way, so only a caller that reads the
 // anchors can see them.
 BOOST_AUTO_TEST_CASE(test_Decode_DecodesFramesTheWayTheReferenceDoes) {

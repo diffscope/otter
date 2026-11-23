@@ -19,7 +19,7 @@ using otter::hfa::Phrase;
 
 namespace {
 
-    /// Writes \a content to a scratch file byte for byte and returns its path.
+    // Writes \a content to a scratch file byte for byte and returns its path.
     fs::path writeDictionary(const std::string &name, const std::string &content) {
         const auto path = fs::temp_directory_path() / ("otter-hfa-g2p-" + name + ".txt");
         std::ofstream(path, std::ios::binary) << content;
@@ -49,8 +49,8 @@ namespace {
 
 BOOST_AUTO_TEST_SUITE(test_G2p)
 
-/// Every word is framed by the separator, once between two words, and its phonemes carry its
-/// index in the resolved words.
+// Every word is framed by the separator, once between two words, and its phonemes carry its
+// index in the resolved words.
 BOOST_AUTO_TEST_CASE(test_G2p_FramesEveryWordWithTheSeparator) {
     const auto dictionary = load("frame", "ni\tn i\nhao\th ao\n");
     checkPhrase(dictionary.split("ni hao", "SP"), {"SP", "n", "i", "SP", "h", "ao", "SP"},
@@ -61,16 +61,16 @@ BOOST_AUTO_TEST_CASE(test_G2p_FramesEveryWordWithTheSeparator) {
     checkPhrase(dictionary.split("", "SP"), {"SP"}, {-1}, {});
 }
 
-/// A word the dictionary lacks is left out of the phrase, and the caller sees it missing from the
-/// words.
+// A word the dictionary lacks is left out of the phrase, and the caller sees it missing from the
+// words.
 BOOST_AUTO_TEST_CASE(test_G2p_LeavesOutWordsItCannotResolve) {
     const auto dictionary = load("missing", "ni\tn i\n");
     checkPhrase(dictionary.split("wo ni ta", "SP"), {"SP", "n", "i", "SP"}, {-1, 0, 0, -1}, {"ni"});
 }
 
-/// A separator at either end of an entry would read as the gap between two words, so it is
-/// dropped, while one inside the entry stays a phoneme of the word. A word left with no phoneme
-/// stays a word and adds no separator.
+// A separator at either end of an entry would read as the gap between two words, so it is
+// dropped, while one inside the entry stays a phoneme of the word. A word left with no phoneme
+// stays a word and adds no separator.
 BOOST_AUTO_TEST_CASE(test_G2p_DropsTheSeparatorAtTheEndsOfAnEntry) {
     const auto dictionary = load("ends", "a\tSP a SP\n"
                                          "b\tb SP b\n"
@@ -84,7 +84,7 @@ BOOST_AUTO_TEST_CASE(test_G2p_DropsTheSeparatorAtTheEndsOfAnEntry) {
     checkPhrase(dictionary.split("breath", "AP"), {"AP", "SP", "AP"}, {-1, 0, -1}, {"breath"});
 }
 
-/// CRLF and LF dictionaries make the same table, and blank lines are skipped.
+// CRLF and LF dictionaries make the same table, and blank lines are skipped.
 BOOST_AUTO_TEST_CASE(test_G2p_ReadsCrlfLikeLf) {
     const auto dictionary = load("crlf", "ni\tn i\r\n\r\nhao\th  ao \r\n");
     checkPhrase(dictionary.split("ni hao", "SP"), {"SP", "n", "i", "SP", "h", "ao", "SP"},

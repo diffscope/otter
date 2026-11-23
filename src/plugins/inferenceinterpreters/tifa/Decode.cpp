@@ -9,32 +9,32 @@ namespace otter::tifa {
 
     namespace {
 
-        /// What dropping a token costs.
-        ///
-        /// The reference charges this on the similarity scale rather than on a log probability
-        /// scale, which only means anything because the scores stay on that scale throughout: a
-        /// token is worth dropping only when the fit of the tokens around it gains more than half
-        /// a cosine similarity by the room it frees. It is the reference's \c skip_penalty, and 0.5
-        /// is exact in a \c float, so the states below stay on \c float and keep the reference's
-        /// rounding as well as its decisions.
+        // What dropping a token costs.
+        //
+        // The reference charges this on the similarity scale rather than on a log probability
+        // scale, which only means anything because the scores stay on that scale throughout: a
+        // token is worth dropping only when the fit of the tokens around it gains more than half
+        // a cosine similarity by the room it frees. It is the reference's \c skip_penalty, and 0.5
+        // is exact in a \c float, so the states below stay on \c float and keep the reference's
+        // rounding as well as its decisions.
         constexpr float SKIP_PENALTY = 0.5f;
 
-        /// No way to have arrived here at all.
+        // No way to have arrived here at all.
         constexpr float UNREACHABLE = -std::numeric_limits<float>::infinity();
 
-        /// How a pause position was reached, as the reference's \c gap_back says it: a skip is a
-        /// token dropped at no cost in frames, an exit is the token in front of the position
-        /// handing the frame back to it, and a wait is a frame spent on the pause there.
+        // How a pause position was reached, as the reference's \c gap_back says it: a skip is a
+        // token dropped at no cost in frames, an exit is the token in front of the position
+        // handing the frame back to it, and a wait is a frame spent on the pause there.
         constexpr std::int8_t GAP_WAIT = 0;
         constexpr std::int8_t GAP_EXIT = 1;
         constexpr std::int8_t GAP_SKIP = 2;
 
-        /// How a token was reached, as the reference's \c token_back says it: from its own state on
-        /// the frame before, or from the pause in front of it.
+        // How a token was reached, as the reference's \c token_back says it: from its own state on
+        // the frame before, or from the pause in front of it.
         constexpr std::int8_t TOKEN_SELF = 0;
         constexpr std::int8_t TOKEN_FROM_GAP = 1;
 
-        /// A frame index no walk has placed a token at.
+        // A frame index no walk has placed a token at.
         constexpr std::int64_t UNSET = -1;
 
     }

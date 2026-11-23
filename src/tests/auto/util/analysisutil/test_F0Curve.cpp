@@ -19,7 +19,7 @@ namespace {
 
 BOOST_AUTO_TEST_SUITE(test_F0Curve)
 
-/// A curve without a voiced frame has no anchor and is left unchanged.
+// A curve without a voiced frame has no anchor and is left unchanged.
 BOOST_AUTO_TEST_CASE(test_F0Curve_LeavesAnAllUnvoicedCurveAlone) {
     Curve f0 = {0, 3, 0, 5};
     otter::support::interpolateUnvoiced(f0, Flags{0, 0, 0, 0});
@@ -30,16 +30,16 @@ BOOST_AUTO_TEST_CASE(test_F0Curve_LeavesAnAllUnvoicedCurveAlone) {
     BOOST_CHECK(empty.empty());
 }
 
-/// The frames before the first voiced frame and after the last voiced frame are held at the
-/// frequency of the nearest voiced frame.
+// The frames before the first voiced frame and after the last voiced frame are held at the
+// frequency of the nearest voiced frame.
 BOOST_AUTO_TEST_CASE(test_F0Curve_HoldsTheEndsFlat) {
     Curve f0 = {0, 0, 200, 0};
     otter::support::interpolateUnvoiced(f0, Flags{0, 0, 1, 0});
     BOOST_CHECK(f0 == (Curve{200, 200, 200, 200}));
 }
 
-/// A gap between two voiced frames follows the geometric path between them, so an octave over
-/// two steps passes through the frequency at half the semitone distance.
+// A gap between two voiced frames follows the geometric path between them, so an octave over
+// two steps passes through the frequency at half the semitone distance.
 BOOST_AUTO_TEST_CASE(test_F0Curve_InterpolatesInTheLogDomain) {
     Curve f0 = {100, 0, 400};
     otter::support::interpolateUnvoiced(f0, Flags{1, 0, 1});
@@ -54,8 +54,8 @@ BOOST_AUTO_TEST_CASE(test_F0Curve_InterpolatesInTheLogDomain) {
     BOOST_CHECK_CLOSE(longer[3], 800.0f, 1e-4);
 }
 
-/// A voiced frame that the model reports at 0 Hz is not an anchor. A previous implementation
-/// stopped the interpolation at such a frame and left the rest of the gap at the model's values.
+// A voiced frame that the model reports at 0 Hz is not an anchor. A previous implementation
+// stopped the interpolation at such a frame and left the rest of the gap at the model's values.
 BOOST_AUTO_TEST_CASE(test_F0Curve_SkipsAVoicedFrameAtZero) {
     Curve f0 = {100, 0, 0, 0, 1600};
     otter::support::interpolateUnvoiced(f0, Flags{1, 0, 1, 0, 1});
@@ -71,7 +71,7 @@ BOOST_AUTO_TEST_CASE(test_F0Curve_SkipsAVoicedFrameAtZero) {
     BOOST_CHECK(leading == (Curve{300, 0, 300, 300}));
 }
 
-/// Voiced frames are measurements, and interpolation never changes a voiced frame.
+// Voiced frames are measurements, and interpolation never changes a voiced frame.
 BOOST_AUTO_TEST_CASE(test_F0Curve_NeverChangesAVoicedFrame) {
     Curve f0 = {110, 0, 220, 0, 0, 330};
     const Flags voiced = {1, 0, 1, 0, 0, 1};
@@ -83,9 +83,9 @@ BOOST_AUTO_TEST_CASE(test_F0Curve_NeverChangesAVoicedFrame) {
     BOOST_CHECK_LT(f0[4], 330.0f);
 }
 
-/// A long gap is filled in one pass. The gap is long enough that the previous rescan of the gap
-/// for each frame would be noticeably slow, and the test checks that the far end of the gap is
-/// still on the geometric path.
+// A long gap is filled in one pass. The gap is long enough that the previous rescan of the gap
+// for each frame would be noticeably slow, and the test checks that the far end of the gap is
+// still on the geometric path.
 BOOST_AUTO_TEST_CASE(test_F0Curve_FillsALongGap) {
     const std::size_t length = 200000;
     Curve f0(length, 0.0f);

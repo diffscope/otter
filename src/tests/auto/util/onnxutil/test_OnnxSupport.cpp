@@ -18,15 +18,15 @@ namespace OnnxApi = ds::Api::Onnx;
 
 namespace {
 
-    /// A session that exercises the executor without a model, since a session is the whole surface
-    /// that run() reads its outputs from. The caller selects what a call reports through completed
-    /// and result, which start() reaches only after the executor has accepted the request.
+    // A session that exercises the executor without a model, since a session is the whole surface
+    // that run() reads its outputs from. The caller selects what a call reports through completed
+    // and result, which start() reaches only after the executor has accepted the request.
     struct StubSession : ds::InferenceSession {
-        /// The result that start() reports while completed is set, which is empty by default.
+        // The result that start() reports while completed is set, which is empty by default.
         OnnxApi::SessionResult result;
 
-        /// Whether start() reports a result at all. A false value leaves the execution successful
-        /// and its result absent, the state of an execution that produced nothing.
+        // Whether start() reports a result at all. A false value leaves the execution successful
+        // and its result absent, the state of an execution that produced nothing.
         bool completed = true;
 
         srt::Expected<void> open(const std::filesystem::path &,
@@ -54,7 +54,7 @@ namespace {
             }
             // The result cannot leave the session by value: TaskPayload deletes its copy, so no
             // move in the chain is usable either. The reported result is therefore built in place,
-            // holding the outputs this session was given, whose tensors the map shares; only the
+            // holding the outputs this session was given, whose tensors the map shares. Only the
             // pointer to it is moved.
             auto started = std::make_unique<OnnxApi::SessionResult>();
             started->outputs = result.outputs;
@@ -66,9 +66,9 @@ namespace {
 
 BOOST_AUTO_TEST_SUITE(test_OnnxSupport)
 
-/// An output the model did not produce and an output the variant cannot read are different faults,
-/// and only the second one says that the model ran and produced something of the wrong element
-/// type. The two therefore have to leave the reader as different codes rather than as one failure.
+// An output the model did not produce and an output the variant cannot read are different faults,
+// and only the second one says that the model ran and produced something of the wrong element
+// type. The two therefore have to leave the reader as different codes rather than as one failure.
 BOOST_AUTO_TEST_CASE(test_OnnxSupport_ReportsAMissingAndAnUnreadableOutputDifferently) {
     // The control first: a float output is read back with its values. A reader that refused every
     // tensor would satisfy the two cases below without reading anything.
@@ -96,9 +96,9 @@ BOOST_AUTO_TEST_CASE(test_OnnxSupport_ReportsAMissingAndAnUnreadableOutputDiffer
     BOOST_CHECK(wrong.error().message().find("f0 output") != std::string::npos);
 }
 
-/// An execution that completed without producing a result leaves the executor with nothing to
-/// read, which is a fault of the model's execution. The call has to refuse rather than report the
-/// empty output set that it never received.
+// An execution that completed without producing a result leaves the executor with nothing to
+// read, which is a fault of the model's execution. The call has to refuse rather than report the
+// empty output set that it never received.
 BOOST_AUTO_TEST_CASE(test_OnnxSupport_RefusesAnExecutionThatReturnedNoResult) {
     StubSession session;
     session.completed = false;
@@ -110,10 +110,10 @@ BOOST_AUTO_TEST_CASE(test_OnnxSupport_RefusesAnExecutionThatReturnedNoResult) {
     BOOST_CHECK_EQUAL(ran.error().message(), "the rmvpe model returned no outputs");
 }
 
-/// A result that is present but does not hold one of the requested names is a fault of the model
-/// as well, and the message has to name the output that is missing so that the fault can be traced
-/// to the model rather than to the variant. The executor returns as soon as one requested name is
-/// absent, so the test requests one name.
+// A result that is present but does not hold one of the requested names is a fault of the model
+// as well, and the message has to name the output that is missing so that the fault can be traced
+// to the model rather than to the variant. The executor returns as soon as one requested name is
+// absent, so the test requests one name.
 BOOST_AUTO_TEST_CASE(test_OnnxSupport_RefusesAnOutputTheModelDidNotReturn) {
     StubSession session;
 

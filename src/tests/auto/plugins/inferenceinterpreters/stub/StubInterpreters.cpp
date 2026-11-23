@@ -51,9 +51,9 @@ namespace otter::stub {
 
     namespace {
 
-        /// The values used if the declaration does not honor the corresponding knob. They equal the
-        /// fallback values of the shipped variants, rmvpe for F0 and game for Note, so that the
-        /// stub interprets a declaration in the same way as the variant it replaces.
+        // The values used if the declaration does not honor the corresponding knob. They equal the
+        // fallback values of the shipped variants, rmvpe for F0 and game for Note, so that the
+        // stub interprets a declaration in the same way as the variant it replaces.
         constexpr double FALLBACK_VOICING_THRESHOLD = 0.03;
         constexpr bool FALLBACK_INTERPOLATE = true;
         constexpr int FALLBACK_STEPS = 8;
@@ -65,12 +65,12 @@ namespace otter::stub {
         constexpr double FALLBACK_NON_SPEECH_MIN_DURATION = 0.1;
         constexpr double FALLBACK_GAP_FILL = 0.1;
 
-        /// Blocks in small steps so a test can observe a running execution and cancel it.
-        ///
-        /// The delay is declared per contribution and defaults to zero, so a test that requires
-        /// only a result incurs no delay.
-        ///
-        /// \return \c true if the delay elapsed; \c false if a stop was requested.
+        // Blocks in small steps so a test can observe a running execution and cancel it.
+        //
+        // The delay is declared per contribution and defaults to zero, so a test that requires
+        // only a result incurs no delay.
+        //
+        // \return \c true if the delay elapsed. \c false if a stop was requested.
         template <class Cancelled>
         bool sleepUnlessStopped(double seconds, Cancelled cancelled) {
             const auto steps = static_cast<int>(seconds * 200);
@@ -83,19 +83,19 @@ namespace otter::stub {
             return !cancelled();
         }
 
-        /// The settings a stub declaration may carry in its configuration.
+        // The settings a stub declaration may carry in its configuration.
         struct StubSettings {
             double delay = 0;
             double frequency = 440;
             double beat = 0.5;
 
-            /// Makes the interpreter return an executive that implements no contract, as a
-            /// defective third-party interpreter could, and which createAnalyzer() must reject.
+            // Makes the interpreter return an executive that implements no contract, as a
+            // defective third-party interpreter could, and which createAnalyzer() must reject.
             bool foreignExecutive = false;
         };
 
-        /// The stub's configuration block, stored on the spec like the configuration of any
-        /// variant.
+        // The stub's configuration block, stored on the spec like the configuration of any
+        // variant.
         class StubConfiguration : public srt::ContribConfiguration {
         public:
             StubConfiguration(const std::string &interfaceName, int level, StubSettings settings)
@@ -105,9 +105,9 @@ namespace otter::stub {
             StubSettings settings;
         };
 
-        /// The base of the stub executives: the schema that supplies the audio format and the
-        /// knobs, the settings, and the shared validation call. The lifecycle is inherited from the
-        /// contract.
+        // The base of the stub executives: the schema that supplies the audio format and the
+        // knobs, the settings, and the shared validation call. The lifecycle is inherited from the
+        // contract.
         template <class Contract, class Exports>
         class StubExecutive : public Contract {
         public:
@@ -121,12 +121,12 @@ namespace otter::stub {
             }
 
         protected:
-            /// Validates the audio exactly as a shipped provider does, through the same library
-            /// call.
-            ///
-            /// \return An empty value if the audio matches the declared format. Otherwise the error
-            /// of
-            ///         otter::prepareSamples().
+            // Validates the audio exactly as a shipped provider does, through the same library
+            // call.
+            //
+            // \return An empty value if the audio matches the declared format. Otherwise the error
+            // of
+            //         otter::prepareSamples().
             srt::Expected<void> validate(const CommonApi::AudioSegment &audio) const {
                 auto prepared = otter::prepareSamples(
                     audio, m_schema.sampleRate, m_schema.channelCount, m_schema.maxSegmentDuration);
@@ -136,7 +136,7 @@ namespace otter::stub {
                 return srt::Expected<void>();
             }
 
-            /// Owned by the spec, which outlives every executive created from it.
+            // Owned by the spec, which outlives every executive created from it.
             const Exports &m_schema;
             StubSettings m_settings;
         };
@@ -401,7 +401,7 @@ namespace otter::stub {
             }
         };
 
-        /// An analysis executive that implements no contract.
+        // An analysis executive that implements no contract.
         class ForeignExecutive : public otter::AnalysisExecutive {
         public:
             using AnalysisExecutive::AnalysisExecutive;
@@ -420,11 +420,11 @@ namespace otter::stub {
             }
         };
 
-        /// Creates one stub analyzer from a loaded declaration. \a Implementation is the class that
-        /// implements the contract whose exports are \a Exports.
-        ///
-        /// \return The executive. A ForeignExecutive if the configuration sets foreignExecutive;
-        ///         \c AnalysisError::Internal if the spec carries no stub exports or configuration.
+        // Creates one stub analyzer from a loaded declaration. \a Implementation is the class that
+        // implements the contract whose exports are \a Exports.
+        //
+        // \return The executive. A ForeignExecutive if the configuration sets foreignExecutive.
+        //         \c AnalysisError::Internal if the spec carries no stub exports or configuration.
         template <class Exports, class Implementation>
         srt::Expected<std::unique_ptr<srt::InferenceExecutive>>
             createStub(srt::InferenceSpec &spec) {

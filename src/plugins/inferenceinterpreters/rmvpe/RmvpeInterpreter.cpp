@@ -28,19 +28,19 @@ namespace otter::rmvpe {
 
     namespace {
 
-        /// The sample rate and frame interval of the model's front end. The graph computes its mel
-        /// spectrogram at this rate and hop, so a declaration stating other values would misplace
-        /// every frame.
+        // The sample rate and frame interval of the model's front end. The graph computes its mel
+        // spectrogram at this rate and hop, so a declaration stating other values would misplace
+        // every frame.
         constexpr int MODEL_SAMPLE_RATE = 16000;
         constexpr double MODEL_INTERVAL = 0.01;
 
-        /// The threshold and interpolation setting used if the declaration does not honor the
-        /// corresponding knob.
+        // The threshold and interpolation setting used if the declaration does not honor the
+        // corresponding knob.
         constexpr double FALLBACK_VOICING_THRESHOLD = 0.03;
         constexpr bool FALLBACK_INTERPOLATE = true;
 
-        /// The tensor names of the exported graph, which form the contract between this variant and
-        /// its model: waveform, threshold -> f0, uv.
+        // The tensor names of the exported graph, which form the contract between this variant and
+        // its model: waveform, threshold -> f0, uv.
         namespace tensors {
 
             constexpr char WAVEFORM[] = "waveform";
@@ -50,8 +50,8 @@ namespace otter::rmvpe {
 
         }
 
-        /// The configuration block of this variant, which contains only the model path. The audio
-        /// format and the knobs are contract facts and are declared in exports.
+        // The configuration block of this variant, which contains only the model path. The audio
+        // format and the knobs are contract facts and are declared in exports.
         class RmvpeConfiguration : public srt::ContribConfiguration {
         public:
             RmvpeConfiguration() : srt::ContribConfiguration(Triplet) {
@@ -60,7 +60,7 @@ namespace otter::rmvpe {
             std::filesystem::path model;
         };
 
-        /// Runs one RMVPE model.
+        // Runs one RMVPE model.
         class RmvpeExecutive : public otter::onnx::OnnxExecutive<F0Api::Executive> {
         public:
             RmvpeExecutive(srt::InferenceSpec &spec, std::unique_ptr<ds::InferenceSession> session,
@@ -178,7 +178,7 @@ namespace otter::rmvpe {
 
             ds::InferenceSession *m_session;
 
-            /// Owned by the spec, which outlives every executive created from it.
+            // Owned by the spec, which outlives every executive created from it.
             const F0Api::Exports &m_schema;
         };
 

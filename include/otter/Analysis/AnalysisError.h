@@ -21,7 +21,7 @@ namespace otter {
     /// leaves the analyzer \c Canceled, and every other code leaves it \c Failed.
     enum class AnalysisError {
         /// The execution was stopped before it produced a result. The condition is reported as
-        /// an error because a cancelled execution returns no result, neither partial nor
+        /// an error because a canceled execution returns no result, neither partial nor
         /// complete, and state() then returns \c Canceled.
         Cancelled = 1,
 

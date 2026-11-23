@@ -133,9 +133,9 @@ BOOST_AUTO_TEST_CASE(test_GameGgmlInterpreter_RefusesKnownNotes) {
                     "cannot be conditioned on known notes") != std::string::npos);
 }
 
-/// A stop from another thread kills the engine while the execution waits for its answer, so the
-/// execution ends as cancelled instead of waiting for an answer that never comes. The next
-/// execution starts an engine of its own.
+// A stop from another thread kills the engine while the execution waits for its answer, so the
+// execution ends as canceled instead of waiting for an answer that never comes. The next
+// execution starts an engine of its own.
 BOOST_AUTO_TEST_CASE(test_GameGgmlInterpreter_StopKillsAnEngineThatDoesNotAnswer) {
     Host host;
     host.write();

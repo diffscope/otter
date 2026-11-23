@@ -31,9 +31,9 @@ namespace CommonApi = otter::Api::Common::L1;
 
 namespace {
 
-    /// The plugin that main.cpp of rmvpe declares, around the interpreter that this test
-    /// links. The test registers it as a static plugin with the plugin.json of rmvpe, so that
-    /// discovery selects this class rather than the library in the plugin tree.
+    // The plugin that main.cpp of rmvpe declares, around the interpreter that this test
+    // links. The test registers it as a static plugin with the plugin.json of rmvpe, so that
+    // discovery selects this class rather than the library in the plugin tree.
     class RmvpePlugin : public srt::InferenceInterpreterPlugin {
     public:
         srt::Expected<std::unique_ptr<srt::ContribInterpreter>>
@@ -120,9 +120,9 @@ BOOST_AUTO_TEST_CASE(test_RmvpeInterpreter_RunsTheModelAndAnchorsTheCurve) {
     BOOST_CHECK_EQUAL(analyzer->state(), srt::ITask::Succeeded);
 }
 
-/// The release package, when the host fetched one, runs the trained weights. The fixture case pins
-/// the arithmetic of the provider; this one proves that the weights load and that the curve keeps
-/// the frame grid the declaration promises.
+// The release package, when the host fetched one, runs the trained weights. The fixture case pins
+// the arithmetic of the provider. This one proves that the weights load and that the curve keeps
+// the frame grid the declaration promises.
 BOOST_AUTO_TEST_CASE(test_RmvpeInterpreter_EstimatesWithTheTrainedModel) {
     Host host;
     auto spec = host.loadDirectory(otter::test::realModelsRoot() / "otter-rmvpe", "f0");
@@ -237,18 +237,18 @@ BOOST_AUTO_TEST_CASE(test_RmvpeInterpreter_DownmixesButRefusesToResample) {
     BOOST_CHECK(refused.error().message().find("16000") != std::string::npos);
 }
 
-/// The graph is built for one rate and one hop. A declaration that states other values would make
-/// the host prepare audio that the model then misplaces, so the declaration is rejected at load
-/// time.
+// The graph is built for one rate and one hop. A declaration that states other values would make
+// the host prepare audio that the model then misplaces, so the declaration is rejected at load
+// time.
 BOOST_AUTO_TEST_CASE(test_RmvpeInterpreter_RefusesADeclarationTheModelCannotHonor) {
     Host host;
     BOOST_CHECK(host.refusal("fixture-rmvpe-wrong-rate").find("16000") != std::string::npos);
 }
 
-/// The graph takes one channel, and the variant mixes nothing down: a declaration of two describes
-/// audio that a host prepares and the provider would silently reduce, so the count is checked where
-/// the declaration is read. No value of the graph itself could contradict the declaration here,
-/// which is why this package writes the same graph as the good fixture.
+// The graph takes one channel, and the variant mixes nothing down: a declaration of two describes
+// audio that a host prepares and the provider would silently reduce, so the count is checked where
+// the declaration is read. No value of the graph itself could contradict the declaration here,
+// which is why this package writes the same graph as the good fixture.
 BOOST_AUTO_TEST_CASE(test_RmvpeInterpreter_RefusesADeclarationOfTwoChannels) {
     Host host;
     const auto refusal = host.refusalError("fixture-rmvpe-two-channels");
@@ -258,10 +258,10 @@ BOOST_AUTO_TEST_CASE(test_RmvpeInterpreter_RefusesADeclarationOfTwoChannels) {
     BOOST_CHECK(refusal.message().find("declare 2") != std::string::npos);
 }
 
-/// A stop requested during an execution makes it report Cancelled and no result, and it does not
-/// carry over to the next execution. The stop is requested from the progress callback, which the
-/// provider calls on the executing thread before the model runs, so the timing is not left to a
-/// race with a model that takes milliseconds.
+// A stop requested during an execution makes it report Cancelled and no result, and it does not
+// carry over to the next execution. The stop is requested from the progress callback, which the
+// provider calls on the executing thread before the model runs, so the timing is not left to a
+// race with a model that takes milliseconds.
 BOOST_AUTO_TEST_CASE(test_RmvpeInterpreter_ReportsACancellation) {
     Host host;
     auto analyzer = host.open();

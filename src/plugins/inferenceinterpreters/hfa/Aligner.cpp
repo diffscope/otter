@@ -109,7 +109,7 @@ namespace otter::hfa {
                 }
 
                 for (int s = 0; s < S; ++s) {
-                    // Type 1: stay on the current phoneme, paying the "no edge here" cost.
+                    // Type 1: stay on the current phoneme, paying the cost of no edge here.
                     prob1[s] = dp[s][t - 1] + probLog[s][t] + notEdgeProbLog[t];
 
                     // Type 2: step to the next phoneme, crossing a boundary.
@@ -300,7 +300,7 @@ namespace otter::hfa {
             return srt::Expected<void>();
         }
 
-        /// The span of one phoneme in seconds.
+        // The span of one phoneme in seconds.
         struct Span {
             float start;
             float end;
@@ -343,7 +343,7 @@ namespace otter::hfa {
         // do not always round to the identical double. This is inherent to the representation
         // and matches the reference.
         //
-        // \return \c true if the start was moved; \c false if the word has no phone or the new
+        // \return \c true if the start was moved. \c false if the word has no phone or the new
         //         start would reach the end of the first phone and invert it.
         bool moveStart(Word &word, float newStart) {
             newStart = std::max(0.0f, newStart);
@@ -363,7 +363,7 @@ namespace otter::hfa {
 
         // Moves a word's end together with the end of its last phone.
         //
-        // \return \c true if the end was moved; \c false if the word has no phone or the new end
+        // \return \c true if the end was moved. \c false if the word has no phone or the new end
         //         would not lie after the last phone's start.
         bool moveEnd(Word &word, float newEnd) {
             newEnd = std::max(0.0f, newEnd);
@@ -387,7 +387,7 @@ namespace otter::hfa {
         // Removes \a removeInterval from \a rawInterval.
         //
         // \return The remaining parts of \a rawInterval, which are empty if \a removeInterval
-        //         covers it entirely; \c srt::Error::InvalidArgument if either interval is empty
+        //         covers it entirely. \c srt::Error::InvalidArgument if either interval is empty
         //         or inverted.
         srt::Expected<std::vector<std::pair<float, float>>>
             removeOverlappingIntervals(const std::pair<float, float> &rawInterval,

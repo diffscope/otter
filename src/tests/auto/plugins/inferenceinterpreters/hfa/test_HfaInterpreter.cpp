@@ -39,9 +39,9 @@ namespace CommonApi = otter::Api::Common::L1;
 
 namespace {
 
-    /// The plugin that main.cpp of hfa declares, around the interpreter that this test
-    /// links. The test registers it as a static plugin with the plugin.json of hfa, so that
-    /// discovery selects this class rather than the library in the plugin tree.
+    // The plugin that main.cpp of hfa declares, around the interpreter that this test
+    // links. The test registers it as a static plugin with the plugin.json of hfa, so that
+    // discovery selects this class rather than the library in the plugin tree.
     class HfaPlugin : public srt::InferenceInterpreterPlugin {
     public:
         srt::Expected<std::unique_ptr<srt::ContribInterpreter>>
@@ -66,28 +66,28 @@ namespace {
 
     constexpr int RATE = 44100;
 
-    /// The schedule that the fixture graph emits for one second of audio, derived from the
-    /// parameters of the graph, which the fixture script writes next to the graph as
-    /// schedule.json.
-    ///
-    /// The frames are cut into equal spans: silence, <tt>a</tt>, a separator with a breath inside
-    /// it, <tt>b</tt>, silence, and every time below is a whole number of frames. A boundary that
-    /// the fixture places at a frame index is returned at the time of that frame, so every boundary
-    /// is asserted with a tolerance of one frame instead of one sample.
+    // The schedule that the fixture graph emits for one second of audio, derived from the
+    // parameters of the graph, which the fixture script writes next to the graph as
+    // schedule.json.
+    //
+    // The frames are cut into equal spans: silence, <tt>a</tt>, a separator with a breath inside
+    // it, <tt>b</tt>, silence, and every time below is a whole number of frames. A boundary that
+    // the fixture places at a frame index is returned at the time of that frame, so every boundary
+    // is asserted with a tolerance of one frame instead of one sample.
     struct Schedule {
-        /// One frame, in seconds.
+        // One frame, in seconds.
         double frame = 0;
 
-        /// One span, in seconds: the length of each word and of the separator.
+        // One span, in seconds: the length of each word and of the separator.
         double span = 0;
 
-        /// Where the breath starts, in seconds from the start of the audio.
+        // Where the breath starts, in seconds from the start of the audio.
         double breathStart = 0;
 
-        /// The frames the breath covers.
+        // The frames the breath covers.
         int breathFrames = 0;
 
-        /// The probability that the non-speech head assigns to the breath.
+        // The probability that the non-speech head assigns to the breath.
         double breathProbability = 0;
     };
 
@@ -133,9 +133,9 @@ namespace {
         }
     };
 
-    /// Returns silent audio of \a seconds starting at \a startTime. One second corresponds to a
-    /// hundred frames of the fixture schedule, five spans of twenty. Silence suffices because the
-    /// fixture graph ignores the sample values.
+    // Returns silent audio of \a seconds starting at \a startTime. One second corresponds to a
+    // hundred frames of the fixture schedule, five spans of twenty. Silence suffices because the
+    // fixture graph ignores the sample values.
     CommonApi::AudioSegment tone(double seconds = 1.0, double startTime = 0) {
         CommonApi::AudioSegment audio;
         audio.sampleRate = RATE;
@@ -145,9 +145,9 @@ namespace {
         return audio;
     }
 
-    /// Fills \a input with one second of audio and the lyrics \a text. The function writes into
-    /// the caller's input because a start input is not copyable: the contract passes the caller's
-    /// own object to the provider.
+    // Fills \a input with one second of audio and the lyrics \a text. The function writes into
+    // the caller's input because a start input is not copyable: the contract passes the caller's
+    // own object to the provider.
     void lyrics(AlignApi::StartInput &input, const std::string &text, double startTime = 0) {
         input.audio = tone(1.0, startTime);
         input.lyrics = text;
@@ -290,9 +290,9 @@ BOOST_AUTO_TEST_CASE(test_HfaInterpreter_PlacesTheWordsTheLyricsName) {
     BOOST_CHECK_EQUAL(analyzer->state(), srt::ITask::Succeeded);
 }
 
-/// The release package, when the host fetched one, runs the trained weights. The fixture cases pin
-/// the arithmetic of the provider; this one proves that the weights load and that the words land
-/// on the caller's timeline.
+// The release package, when the host fetched one, runs the trained weights. The fixture cases pin
+// the arithmetic of the provider. This one proves that the weights load and that the words land
+// on the caller's timeline.
 BOOST_AUTO_TEST_CASE(test_HfaInterpreter_AlignsWithTheTrainedModel) {
     Host host;
     auto spec = host.loadDirectory(otter::test::realModelsRoot() / "otter-hfa", "align");
@@ -430,7 +430,7 @@ BOOST_AUTO_TEST_CASE(test_HfaInterpreter_RefusesWhatItCannotHonor) {
                                                    "align") != std::string::npos);
 
     // A label that the module does not declare is rejected instead of ignored, because silence in
-    // its place would be indistinguishable from "none found".
+    // its place would be indistinguishable from a search that found nothing.
     AlignApi::StartInput unknownLabel;
     lyrics(unknownLabel, "a b");
     unknownLabel.nonSpeechPhonemes = {"XX"};
@@ -462,10 +462,10 @@ BOOST_AUTO_TEST_CASE(test_HfaInterpreter_RefusesWhatItCannotHonor) {
     BOOST_CHECK_NE(analyzer->state(), srt::ITask::Running);
 }
 
-/// A declaration must agree with the models it names. Each of these packages contains one model
-/// property that the declaration contradicts. The provider reads the model's own files at load
-/// time, so the rejection occurs where the declaration and the model's files are both available
-/// instead of after a run whose wrong result cannot be detected.
+// A declaration must agree with the models it names. Each of these packages contains one model
+// property that the declaration contradicts. The provider reads the model's own files at load
+// time, so the rejection occurs where the declaration and the model's files are both available
+// instead of after a run whose wrong result cannot be detected.
 BOOST_AUTO_TEST_CASE(test_HfaInterpreter_RefusesDeclarationsItsModelCannotHonor) {
     Host host;
 
@@ -501,10 +501,10 @@ BOOST_AUTO_TEST_CASE(test_HfaInterpreter_RefusesDeclarationsItsModelCannotHonor)
     BOOST_CHECK(phonemes.find("listed but unknown: c") != std::string::npos);
 }
 
-/// The graph takes one channel, and the variant mixes nothing down: a declaration of two describes
-/// audio that a host prepares and the provider would silently reduce. No file of the model's own
-/// can contradict the declaration here - the three the load reads are the fixture's own - so what
-/// refuses the package is the variant's own limit, checked where the declaration is read.
+// The graph takes one channel, and the variant mixes nothing down: a declaration of two describes
+// audio that a host prepares and the provider would silently reduce. No file of the model's own
+// can contradict the declaration here - the three the load reads are the fixture's own - so what
+// refuses the package is the variant's own limit, checked where the declaration is read.
 BOOST_AUTO_TEST_CASE(test_HfaInterpreter_RefusesADeclarationOfTwoChannels) {
     Host host;
     const auto refusal = host.refusalError("fixture-align-two-channels");
@@ -514,9 +514,9 @@ BOOST_AUTO_TEST_CASE(test_HfaInterpreter_RefusesADeclarationOfTwoChannels) {
     BOOST_CHECK(refusal.message().find("declare 2") != std::string::npos);
 }
 
-/// The reference assumes that the separator is class zero. The released vocabulary satisfies this
-/// assumption, but the provider reads the class from the vocabulary, so a model with a different
-/// numbering decodes identically.
+// The reference assumes that the separator is class zero. The released vocabulary satisfies this
+// assumption, but the provider reads the class from the vocabulary, so a model with a different
+// numbering decodes identically.
 BOOST_AUTO_TEST_CASE(test_HfaInterpreter_FindsTheSeparatorThroughTheVocabulary) {
     Host host;
     const auto schedule = readSchedule();
@@ -539,8 +539,9 @@ BOOST_AUTO_TEST_CASE(test_HfaInterpreter_FindsTheSeparatorThroughTheVocabulary) 
     BOOST_CHECK_SMALL(result->words[3].start - 3 * schedule.span, schedule.frame);
 }
 
-/// No word fits in less than one frame, and an empty result would be indistinguishable from "none
-/// of the lyrics was sung", so audio shorter than one frame is rejected as an invalid argument.
+// No word fits in less than one frame, and an empty result would be indistinguishable from a
+// result where no lyric was sung, so audio shorter than one frame is rejected as an invalid
+// argument.
 BOOST_AUTO_TEST_CASE(test_HfaInterpreter_RefusesAudioShorterThanAFrame) {
     Host host;
     auto analyzer = host.open();
@@ -554,10 +555,10 @@ BOOST_AUTO_TEST_CASE(test_HfaInterpreter_RefusesAudioShorterThanAFrame) {
     BOOST_CHECK(refused.error().message().find("one frame") != std::string::npos);
 }
 
-/// A stop requested before or after the model makes the execution report Cancelled and no
-/// result, and it does not carry over to the next execution. The stop is requested from the
-/// progress callback, which the provider calls on the executing thread, so the timing is not left
-/// to a race with a model that takes milliseconds.
+// A stop requested before or after the model makes the execution report Cancelled and no
+// result, and it does not carry over to the next execution. The stop is requested from the
+// progress callback, which the provider calls on the executing thread, so the timing is not left
+// to a race with a model that takes milliseconds.
 BOOST_AUTO_TEST_CASE(test_HfaInterpreter_ReportsACancellation) {
     Host host;
     auto analyzer = host.open();

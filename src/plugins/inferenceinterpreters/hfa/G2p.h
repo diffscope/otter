@@ -18,8 +18,8 @@ namespace otter::hfa {
         /// Reads a dictionary file with one entry per line: the word, a tab, then its phonemes
         /// separated by spaces.
         ///
-        /// \return The dictionary; \c srt::Error::FileNotOpen if the file cannot be opened;
-        ///         \c srt::Error::InvalidFormat if a non-empty line contains no tab.
+        /// \return The dictionary. \c srt::Error::FileNotOpen if the file cannot be opened.
+        /// \c srt::Error::InvalidFormat if a non-empty line contains no tab.
         static srt::Expected<G2p> load(const std::filesystem::path &path);
 
         /// Splits \p lyrics on whitespace, looks up every word, and returns the phoneme sequence

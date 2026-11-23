@@ -56,9 +56,9 @@ namespace OnnxApi = ds::Api::Onnx;
 
 namespace {
 
-    /// The plugin that main.cpp of tifa declares, around the interpreter that this test
-    /// links. The test registers it as a static plugin with the plugin.json of tifa, so that
-    /// discovery selects this class rather than the library in the plugin tree.
+    // The plugin that main.cpp of tifa declares, around the interpreter that this test
+    // links. The test registers it as a static plugin with the plugin.json of tifa, so that
+    // discovery selects this class rather than the library in the plugin tree.
     class TifaPlugin : public srt::InferenceInterpreterPlugin {
     public:
         srt::Expected<std::unique_ptr<srt::ContribInterpreter>>
@@ -83,13 +83,13 @@ namespace {
 
     constexpr int RATE = 48000;
 
-    /// Ten milliseconds of audio, the frame the export's front end advances by.
+    // Ten milliseconds of audio, the frame the export's front end advances by.
     constexpr double FRAME = 0.01;
 
-    /// The package the good fixtures live under, and the packages that must not load.
-    ///
-    /// Each of the bad ones carries one fact its declaration contradicts, so what the test asserts
-    /// is both that it is refused and which fact the refusal is about.
+    // The package the good fixtures live under, and the packages that must not load.
+    //
+    // Each of the bad ones carries one fact its declaration contradicts, so what the test asserts
+    // is both that it is refused and which fact the refusal is about.
     constexpr char PACKAGE[] = "fixture-align-tifa";
     constexpr char WRONG_RATE[] = "fixture-align-tifa-wrong-rate";
     constexpr char NO_DICTIONARY[] = "fixture-align-tifa-no-dictionary";
@@ -98,8 +98,8 @@ namespace {
     constexpr char UNKNOWN_SILENCE[] = "fixture-align-tifa-unknown-silence";
     constexpr char EXTRA_DICTIONARY[] = "fixture-align-tifa-extra-dictionary";
 
-    /// The packages that declare a capability the variant's own graphs do not have. Unlike the ones
-    /// above, no file of the model's own contradicts them.
+    // The packages that declare a capability the variant's own graphs do not have. Unlike the ones
+    // above, no file of the model's own contradicts them.
     constexpr char TWO_CHANNELS[] = "fixture-align-tifa-two-channels";
     constexpr char UNKNOWN_SCHEME[] = "fixture-align-tifa-unknown-scheme";
     constexpr char PROMISED_NON_SPEECH[] = "fixture-align-tifa-promised-non-speech";
@@ -169,8 +169,8 @@ namespace {
         srt::PackageHandle package;
     };
 
-    /// Returns the root cause of the load failure of the fixture package \a name, which the caller
-    /// expects to fail to load. The two cases that read a refusal by name share this reader.
+    // Returns the root cause of the load failure of the fixture package \a name, which the caller
+    // expects to fail to load. The two cases that read a refusal by name share this reader.
     srt::Error loadRefusal(Host &host, const char *name) {
         auto opened =
             host.unit.openPackage(fs::path(OTTER_TEST_FIXTURE_DIR) / name, srt::SynthUnit::Load);
@@ -178,13 +178,13 @@ namespace {
         return opened.error().rootCause();
     }
 
-    /// One written unit of a dictionary, and the phonemes that dictionary spells it with.
+    // One written unit of a dictionary, and the phonemes that dictionary spells it with.
     struct Entry {
         std::string written;
         std::vector<std::string> phonemes;
     };
 
-    /// Reads a dictionary file: one entry per line, the written unit, a tab, then its phonemes.
+    // Reads a dictionary file: one entry per line, the written unit, a tab, then its phonemes.
     std::vector<Entry> readDictionary(const fs::path &path) {
         std::ifstream file(path);
         BOOST_REQUIRE_MESSAGE(file.is_open(), "the fixture dictionary should be readable");
@@ -210,13 +210,13 @@ namespace {
         return entries;
     }
 
-    /// What the fixture's own dictionary says about the lyrics to use.
-    ///
-    /// The words are read out of the dictionary rather than written here, because which written
-    /// units the fixture carries is the fixture's business: what the test is about is that the
-    /// words a caller asks for are looked up, placed, and reported back in the dictionary's own
-    /// phonemes. The dictionary of the language the package aligns by default is the one whose
-    /// phonemes the declaration lists for that language: the other language's are its own set.
+    // What the fixture's own dictionary says about the lyrics to use.
+    //
+    // The words are read out of the dictionary rather than written here, because which written
+    // units the fixture carries is the fixture's business: what the test is about is that the
+    // words a caller asks for are looked up, placed, and reported back in the dictionary's own
+    // phonemes. The dictionary of the language the package aligns by default is the one whose
+    // phonemes the declaration lists for that language: the other language's are its own set.
     struct Lyrics {
         std::vector<std::string> written;
         std::set<std::string> phonemes;
@@ -280,11 +280,11 @@ namespace {
         return lyrics;
     }
 
-    /// Audio of \a seconds at the rate the package declares, starting \a startTime into the
-    /// caller's timeline. Silence is enough: the fixture's front end averages it, and the graphs
-    /// read the schedule rather than the sound. The count is rounded rather than truncated, since
-    /// the product of a rate and a length lands a hair under the whole number of samples more often
-    /// than it lands on it, and a sample short is a span a hair shorter than the caller asked for.
+    // Audio of \a seconds at the rate the package declares, starting \a startTime into the
+    // caller's timeline. Silence is enough: the fixture's front end averages it, and the graphs
+    // read the schedule rather than the sound. The count is rounded rather than truncated, since
+    // the product of a rate and a length lands a hair under the whole number of samples more often
+    // than it lands on it, and a sample short is a span a hair shorter than the caller asked for.
     CommonApi::AudioSegment tone(double seconds = 1.0, double startTime = 0) {
         CommonApi::AudioSegment audio;
         audio.sampleRate = RATE;
@@ -294,8 +294,8 @@ namespace {
         return audio;
     }
 
-    /// One span of audio and the lyrics to align it against. The input is the caller's, because a
-    /// start input is not copyable: the contract hands the provider the caller's own object.
+    // One span of audio and the lyrics to align it against. The input is the caller's, because a
+    // start input is not copyable: the contract hands the provider the caller's own object.
     void ask(AlignApi::StartInput &input, const Lyrics &lyrics, double seconds = 1.0,
              double startTime = 0) {
         input.audio = tone(seconds, startTime);
@@ -310,18 +310,18 @@ namespace {
         return out;
     }
 
-    /// A phoneme label with any language prefix taken off it. A result reports the language it
-    /// aligned in without that language's prefix and keeps a phoneme borrowed from another one,
-    /// whose spelling says where it came from.
+    // A phoneme label with any language prefix taken off it. A result reports the language it
+    // aligned in without that language's prefix and keeps a phoneme borrowed from another one,
+    // whose spelling says where it came from.
     std::string bare(const std::string &label) {
         const auto slash = label.find('/');
         return slash == std::string::npos ? label : label.substr(slash + 1);
     }
 
 
-    /// Asserts the invariants every result owes its caller whatever the model said: words in order,
-    /// each ending where the next begins, the first starting where the span does and the last
-    /// ending where it ends, and no word or phone of no length.
+    // Asserts the invariants every result owes its caller whatever the model said: words in order,
+    // each ending where the next begins, the first starting where the span does and the last
+    // ending where it ends, and no word or phone of no length.
     void checkCoverage(const AlignApi::Result &result, double startTime, double seconds) {
         BOOST_REQUIRE(!result.words.empty());
         BOOST_CHECK_CLOSE(result.words.front().start, startTime, 1e-6);
@@ -478,9 +478,9 @@ BOOST_AUTO_TEST_CASE(test_TifaInterpreter_PlacesTheWordsTheLyricsName) {
     BOOST_CHECK_EQUAL(analyzer->state(), srt::ITask::Succeeded);
 }
 
-/// The frames of a graph stop where the graph stopped, and the span does not: what neither a word
-/// nor a phoneme covers is named with the declared silence label, which is what makes a result
-/// cover the span rather than end somewhere inside it.
+// The frames of a graph stop where the graph stopped, and the span does not: what neither a word
+// nor a phoneme covers is named with the declared silence label, which is what makes a result
+// cover the span rather than end somewhere inside it.
 BOOST_AUTO_TEST_CASE(test_TifaInterpreter_NamesWhatTheModelPlacedNoWordOver) {
     Host host;
     auto schema = host.load()->exports()->as<AlignApi::Exports>();
@@ -583,11 +583,11 @@ BOOST_AUTO_TEST_CASE(test_TifaInterpreter_RefusesWhatItCannotHonor) {
     BOOST_CHECK(unknown.error().message().find("dictionary") != std::string::npos);
 }
 
-/// A host that stops what it started gets a cancellation and no result, on an analyzer that runs
-/// the next execution afterwards: a stop belongs to the execution it was aimed at.
-/// The release package, when the host fetched one, runs the trained weights. The fixture cases pin
-/// the arithmetic of the provider; this one proves that the weights load and that the result keeps
-/// the coverage the contract promises for any model.
+// A host that stops what it started gets a cancellation and no result, on an analyzer that runs
+// the next execution afterwards: a stop belongs to the execution it was aimed at.
+// The release package, when the host fetched one, runs the trained weights. The fixture cases pin
+// the arithmetic of the provider. This one proves that the weights load and that the result keeps
+// the coverage the contract promises for any model.
 BOOST_AUTO_TEST_CASE(test_TifaInterpreter_AlignsWithTheTrainedModel) {
     Host host;
     auto spec = host.loadFrom(otter::test::realModelsRoot() / "otter-tifa");
@@ -641,16 +641,16 @@ BOOST_AUTO_TEST_CASE(test_TifaInterpreter_ReportsAStopAsACancellation) {
     BOOST_CHECK_NE(analyzer->state(), srt::ITask::Running);
 }
 
-/// A declaration must agree with the files it names. Each of these packages carries one fact the
-/// declaration contradicts, and the provider reads the model's own files at load, so the refusal
-/// lands where both are in hand rather than at the end of a run that produced an answer nobody can
-/// tell is wrong. The packages and why each one is a defect: scripts/make-model-fixtures.py.
+// A declaration must agree with the files it names. Each of these packages carries one fact the
+// declaration contradicts, and the provider reads the model's own files at load, so the refusal
+// lands where both are in hand rather than at the end of a run that produced an answer nobody can
+// tell is wrong. The packages and why each one is a defect: scripts/make-model-fixtures.py.
 BOOST_AUTO_TEST_CASE(test_TifaInterpreter_RefusesDeclarationsItsModelCannotHonor) {
     Host host;
 
-    /// One package, what its refusal has to name, and why the declaration cannot be honored. A
-    /// symbol every language shares may be listed by any of them, which is what keeps the shared
-    /// ones from reading as phonemes the model cannot emit.
+    // One package, what its refusal has to name, and why the declaration cannot be honored. A
+    // symbol every language shares may be listed by any of them, which is what keeps the shared
+    // ones from reading as phonemes the model cannot emit.
     struct Refusal {
         const char *package;
         std::vector<const char *> named;
@@ -682,11 +682,11 @@ BOOST_AUTO_TEST_CASE(test_TifaInterpreter_RefusesDeclarationsItsModelCannotHonor
     BOOST_CHECK_MESSAGE(static_cast<bool>(extra), otter::test::why(extra));
 }
 
-/// A declaration is checked against what the variant's own graphs can do, not only against the
-/// files they are shipped with. Each of these three promises something the model has no way to
-/// honor, and honoring it silently would put a wrong answer beyond the host's reach: audio that the
-/// provider mixed down without being asked, phonemes read in a notation nobody declared, or "none
-/// found" where nothing was looked for.
+// A declaration is checked against what the variant's own graphs can do, not only against the
+// files they are shipped with. Each of these three promises something the model has no way to
+// honor, and honoring it silently would put a wrong answer beyond the host's reach: audio that the
+// provider mixed down without being asked, phonemes read in a notation nobody declared, or a
+// search that found nothing where nothing was looked for.
 BOOST_AUTO_TEST_CASE(test_TifaInterpreter_RefusesPromisesItsModelCannotKeep) {
     Host host;
 
@@ -709,7 +709,7 @@ BOOST_AUTO_TEST_CASE(test_TifaInterpreter_RefusesPromisesItsModelCannotKeep) {
                 std::string::npos);
 
     // The model has no non-speech head: it can report neither a breath nor a cough, so promising
-    // one would make "none found" and "nothing was looked for" the same answer.
+    // one would make a search that found nothing and a search that never ran the same answer.
     const auto promisedNonSpeech = loadRefusal(host, PROMISED_NON_SPEECH);
     BOOST_CHECK(promisedNonSpeech.code() == srt::Error::InvalidFormat);
     BOOST_CHECK(promisedNonSpeech.message().find("detects no non-speech sound") !=
@@ -718,13 +718,13 @@ BOOST_AUTO_TEST_CASE(test_TifaInterpreter_RefusesPromisesItsModelCannotKeep) {
                 std::string::npos);
 }
 
-/// A word the dictionary spells with a phoneme the vocabulary has no symbol for is left out of the
-/// phrase rather than handed over: a missing symbol looks up to zero, which is the padding between
-/// tokens, so aligning one would answer about a word the model was never asked about. The fixture's
-/// own dictionaries are consistent with its vocabulary, so a copy of the package is written with
-/// one such entry added, and loaded as a package of its own.
+// A word the dictionary spells with a phoneme the vocabulary has no symbol for is left out of the
+// phrase rather than handed over: a missing symbol looks up to zero, which is the padding between
+// tokens, so aligning one would answer about a word the model was never asked about. The fixture's
+// own dictionaries are consistent with its vocabulary, so a copy of the package is written with
+// one such entry added, and loaded as a package of its own.
 BOOST_AUTO_TEST_CASE(test_TifaInterpreter_DropsAWordTheVocabularyCannotSpell) {
-    /// A directory that goes away with the test, whatever it did.
+    // A directory that goes away with the test, whatever it did.
     struct Scratch {
         fs::path path;
 
@@ -784,7 +784,7 @@ BOOST_AUTO_TEST_CASE(test_TifaInterpreter_DropsAWordTheVocabularyCannotSpell) {
     auto analyzer = host.openFrom(scratch.path);
 
     // Alone, the phrase resolves to nothing at all, which is refused rather than answered with
-    // silence: an empty result would read as "none of these words is in this audio".
+    // silence: an empty result would read as none of these words being in this audio.
     AlignApi::StartInput alone;
     ask(alone, words);
     alone.lyrics = UNSPELLABLE;
@@ -811,13 +811,13 @@ BOOST_AUTO_TEST_CASE(test_TifaInterpreter_DropsAWordTheVocabularyCannotSpell) {
     checkCoverage(*result, 0.0, 1.0);
 }
 
-/// A written unit a dictionary spells more than one way is one word with a reading per line of its
-/// entry, and which of them a result reports is the answer of the host's whole-word program rather
-/// than the first line of the file. The fixture adds a second reading to one entry in a language
-/// that is not the default one, and its score graph is the exporter's layout with the arithmetic
-/// left out, so what its table settles is a tie (scripts/make-model-fixtures.py).
+// A written unit a dictionary spells more than one way is one word with a reading per line of its
+// entry, and which of them a result reports is the answer of the host's whole-word program rather
+// than the first line of the file. The fixture adds a second reading to one entry in a language
+// that is not the default one, and its score graph is the exporter's layout with the arithmetic
+// left out, so what its table settles is a tie (scripts/make-model-fixtures.py).
 BOOST_AUTO_TEST_CASE(test_TifaInterpreter_PicksOneReadingOfAWordTheDictionarySpellsTwice) {
-    /// A directory that goes away with the test, whatever it did.
+    // A directory that goes away with the test, whatever it did.
     struct Scratch {
         fs::path path;
 
@@ -827,7 +827,7 @@ BOOST_AUTO_TEST_CASE(test_TifaInterpreter_PicksOneReadingOfAWordTheDictionarySpe
         }
     };
 
-    /// The language whose dictionary is the only one the fixture gives several readings for.
+    // The language whose dictionary is the only one the fixture gives several readings for.
     constexpr char LANGUAGE[] = "eng";
 
     const auto source = fs::path(OTTER_TEST_FIXTURE_DIR) / PACKAGE;

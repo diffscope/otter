@@ -5,14 +5,14 @@
 //
 // The ONNX variant of this contract runs five graphs in sessions of its own. Here the package
 // names a command line tool instead, and the provider launches it once, keeps it for the lifetime
-// of the analyzer and exchanges messages with it: the engine's `serve` mode reads a binary request
+// of the analyzer and exchanges messages with it: the engine's serve mode reads a binary request
 // frame on its standard input and answers one JSON line on its standard output. The model file and
 // the engine stay outside the host process, so a stop request is honored by terminating the
 // process, and a package that carries the engine's own release can be dropped in without a build.
 //
 // This port differs from the ONNX variant in two respects that a host can observe. The engine call
 // is monolithic: progress reports 0 and then 1, and the call itself is not interruptible, but a
-// stop does kill the engine process, so a cancelled execution is bounded by the lifetime of one
+// stop does kill the engine process, so a canceled execution is bounded by the lifetime of one
 // request. And the model carries no alignment path, because the serve protocol opens no session for
 // the fifth model, so the exports cannot promise known notes.
 
@@ -51,73 +51,73 @@ namespace otter::gameGgml {
 
     namespace {
 
-        /// Knob values used if the declaration does not honor the corresponding knob. They are the
-        /// engine's own defaults, stated in the contract's units: the radius counts frames inside
-        /// the engine and seconds in the contract, so its default is two frames at the model's
-        /// frame rate.
+        // Knob values used if the declaration does not honor the corresponding knob. They are the
+        // engine's own defaults, stated in the contract's units: the radius counts frames inside
+        // the engine and seconds in the contract, so its default is two frames at the model's
+        // frame rate.
         constexpr int FALLBACK_STEPS = 1;
         constexpr double FALLBACK_BOUNDARY_THRESHOLD = 0.2;
         constexpr double FALLBACK_BOUNDARY_RADIUS = 0.02;
         constexpr double FALLBACK_NOTE_THRESHOLD = 0.2;
         constexpr double FALLBACK_NOTE_PRESENCE_CUTOFF = 0.5;
 
-        /// The seed of the engine's internal sampling randomness, fixed so that repeated
-        /// transcriptions of one span produce one transcription. The engine treats zero as a
-        /// request for a seed drawn from random_device, which would make every execution differ.
+        // The seed of the engine's internal sampling randomness, fixed so that repeated
+        // transcriptions of one span produce one transcription. The engine treats zero as a
+        // request for a seed drawn from random_device, which would make every execution differ.
         constexpr std::uint64_t FIXED_SEED = 1;
 
-        /// The request frame of the engine's `serve` protocol, as its command line documents it:
-        /// one magic, the knobs of one execution and the sample count, followed by the float32
-        /// waveform.
-        constexpr std::uint32_t SERVE_MAGIC_INFERENCE = 0x53455256u; // "VRES"
-        constexpr std::uint32_t SERVE_MAGIC_QUIT = 0x54495155u;      // "UQIT"
+        // The request frame of the engine's serve protocol, as its command line documents it:
+        // one magic, the knobs of one execution and the sample count, followed by the float32
+        // waveform.
+        constexpr std::uint32_t SERVE_MAGIC_INFERENCE = 0x53455256u; // The bytes VRES
+        constexpr std::uint32_t SERVE_MAGIC_QUIT = 0x54495155u;      // The bytes UQIT
         constexpr std::size_t SERVE_HEADER_SIZE = 36;
 
-        /// The configuration block of this variant: the engine's command line tool, the model it
-        /// runs and the wiring that is internal to the variant and not visible to the host. The
-        /// audio format and the language identifiers are contract facts and are declared in
-        /// exports.
+        // The configuration block of this variant: the engine's command line tool, the model it
+        // runs and the wiring that is internal to the variant and not visible to the host. The
+        // audio format and the language identifiers are contract facts and are declared in
+        // exports.
         class GameGgmlConfiguration : public srt::ContribConfiguration {
         public:
             GameGgmlConfiguration() : srt::ContribConfiguration(Triplet) {
             }
 
-            /// The engine's command line tool, as shipped in its release.
+            // The engine's command line tool, as shipped in its release.
             std::filesystem::path cli;
 
-            /// The GGUF model the tool runs.
+            // The GGUF model the tool runs.
             std::filesystem::path model;
 
-            /// Maps the language identifiers listed in the exports to the model's own numbering.
-            ///
-            /// The contract uses identifiers because the internal numbering is specific to each
-            /// model: the number 1 need not denote the same language in two models.
+            // Maps the language identifiers listed in the exports to the model's own numbering.
+            //
+            // The contract uses identifiers because the internal numbering is specific to each
+            // model: the number 1 need not denote the same language in two models.
             std::map<std::string, int> languages;
 
-            /// The model's frame duration in seconds. Used only to convert boundaryRadius into
-            /// frames.
+            // The model's frame duration in seconds. Used only to convert boundaryRadius into
+            // frames.
             double timestep = 0.01;
         };
 
-        /// The knob values of one execution, in the units the engine takes.
+        // The knob values of one execution, in the units the engine takes.
         struct Settings {
             float boundaryThreshold = 0;
             float noteThreshold = 0;
             double cutoff = 0;
 
-            /// The smallest interval between boundaries, in the model's frames.
+            // The smallest interval between boundaries, in the model's frames.
             int radius = 1;
 
             int steps = 0;
         };
 
-        /// Chooses every knob of an execution.
-        ///
-        /// Every knob is checked against the range that the declaration reports, so a value outside
-        /// the declared range is rejected instead of being passed to the engine with unpredictable
-        /// results.
-        ///
-        /// \return The settings, or the error of the first knob outside its declared range.
+        // Chooses every knob of an execution.
+        //
+        // Every knob is checked against the range that the declaration reports, so a value outside
+        // the declared range is rejected instead of being passed to the engine with unpredictable
+        // results.
+        //
+        // \return The settings, or the error of the first knob outside its declared range.
         srt::Expected<Settings> chooseSettings(const NoteApi::StartInput &input,
                                                const NoteApi::Exports &schema,
                                                const GameGgmlConfiguration &configuration) {
@@ -158,13 +158,12 @@ namespace otter::gameGgml {
             return settings;
         }
 
-        /// Returns the model's number for the language of an execution.
-        ///
-        /// \return The model's number for the requested or default language; 0 if neither is
-        /// specified
-        ///         and the model has no language numbering;
-        ///         \c srt::Error::InvalidArgument if neither is specified and the model numbers its
-        ///         languages, or if the language is not declared or not numbered.
+        // Returns the model's number for the language of an execution.
+        //
+        // Returns the model's number for the requested or default language. Zero if neither is
+        // specified and the model has no language numbering.
+        // \c srt::Error::InvalidArgument if neither is specified and the model numbers its
+        //         languages, or if the language is not declared or not numbered.
         srt::Expected<std::int64_t> chooseLanguage(const NoteApi::StartInput &input,
                                                    const NoteApi::Exports &schema,
                                                    const GameGgmlConfiguration &configuration) {
@@ -191,7 +190,7 @@ namespace otter::gameGgml {
             return it->second;
         }
 
-        /// The request frame of one execution, as the engine's protocol reads it.
+        // The request frame of one execution, as the engine's protocol reads it.
         std::string serveRequestHeader(std::int64_t languageId, const Settings &settings,
                                        std::size_t sampleCount) {
             std::string frame(SERVE_HEADER_SIZE, '\0');
@@ -215,22 +214,22 @@ namespace otter::gameGgml {
             return frame;
         }
 
-        /// One line of the engine's output, as the protocol's JSON envelope.
+        // One line of the engine's output, as the protocol's JSON envelope.
         struct ServeResponse {
             bool ready = false;
             bool error = false;
             std::string message;
 
-            /// The notes of a transcription, as the envelope carries them: offset, duration, pitch
-            /// and the voiced flag of each.
+            // The notes of a transcription, as the envelope carries them: offset, duration, pitch
+            // and the voiced flag of each.
             std::vector<std::tuple<double, double, double, bool>> notes;
         };
 
-        /// Parses one response line of the engine.
-        ///
-        /// \return The response, or an \c AnalysisError::ModelFailed error if the line is not a
-        /// JSON
-        ///         object the protocol could have written.
+        // Parses one response line of the engine.
+        //
+        // \return The response, or an \c AnalysisError::ModelFailed error if the line is not a
+        // JSON
+        //         object the protocol could have written.
         srt::Expected<ServeResponse> parseServeResponse(const std::string &line) {
             stdc::json::ParseError error;
             const auto value = stdc::json::Value::fromJson(line, false, &error);
@@ -307,9 +306,9 @@ namespace otter::gameGgml {
             }
 
         protected:
-            /// Requests cancellation and also kills the engine, because the request frame in flight
-            /// is what a stopped execution is blocked on. The process and its pipes are reaped by
-            /// the execution thread, which is the only thread that owns them.
+            // Requests cancellation and also kills the engine, because the request frame in flight
+            // is what a stopped execution is blocked on. The process and its pipes are reaped by
+            // the execution thread, which is the only thread that owns them.
             srt::Expected<void> quit() override {
                 (void) Executive::quit();
                 std::lock_guard lock(m_serveLock);
@@ -388,8 +387,8 @@ namespace otter::gameGgml {
 
             // Spawns the engine, if no healthy process is held, and waits for its readiness.
             //
-            // The process of a cancelled execution is terminated, so an analyzer that was stopped
-            // simply relaunches its engine here; the model load is the engine's own business.
+            // The process of a canceled execution is terminated, so an analyzer that was stopped
+            // simply relaunches its engine here. The model load is the engine's own business.
             srt::Expected<void> ensureEngine() {
                 {
                     std::lock_guard lock(m_serveLock);
@@ -412,7 +411,7 @@ namespace otter::gameGgml {
                 }
                 {
                     // A stop that arrived before the engine existed had nothing to kill, so the
-                    // engine of a cancelled execution is killed as soon as it is held.
+                    // engine of a canceled execution is killed as soon as it is held.
                     std::lock_guard lock(m_serveLock);
                     m_serve = std::move(process);
                     if (cancelled()) {
@@ -444,8 +443,8 @@ namespace otter::gameGgml {
             // Runs one transcription request against the engine.
             //
             // The engine reports the failures of its own layer through the protocol's error
-            // envelope; a process that dies mid-protocol is reported as a model failure, unless the
-            // execution was cancelled, whose stop is the reason the process died.
+            // envelope. A process that dies mid-protocol is reported as a model failure, unless the
+            // execution was canceled, whose stop is the reason the process died.
             srt::Expected<std::vector<std::tuple<double, double, double, bool>>>
                 transcribe(const otter::PreparedSamples &waveform, std::int64_t languageId,
                            const Settings &settings) {

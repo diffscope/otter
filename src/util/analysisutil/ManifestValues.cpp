@@ -175,8 +175,8 @@ namespace otter::manifest {
 
     namespace {
 
-        /// Returns the object of a numeric knob declaration after checking that it contains
-        /// exactly the keys minimum, maximum and default. Both numeric knob readers use it.
+        // Returns the object of a numeric knob declaration after checking that it contains
+        // exactly the keys minimum, maximum and default. Both numeric knob readers use it.
         srt::Expected<srt::JsonObject> knobObject(const srt::JsonValue &value,
                                                   std::string_view what) {
             if (!value.isObject()) {

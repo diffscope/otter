@@ -32,19 +32,19 @@ namespace {
         return otter::test::packagesRoot();
     }
 
-    /// A unit configured as a host configures it, except that the stub provider is a static plugin
-    /// of this binary, which the inference category finds without a plugin path.
+    // A unit configured as a host configures it, except that the stub provider is a static plugin
+    // of this binary, which the inference category finds without a plugin path.
     struct Unit {
         srt::SynthUnit unit;
     };
 
-    /// The languages of a stub aligner that loads, as a JSON member, without its default.
+    // The languages of a stub aligner that loads, as a JSON member, without its default.
     const char ALIGN_LANGUAGES[] =
         R"("languages": [{"language": "cmn", "scheme": "pinyin", "lyrics": "scheme",)"
         R"( "phonemes": ["a"]}])";
 
-    /// Writes a stub aligner package whose exports are \a exports, the sample rate aside, into a
-    /// directory of its own under the system's temporary directory, and returns the package.
+    // Writes a stub aligner package whose exports are \a exports, the sample rate aside, into a
+    // directory of its own under the system's temporary directory, and returns the package.
     fs::path writeAligner(const std::string &name, const std::string &exports) {
         const auto root = fs::temp_directory_path() / "otter-test-aligners" / name;
         fs::remove_all(root);
@@ -64,9 +64,9 @@ namespace {
 
 BOOST_AUTO_TEST_SUITE(test_AnalysisExecutive_Load)
 
-/// The unit searches no directory for interpreters, so the stub that serves the packages below can
-/// only be the static plugin that this binary links. A stub library left in a plugin directory of
-/// the build is never loaded.
+// The unit searches no directory for interpreters, so the stub that serves the packages below can
+// only be the static plugin that this binary links. A stub library left in a plugin directory of
+// the build is never loaded.
 BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_Load_ServesTheStubAsAStaticPlugin) {
     Unit host;
     BOOST_CHECK(host.unit.pluginPaths(srt::InferenceCategory::NAME).empty());
@@ -145,9 +145,9 @@ BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_Load_DataOnlyStopsBeforeTheProvider)
     BOOST_CHECK_EQUAL(declared.toObject().at("sampleRate").toInt(), 16000);
 }
 
-/// One reader reads the exports block for every variant, so every variant rejects the same
-/// declarations: a missing audio format, a key the contract does not define, and a knob whose
-/// default lies outside its range.
+// One reader reads the exports block for every variant, so every variant rejects the same
+// declarations: a missing audio format, a key the contract does not define, and a knob whose
+// default lies outside its range.
 BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_Load_RefusesExportsWithoutTheAudioFormat) {
     Unit host;
     auto opened =
@@ -173,7 +173,7 @@ BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_Load_RefusesAKnobWhoseDefaultLeavesI
 }
 
 BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_Load_RejectsAnUnknownConfigurationKey) {
-    // A misspelt key leaves the intended value silently absent, and for a threshold the result is
+    // A misspelled key leaves the intended value silently absent, and for a threshold the result is
     // a working model that produces wrong results.
     Unit host;
     auto opened = host.unit.openPackage(packages() / "bad-configuration", srt::SynthUnit::Load);
@@ -184,8 +184,7 @@ BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_Load_RejectsAnUnknownConfigurationKe
 BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_Load_LetsAnotherModuleReferenceAnAnalyzer) {
     // The upper specification permits a category without an Executive Factory, and the Loader
     // accepts a null factory, so a package that references an analyzer is valid and must load.
-    // Rejecting the import, as an earlier version of this category did, turns a valid third-party
-    // package into a load failure.
+    // Rejecting the import would turn a valid third-party package into a load failure.
     Unit host;
     auto opened = host.unit.openPackage(packages() / "importing", srt::SynthUnit::Load);
     BOOST_REQUIRE_MESSAGE(static_cast<bool>(opened), otter::test::why(opened));
@@ -214,9 +213,9 @@ BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_Load_RejectsAnEntryWithoutADeclarati
     BOOST_CHECK(!opened);
 }
 
-/// The Align reader belongs to the library and requires no model, so the stub is sufficient to
-/// test it: each language declares the scheme of its phonemes, the form of its lyrics and the
-/// phonemes that a result can contain.
+// The Align reader belongs to the library and requires no model, so the stub is sufficient to
+// test it: each language declares the scheme of its phonemes, the form of its lyrics and the
+// phonemes that a result can contain.
 BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_Load_ReadsTheAlignContract) {
     Unit host;
     auto opened = host.unit.openPackage(packages() / "stub-aligner", srt::SynthUnit::Load);
@@ -241,8 +240,8 @@ BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_Load_ReadsTheAlignContract) {
     package.reset();
 }
 
-/// Each of these exports blocks violates one rule of the Align reader, through which every
-/// variant reads its declaration, so each block is rejected at load regardless of the variant.
+// Each of these exports blocks violates one rule of the Align reader, through which every
+// variant reads its declaration, so each block is rejected at load regardless of the variant.
 BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_Load_RefusesMalformedAlignExports) {
     Unit host;
     const std::string languages = ALIGN_LANGUAGES;

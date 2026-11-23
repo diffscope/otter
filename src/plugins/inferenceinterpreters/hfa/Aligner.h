@@ -100,7 +100,7 @@ namespace otter::hfa {
         static void fillSmallGaps(std::vector<Word> &words, double wavLength, double gapFill);
 
         /// Fills every remaining gap, including the gaps before the first word and after the last
-        /// word, with a word labelled \p label.
+        /// word, with a word labeled \p label.
         ///
         /// \return An empty value in every case. An empty \p words is left unchanged.
         static srt::Expected<void> addSilence(std::vector<Word> &words, double wavLength,

@@ -86,8 +86,8 @@ BOOST_AUTO_TEST_CASE(test_ManifestValues_RejectsAKeyTheContractDoesNotDefine) {
     BOOST_CHECK(refused.error().message().find("sampleRate") != std::string::npos);
 }
 
-/// A knob declaration consists of three ordered numbers or of one boolean. Any other form is a
-/// misspelling, and an accepted misspelt knob would make the module appear to honor no knob.
+// A knob declaration consists of three ordered numbers or of one boolean. Any other form is a
+// misspelling, and an accepted misspelled knob would make the module appear to honor no knob.
 BOOST_AUTO_TEST_CASE(test_ManifestValues_ReadsKnobsAndRefusesTheMalformed) {
     auto knob = otter::manifest::readKnob(
         parse(R"({"minimum": 0.0, "maximum": 1.0, "default": 0.25})"), "voicingThreshold");
@@ -117,8 +117,8 @@ BOOST_AUTO_TEST_CASE(test_ManifestValues_ReadsKnobsAndRefusesTheMalformed) {
     BOOST_CHECK(!otter::manifest::readFlagKnob(parse(R"({})"), "interpolate"));
 }
 
-/// Languages are ISO 639-3 codes and schemes follow wolf's grammar, the same grammars a host
-/// reads from a singer, so that an identifier passes between the two unchanged.
+// Languages are ISO 639-3 codes and schemes follow wolf's grammar, the same grammars a host
+// reads from a singer, so that an identifier passes between the two unchanged.
 BOOST_AUTO_TEST_CASE(test_ManifestValues_ReadsLanguagesAndSchemes) {
     BOOST_CHECK_EQUAL(otter::manifest::readLanguage(parse("\"cmn\""), "language").take(), "cmn");
     for (const char *wrong : {"\"zh\"", "\"CMN\"", "\"cmn1\"", "\"\"", "3"}) {

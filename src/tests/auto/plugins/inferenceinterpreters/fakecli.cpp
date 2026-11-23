@@ -1,7 +1,7 @@
 // A stand-in for the engine command line tools the ggml providers drive, so the provider tests can
-// run their whole path — spawn, protocol, parse, place — without any model. It answers the game
-// `serve` protocol with a canned transcription and the tifa `align` command with a canned TextGrid;
-// what it verifies is the plumbing, never the weights. An environment that names a marker file in
+// run their whole path (spawn, protocol, parse, place) without any model. It answers the game
+// serve protocol with a canned transcription and the tifa align command with a canned TextGrid.
+// What it verifies is the plumbing, never the weights. An environment that names a marker file in
 // OTTER_FAKE_CLI_HANG makes it hang instead of answering, so the tests can stop an engine that
 // never answers.
 
@@ -21,8 +21,8 @@
 
 namespace {
 
-    /// Hangs until the engine is killed if the environment names a marker file, which is created
-    /// first so that the test learns that the engine hangs.
+    // Hangs until the engine is killed if the environment names a marker file, which is created
+    // first so that the test learns that the engine hangs.
     void hangIfAsked() {
         const char *marker = std::getenv("OTTER_FAKE_CLI_HANG");
         if (marker == nullptr || *marker == '\0') {
@@ -36,8 +36,8 @@ namespace {
         }
     }
 
-    /// The transcription the fake `serve` answers with: one voiced note and one rest, so the tests
-    /// can watch the provider's cutoff drop the second.
+    // The transcription the fake serve answers with: one voiced note and one rest, so the tests
+    // can watch the provider's cutoff drop the second.
     void serve() {
 #ifdef _WIN32
         _setmode(_fileno(stdin), _O_BINARY);
@@ -54,7 +54,7 @@ namespace {
             std::uint32_t samples = 0;
             std::memcpy(&magic, header, sizeof(magic));
             if (magic == 0x54495155u) {
-                break; // "UQIT": the quit signal of the protocol.
+                break; // The quit signal UQIT of the protocol.
             }
             std::memcpy(&samples, header + 32, sizeof(samples));
             char discard[4096];
@@ -74,12 +74,12 @@ namespace {
         }
     }
 
-    /// The alignment the fake `align` writes: two words of two phones each, tiling the span.
+    // The alignment the fake align writes: two words of two phones each, tiling the span.
     void align(int argc, char **argv) {
         hangIfAsked();
         std::string outputDirectory;
         std::string stem = "span";
-        // The audio is the first argument after the command; every other non-option argument is a
+        // The audio is the first argument after the command. Every other non-option argument is a
         // value of an option and says nothing about the output name.
         if (argc > 2) {
             const std::string argument = argv[2];

@@ -152,7 +152,7 @@ namespace otter::onnx {
             return response.takeError().withContext("the " + std::string(what) + " failed");
         }
         // A stop that arrived while the model ran may not have reached the session in time to
-        // fail the call. The contract requires a cancelled execution to report no result.
+        // fail the call. The contract requires a canceled execution to report no result.
         // Therefore the stop flag is checked again here instead of accepting the completed pass.
         if (cancelled()) {
             return cancelledError();

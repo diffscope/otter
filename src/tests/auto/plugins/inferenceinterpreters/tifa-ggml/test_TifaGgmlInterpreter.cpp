@@ -24,8 +24,8 @@ BOOST_AUTO_TEST_CASE(test_TifaGgmlInterpreter_ReportsWhatTheDeclarationExports) 
 }
 
 BOOST_AUTO_TEST_CASE(test_TifaGgmlInterpreter_RefusesTheDeclarationsItCannotHonor) {
-    // The engine detects no non-speech sound, so promising one would make "none found" and
-    // "nothing was looked for" the same answer.
+    // The engine detects no non-speech sound, so promising one would make a search that found
+    // nothing and a search that never ran the same answer.
     {
         Host host;
         host.write(OTTER_TEST_FAKE_CLI, "models/tifa.gguf", "path/to/dicts",
@@ -81,8 +81,8 @@ BOOST_AUTO_TEST_CASE(test_TifaGgmlInterpreter_AlignsAgainstTheFakeCli) {
     host.write();
     auto analyzer = host.open();
 
-    // The fake tool aligns a leading gap and two words over one second: "ni" from 0.2 to 0.6 and
-    // "hao" from 0.6 to 1, each with two phones. Against a one-second span the leading gap is the
+    // The fake tool aligns a leading gap and two words over one second: ni from 0.2 to 0.6 and
+    // hao from 0.6 to 1, each with two phones. Against a one-second span the leading gap is the
     // only silence, and against a two-second span the second half is another.
     AlignApi::StartInput input;
     input.audio = tone(1.0, 3.0);
@@ -152,9 +152,9 @@ BOOST_AUTO_TEST_CASE(test_TifaGgmlInterpreter_AlignsAgainstTheFakeCli) {
                       1e-3);
 }
 
-/// A stop from another thread kills the tool while the execution waits for it to finish, so the
-/// execution ends as cancelled instead of waiting for a tool that never finishes. The next
-/// execution runs a tool of its own.
+// A stop from another thread kills the tool while the execution waits for it to finish, so the
+// execution ends as canceled instead of waiting for a tool that never finishes. The next
+// execution runs a tool of its own.
 BOOST_AUTO_TEST_CASE(test_TifaGgmlInterpreter_StopKillsAToolThatDoesNotFinish) {
     Host host;
     host.write();

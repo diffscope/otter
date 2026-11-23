@@ -53,13 +53,13 @@ namespace otter::hfa {
 
     namespace {
 
-        /// The values used if the declaration does not honor the corresponding knob.
+        // The values used if the declaration does not honor the corresponding knob.
         constexpr double FALLBACK_NON_SPEECH_THRESHOLD = 0.5;
         constexpr double FALLBACK_NON_SPEECH_MIN_DURATION = 0.1;
         constexpr double FALLBACK_GAP_FILL = 0.1;
 
-        /// The tensor names of the exported graph, which form the contract between this variant and
-        /// its model: waveform -> ph_frame_logits, ph_edge_logits, cvnt_logits.
+        // The tensor names of the exported graph, which form the contract between this variant and
+        // its model: waveform -> ph_frame_logits, ph_edge_logits, cvnt_logits.
         namespace tensors {
 
             constexpr char WAVEFORM[] = "waveform";
@@ -69,22 +69,22 @@ namespace otter::hfa {
 
         }
 
-        /// The non-speech class that denotes the absence of every other non-speech class.
-        ///
-        /// The model numbers this class first. It is prepended here instead of being read from the
-        /// vocabulary, as in the original implementation, because the frame scan requires the empty
-        /// class at index zero.
+        // The non-speech class that denotes the absence of every other non-speech class.
+        //
+        // The model numbers this class first. It is prepended here instead of being read from the
+        // vocabulary, as in the original implementation, because the frame scan requires the empty
+        // class at index zero.
         constexpr char NON_SPEECH_NONE[] = "None";
 
-        /// The language separator the model's phoneme labels carry, as in <tt>zh/a</tt>.
+        // The language separator the model's phoneme labels carry, as in <tt>zh/a</tt>.
         constexpr char LANGUAGE_SEPARATOR = '/';
 
         using otter::onnx::TensorPtr;
 
-        /// Reads an array of strings, empty ones included.
-        ///
-        /// manifest::readStringList is deliberately not used: the model's silent phoneme list
-        /// begins with the empty label, which is a valid class name here.
+        // Reads an array of strings, empty ones included.
+        //
+        // manifest::readStringList is deliberately not used: the model's silent phoneme list
+        // begins with the empty label, which is a valid class name here.
         srt::Expected<std::vector<std::string>> readLabels(const srt::JsonValue &value,
                                                            std::string_view what) {
             if (!value.isArray()) {
@@ -102,33 +102,33 @@ namespace otter::hfa {
             return result;
         }
 
-        /// The model properties recorded in the model's own files.
+        // The model properties recorded in the model's own files.
         struct ModelFacts {
-            /// The sample rate of the graph's front end. A declaration stating another rate would
-            /// make the host prepare audio that the model then misplaces.
+            // The sample rate of the graph's front end. A declaration stating another rate would
+            // make the host prepare audio that the model then misplaces.
             int sampleRate = 0;
 
-            /// Samples between adjacent frames, which convert a frame index into a time.
+            // Samples between adjacent frames, which convert a frame index into a time.
             int hopSize = 0;
 
-            /// The phoneme labels of the classifier, mapped to their class indices.
+            // The phoneme labels of the classifier, mapped to their class indices.
             std::map<std::string, int> vocabulary;
 
-            /// The labels that the vocabulary classifies as silence rather than as sung phonemes.
+            // The labels that the vocabulary classifies as silence rather than as sung phonemes.
             std::vector<std::string> silentPhonemes;
 
-            /// The non-speech classes, beginning with the <tt>None</tt> class.
+            // The non-speech classes, beginning with the <tt>None</tt> class.
             std::vector<std::string> nonSpeechClasses;
 
-            /// The dictionary file name per language code, as listed in the vocabulary.
+            // The dictionary file name per language code, as listed in the vocabulary.
             std::map<std::string, std::string> dictionaries;
         };
 
-        /// Reads the mel spectrogram config and the vocabulary that a package's configuration
-        /// references.
-        ///
-        /// \return The model properties, or \c srt::Error::InvalidFormat or the file error of the
-        ///         first file or entry that cannot be read.
+        // Reads the mel spectrogram config and the vocabulary that a package's configuration
+        // references.
+        //
+        // \return The model properties, or \c srt::Error::InvalidFormat or the file error of the
+        //         first file or entry that cannot be read.
         srt::Expected<ModelFacts> readModelFacts(const std::filesystem::path &configPath,
                                                  const std::filesystem::path &vocabPath) {
             auto configValue = otter::onnx::readJsonObject(configPath, "the model's config.json");
@@ -231,24 +231,24 @@ namespace otter::hfa {
             return facts;
         }
 
-        /// Returns whether the vocabulary classifies \a label as silence rather than as a sung
-        /// phoneme.
-        ///
-        /// The result determines whether the language prefix is prepended to the label: the model's
-        /// labels carry their language, and its silence classes belong to every language.
+        // Returns whether the vocabulary classifies \a label as silence rather than as a sung
+        // phoneme.
+        //
+        // The result determines whether the language prefix is prepended to the label: the model's
+        // labels carry their language, and its silence classes belong to every language.
         bool isSilent(const std::vector<std::string> &silentPhonemes, const std::string &label) {
             return std::find(silentPhonemes.begin(), silentPhonemes.end(), label) !=
                    silentPhonemes.end();
         }
 
-        /// The configuration block of this variant, together with the contents of the model's own
-        /// files.
-        ///
-        /// The block names the model and its accompanying files, and maps the host's language
-        /// identifiers to the model's own codes. The audio format, the languages and the knobs are
-        /// contract facts and are declared in exports. The model's files are read once, when the
-        /// declaration is loaded, and stored here with the dictionaries, so that creating an
-        /// analyzer reads only the graph.
+        // The configuration block of this variant, together with the contents of the model's own
+        // files.
+        //
+        // The block names the model and its accompanying files, and maps the host's language
+        // identifiers to the model's own codes. The audio format, the languages and the knobs are
+        // contract facts and are declared in exports. The model's files are read once, when the
+        // declaration is loaded, and stored here with the dictionaries, so that creating an
+        // analyzer reads only the graph.
         class HfaConfiguration : public srt::ContribConfiguration {
         public:
             HfaConfiguration() : srt::ContribConfiguration(Triplet) {
@@ -256,21 +256,21 @@ namespace otter::hfa {
 
             std::filesystem::path model;
 
-            /// The model's own config.json, which specifies the mel spectrogram of its front end.
+            // The model's own config.json, which specifies the mel spectrogram of its front end.
             std::filesystem::path config;
 
-            /// The model's own vocab.json: the phoneme classes, the non-speech classes and the
-            /// dictionaries.
+            // The model's own vocab.json: the phoneme classes, the non-speech classes and the
+            // dictionaries.
             std::filesystem::path vocab;
 
-            /// Maps the identifiers listed in the exports to the model's language codes.
-            ///
-            /// The contract uses identifiers because language codes are specific to each model: two
-            /// models may use different codes for the same language, or the same code for different
-            /// languages.
+            // Maps the identifiers listed in the exports to the model's language codes.
+            //
+            // The contract uses identifiers because language codes are specific to each model: two
+            // models may use different codes for the same language, or the same code for different
+            // languages.
             std::map<std::string, std::string> languages;
 
-            /// The model properties read from config.json and vocab.json.
+            // The model properties read from config.json and vocab.json.
             ModelFacts facts;
 
             // One dictionary per language the exports declare, keyed by the host's identifier.
@@ -280,15 +280,15 @@ namespace otter::hfa {
             std::map<std::string, otter::hfa::G2p> dictionaries;
         };
 
-        /// Reads a [1, classes, frames] tensor as one row of frames per class.
-        ///
-        /// Both classifiers return that shape, and the decode requires one row per class: the
-        /// reference processes the classes of one frame at a time, and this layout allows the mask
-        /// and the softmax over classes to operate on rows instead of gathering scattered values.
-        ///
-        /// \return One row per class, or \c AnalysisError::ModelFailed if \a tensor is null and
-        ///         \c AnalysisError::ModelMismatch if it is not a float tensor of shape
-        ///         [1, classes, frames] with a matching element count.
+        // Reads a [1, classes, frames] tensor as one row of frames per class.
+        //
+        // Both classifiers return that shape, and the decode requires one row per class: the
+        // reference processes the classes of one frame at a time, and this layout allows the mask
+        // and the softmax over classes to operate on rows instead of gathering scattered values.
+        //
+        // \return One row per class, or \c AnalysisError::ModelFailed if \a tensor is null and
+        //         \c AnalysisError::ModelMismatch if it is not a float tensor of shape
+        //         [1, classes, frames] with a matching element count.
         srt::Expected<std::vector<std::vector<float>>> readClassFrames(const TensorPtr &tensor,
                                                                        const char *what) {
             if (!tensor) {
@@ -459,22 +459,22 @@ namespace otter::hfa {
             }
 
         private:
-            /// The language of one execution: its declared entry, the model's code for it, and its
-            /// dictionary.
+            // The language of one execution: its declared entry, the model's code for it, and its
+            // dictionary.
             struct Language {
                 const AlignApi::LanguageInfo *entry = nullptr;
                 const std::string *code = nullptr;
                 const otter::hfa::G2p *dictionary = nullptr;
             };
 
-            /// The knob values of one execution.
+            // The knob values of one execution.
             struct Settings {
                 double threshold = 0;
                 double minimumDuration = 0;
                 double gapFill = 0;
             };
 
-            /// The three classifier outputs, laid out as the decoders read them.
+            // The three classifier outputs, laid out as the decoders read them.
             struct Logits {
                 std::vector<std::vector<float>> frames;
                 std::vector<float> edges;
@@ -486,10 +486,10 @@ namespace otter::hfa {
             // The scheme specifies the notation of the result's phonemes. A language may be
             // declared with several schemes, in which case the caller must specify the scheme.
             //
-            // \return The language entry, model code and dictionary;
-            //         \c srt::Error::InvalidArgument if no language is specified or declared, the
-            //         language or scheme is not declared, or the scheme is ambiguous;
-            //         \c AnalysisError::Internal if the dictionary is missing.
+            // Returns the language entry, model code and dictionary.
+            // \c srt::Error::InvalidArgument if no language is specified or declared, the
+            // language or scheme is not declared, or the scheme is ambiguous.
+            // \c AnalysisError::Internal if the dictionary is missing.
             srt::Expected<Language> chooseLanguage(const AlignApi::StartInput &input) const {
                 const std::string language = input.language.value_or(m_schema.defaultLanguage);
                 if (language.empty()) {
@@ -812,7 +812,7 @@ namespace otter::hfa {
             }
             // The splitter also separates words with the silence label, and the decode treats it
             // as silence, so it must be a class that the model emits and one of the model's silent
-            // classes. The reference hard-codes that class as SP at index 0; this port reads the
+            // classes. The reference hard-codes that class as SP at index 0. This port reads the
             // index from the vocabulary instead, so this check is the only remaining assumption.
             if (!isSilent(model.silentPhonemes, declared.silenceLabel)) {
                 return srt::Error(srt::Error::InvalidFormat,
@@ -829,7 +829,7 @@ namespace otter::hfa {
             return srt::Expected<void>();
         }
 
-        /// Reads the dictionary of every language the exports declare.
+        // Reads the dictionary of every language the exports declare.
         srt::Expected<void> loadDictionaries(const AlignApi::Exports &declared,
                                              HfaConfiguration &wiring) {
             for (const auto &entry : declared.languages) {

@@ -50,8 +50,8 @@ namespace otter::onnx {
     /// on the CPU, which a variant asks for when the model is small and its work is what an
     /// accelerator backend does not carry.
     ///
-    /// \return The open session; \c srt::Error::FeatureNotSupported if the driver is not
-    ///         registered or creates no session. The driver's error if the model cannot be opened.
+    /// \return The open session. \c srt::Error::FeatureNotSupported if the driver is not
+    /// registered or creates no session. The driver's error if the model cannot be opened.
     srt::Expected<std::unique_ptr<ds::InferenceSession>>
         openSession(srt::InferenceSpec &spec, const std::filesystem::path &path,
                     std::string_view what, bool useCpu = false);
@@ -68,8 +68,8 @@ namespace otter::onnx {
 
     /// Reads a whole file as text.
     ///
-    /// \return The text; \c srt::Error::FileNotOpen if the file cannot be opened;
-    ///         \c srt::Error::InvalidFormat if the file is empty. \a what names the file in the
+    /// \return The text. \c srt::Error::FileNotOpen if the file cannot be opened.
+    /// \c srt::Error::InvalidFormat if the file is empty. \a what names the file in the
     ///         error.
     srt::Expected<std::string> readTextFile(const std::filesystem::path &path,
                                             std::string_view what);
@@ -99,7 +99,7 @@ namespace otter::onnx {
     /// A stop interrupts a running model by stopping its session, and the call then fails with
     /// the driver's error for an interrupted session. If \a cancelled returns true, that failure
     /// is reported as a cancellation instead of a model failure. A call that completed after the
-    /// stop is also reported as a cancellation, because a cancelled execution reports no result.
+    /// stop is also reported as a cancellation, because a canceled execution reports no result.
     /// A missing output is reported as \c AnalysisError::ModelFailed. \a what names the model in
     /// errors.
     srt::Expected<Tensors> run(ds::InferenceSession &session, Tensors inputs,
@@ -185,7 +185,7 @@ namespace otter::onnx {
                                         const std::set<std::string> &wanted,
                                         std::string_view what) const {
             // Qualified: the contract's run() would hide this free function (the appendix of
-            // docs/plans/tifa-align.md).
+            // docs/plans/TifaAlign.md).
             return otter::onnx::run(session, std::move(inputs), wanted, what,
                                     [this] { return this->cancelled(); });
         }

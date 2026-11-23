@@ -24,7 +24,8 @@ namespace otter::tifa {
     /// padding rather than being a symbol, so a lookup that fails yields it.
     class Vocabulary {
     public:
-        /// Reads the exporter's vocabulary.json, which holds <tt>{"symbols": {label: id}}</tt>.
+        /// Reads the exporter's vocabulary.json, which holds a symbols object that maps each label
+        /// to its identifier.
         static srt::Expected<Vocabulary> read(const std::filesystem::path &path);
 
         /// The number of \a label, or 0 when the vocabulary does not carry it.
@@ -119,8 +120,8 @@ namespace otter::tifa {
     /// The lyrics are split on whitespace and every word is looked up in \a dictionary. A word the
     /// dictionary does not carry is left out, which is what the exporter's own default does with an
     /// unknown word: the model aligns the words that resolved, and a result padded with silence in
-    /// their place would read as "these words are not in this audio" rather than as "I did not
-    /// understand them". A word none of whose readings the vocabulary can spell is left out the
+    /// their place would read as words absent from the audio rather than as a failure to understand
+    /// them. A word none of whose readings the vocabulary can spell is left out the
     /// same way, because a symbol the vocabulary does not carry is not a phoneme and could only be
     /// read as the padding between them. A phrase none of whose words resolved is refused by the
     /// caller, which is where that difference can still be reported.

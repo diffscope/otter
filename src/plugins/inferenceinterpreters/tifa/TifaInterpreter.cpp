@@ -7,7 +7,7 @@
 // host is the decode: a flat Viterbi over the raw cosine similarities, and the words and timings
 // the contract asks for. The text side runs the pipeline the exporter documents. Where this port
 // deliberately differs from the exporter's own inference script is registered one line at a time in
-// docs/plans/tifa-align.md §4.5.
+// docs/plans/TifaAlign.md §4.5.
 
 #include <algorithm>
 #include <array>
@@ -52,29 +52,29 @@ namespace otter::tifa {
 
     namespace {
 
-        /// The language separator the model's symbols carry, as in <tt>zh/a</tt>.
+        // The language separator the model's symbols carry, as in <tt>zh/a</tt>.
         constexpr char LANGUAGE_SEPARATOR = '/';
 
-        /// The frame shift the export is built for, used when the model's own config.json does not
-        /// state one. It is the hop of the exported front end, 10 ms at 48 kHz, and a package
-        /// whose graphs were built for another shift says so in the file rather than here.
+        // The frame shift the export is built for, used when the model's own config.json does not
+        // state one. It is the hop of the exported front end, 10 ms at 48 kHz, and a package
+        // whose graphs were built for another shift says so in the file rather than here.
         constexpr double FALLBACK_TIMESTEP = 0.01;
 
-        /// The schemes of the writing systems the exporter's dictionaries cover, as wolf names
-        /// them.
-        ///
-        /// The scheme is checked rather than derived from the language, because one language can be
-        /// written two ways and the phonemes of one notation are not the phonemes of another. These
-        /// four are also what the writing systems of the singer side are named, which is what lets
-        /// a host pair this aligner with a singer of the same language.
+        // The schemes of the writing systems the exporter's dictionaries cover, as wolf names
+        // them.
+        //
+        // The scheme is checked rather than derived from the language, because one language can be
+        // written two ways and the phonemes of one notation are not the phonemes of another. These
+        // four are also what the writing systems of the singer side are named, which is what lets
+        // a host pair this aligner with a singer of the same language.
         constexpr char SCHEMES[][9] = {"pinyin", "jyutping", "romaji", "arpabet"};
 
-        /// The languages a configuration can carry a dictionary for, and the key it carries it
-        /// under.
-        ///
-        /// The key names the language rather than the model's code for it: which file holds a
-        /// language's pronunciations is the package's business, and the model's code is a separate
-        /// mapping because the vocabulary prefixes its own symbols with it.
+        // The languages a configuration can carry a dictionary for, and the key it carries it
+        // under.
+        //
+        // The key names the language rather than the model's code for it: which file holds a
+        // language's pronunciations is the package's business, and the model's code is a separate
+        // mapping because the vocabulary prefixes its own symbols with it.
         constexpr std::pair<const char *, const char *> DICTIONARY_KEYS[] = {
             {"cmn", "dictionaryCmn"},
             {"yue", "dictionaryYue"},
@@ -84,23 +84,23 @@ namespace otter::tifa {
 
         using TensorPtr = std::shared_ptr<ds::ITensor>;
 
-        /// What the exporter's config.json says about the graphs.
+        // What the exporter's config.json says about the graphs.
         struct ModelFacts {
-            /// The rate the front end is built for. A declaration stating another one would have
-            /// the host prepare audio the model then misplaces.
+            // The rate the front end is built for. A declaration stating another one would have
+            // the host prepare audio the model then misplaces.
             int sampleRate = 0;
 
-            /// Seconds between adjacent frames, which is what turns a frame index into a time.
+            // Seconds between adjacent frames, which is what turns a frame index into a time.
             double timestep = FALLBACK_TIMESTEP;
 
-            /// The mel bins the spectrogram graph emits, when the file states them.
+            // The mel bins the spectrogram graph emits, when the file states them.
             std::optional<int> melBins;
 
-            /// The classes the model graph scores, when the file states them.
+            // The classes the model graph scores, when the file states them.
             std::optional<int> classes;
         };
 
-        /// Reads the exporter's config.json.
+        // Reads the exporter's config.json.
         srt::Expected<ModelFacts> readModelFacts(const std::filesystem::path &path) {
             auto document = otter::onnx::readJsonObject(path, "the model's config.json");
             if (!document) {
@@ -152,7 +152,7 @@ namespace otter::tifa {
             return facts;
         }
 
-        /// Whether \a scheme is one of the writing systems this variant reads.
+        // Whether \a scheme is one of the writing systems this variant reads.
         bool isKnownScheme(const std::string &scheme) {
             for (const auto &known : SCHEMES) {
                 if (scheme == known) {
@@ -162,11 +162,11 @@ namespace otter::tifa {
             return false;
         }
 
-        /// The dictionary key of \a language, or null when this variant covers no such language.
-        ///
-        /// A language outside the four the exporter ships dictionaries for is refused rather than
-        /// looked up by a derived name: a key the declaration could spell in a way this variant did
-        /// not expect is a dictionary it would silently not read.
+        // The dictionary key of \a language, or null when this variant covers no such language.
+        //
+        // A language outside the four the exporter ships dictionaries for is refused rather than
+        // looked up by a derived name: a key the declaration could spell in a way this variant did
+        // not expect is a dictionary it would silently not read.
         const char *dictionaryKey(const std::string &language) {
             for (const auto &[covered, key] : DICTIONARY_KEYS) {
                 if (language == covered) {
@@ -176,12 +176,12 @@ namespace otter::tifa {
             return nullptr;
         }
 
-        /// The symbols of the vocabulary that carry no language, which any language's result may
-        /// use.
-        ///
-        /// The exporter gives a symbol that two languages merge one number and one spelling as
-        /// well, so a symbol with no prefix means "no language in particular" rather than "no
-        /// language".
+        // The symbols of the vocabulary that carry no language, which any language's result may
+        // use.
+        //
+        // The exporter gives a symbol that two languages merge one number and one spelling as
+        // well, so a symbol with no prefix means that no language in particular applies rather
+        // than that no language exists.
         std::set<std::string> sharedSymbols(const otter::tifa::Vocabulary &vocabulary) {
             std::set<std::string> shared;
             for (const auto &[label, number] : vocabulary.symbols()) {
@@ -192,7 +192,7 @@ namespace otter::tifa {
             return shared;
         }
 
-        /// The phonemes a language's symbols hold, without the prefix that names the language.
+        // The phonemes a language's symbols hold, without the prefix that names the language.
         std::set<std::string> emittedOf(const otter::tifa::Vocabulary &vocabulary,
                                         const std::string &code) {
             const std::string prefix = code + LANGUAGE_SEPARATOR;
@@ -205,7 +205,7 @@ namespace otter::tifa {
             return emitted;
         }
 
-        /// Lists a difference set the way a reader can act on it.
+        // Lists a difference set the way a reader can act on it.
         std::string spelled(const std::set<std::string> &labels) {
             std::string result;
             for (const auto &label : labels) {
@@ -214,10 +214,10 @@ namespace otter::tifa {
             return result;
         }
 
-        /// What this variant reads from its configuration block: the five graphs, the files the
-        /// export came with, and the map from the host's language identifiers to the model's own
-        /// codes. The audio format, the languages and the phonemes are contract facts and live in
-        /// exports.
+        // What this variant reads from its configuration block: the five graphs, the files the
+        // export came with, and the map from the host's language identifiers to the model's own
+        // codes. The audio format, the languages and the phonemes are contract facts and live in
+        // exports.
         class TifaConfiguration : public srt::ContribConfiguration {
         public:
             TifaConfiguration() : srt::ContribConfiguration(Triplet) {
@@ -229,35 +229,35 @@ namespace otter::tifa {
             std::filesystem::path score;
             std::filesystem::path select;
 
-            /// The exporter's config.json: the rate and the frame shift its front end is built for.
+            // The exporter's config.json: the rate and the frame shift its front end is built for.
             std::filesystem::path config;
 
-            /// The exporter's vocabulary.json: the symbols the model can emit and their numbers.
+            // The exporter's vocabulary.json: the symbols the model can emit and their numbers.
             std::filesystem::path vocabulary;
 
-            /// One dictionary per language the declaration lists, keyed by the host's identifier.
+            // One dictionary per language the declaration lists, keyed by the host's identifier.
             std::map<std::string, std::filesystem::path> dictionaries;
 
-            /// Maps the identifiers the exports list to the codes the model speaks.
-            ///
-            /// The contract speaks identifiers because a model's own codes are its own: two models
-            /// need not agree that <tt>zh</tt> is the same language, or spell it the same way.
+            // Maps the identifiers the exports list to the codes the model speaks.
+            //
+            // The contract speaks identifiers because a model's own codes are its own: two models
+            // need not agree that <tt>zh</tt> is the same language, or spell it the same way.
             std::map<std::string, std::string> languages;
         };
 
-        /// Everything the model side needs, read once when an analyzer is created.
+        // Everything the model side needs, read once when an analyzer is created.
         struct ModelFiles {
             ModelFacts facts;
             otter::tifa::Vocabulary vocabulary;
 
-            /// The model's own code for each declared language.
+            // The model's own code for each declared language.
             std::map<std::string, std::string> codes;
 
-            /// One dictionary per language the exports declare, keyed by the host's identifier.
+            // One dictionary per language the exports declare, keyed by the host's identifier.
             std::map<std::string, otter::tifa::Dictionary> dictionaries;
 
-            /// Reads the files the configuration points at. A language without a dictionary is
-            /// refused here rather than at the first execution that asks for it.
+            // Reads the files the configuration points at. A language without a dictionary is
+            // refused here rather than at the first execution that asks for it.
             static srt::Expected<ModelFiles> load(const TifaConfiguration &configuration) {
                 auto facts = readModelFacts(configuration.config);
                 if (!facts) {
@@ -284,11 +284,11 @@ namespace otter::tifa {
             }
         };
 
-        /// The sessions one analyzer opens, together and in one place.
-        ///
-        /// The three text graphs are opened on the CPU: they are lookup, integer and boolean work,
-        /// which the accelerator backends do not all carry, and moving a handful of small tensors
-        /// across the bus to run them is slower than leaving them where they are.
+        // The sessions one analyzer opens, together and in one place.
+        //
+        // The three text graphs are opened on the CPU: they are lookup, integer and boolean work,
+        // which the accelerator backends do not all carry, and moving a handful of small tensors
+        // across the bus to run them is slower than leaving them where they are.
         struct OpenedModels {
             std::unique_ptr<ds::InferenceSession> spectrogram;
             std::unique_ptr<ds::InferenceSession> model;
@@ -297,8 +297,8 @@ namespace otter::tifa {
             std::unique_ptr<ds::InferenceSession> select;
         };
 
-        /// The same five graphs as the executive holds them, which is as handles: the executive
-        /// owns the sessions and its body runs them through these.
+        // The same five graphs as the executive holds them, which is as handles: the executive
+        // owns the sessions and its body runs them through these.
         struct Models {
             ds::InferenceSession *spectrogram = nullptr;
             ds::InferenceSession *model = nullptr;
@@ -326,8 +326,8 @@ namespace otter::tifa {
             return TensorPtr(tensor.take());
         }
 
-        /// A boolean tensor, which is one byte an element: what the graphs that take a mask or a
-        /// flag read whichever backend runs them.
+        // A boolean tensor, which is one byte an element: what the graphs that take a mask or a
+        // flag read whichever backend runs them.
         srt::Expected<TensorPtr> flags(const std::vector<std::int64_t> &shape,
                                        const std::vector<std::uint8_t> &values) {
             const stdc::array_view<std::byte> raw(
@@ -339,7 +339,7 @@ namespace otter::tifa {
             return TensorPtr(tensor.take());
         }
 
-        /// Lays a grid's per-row arrays out the way the graphs read them: one row after another.
+        // Lays a grid's per-row arrays out the way the graphs read them: one row after another.
         std::vector<std::int64_t> flatten(const std::vector<std::vector<std::int64_t>> &perRow) {
             std::vector<std::int64_t> flat;
             for (const auto &row : perRow) {
@@ -348,7 +348,7 @@ namespace otter::tifa {
             return flat;
         }
 
-        /// Reads a tensor of whole numbers, as one row of everything it holds.
+        // Reads a tensor of whole numbers, as one row of everything it holds.
         srt::Expected<std::vector<std::int64_t>> readInt64s(const TensorPtr &tensor,
                                                             std::size_t count, const char *what) {
             if (!tensor) {
@@ -368,7 +368,7 @@ namespace otter::tifa {
             return std::vector<std::int64_t>(view.begin(), view.end());
         }
 
-        /// Reads a boolean tensor as one flag per element.
+        // Reads a boolean tensor as one flag per element.
         srt::Expected<std::vector<std::uint8_t>> readFlags(const TensorPtr &tensor,
                                                            std::size_t count, const char *what) {
             if (!tensor) {
@@ -392,7 +392,7 @@ namespace otter::tifa {
             return result;
         }
 
-        /// Reads a tensor of scores, as one row of everything it holds.
+        // Reads a tensor of scores, as one row of everything it holds.
         srt::Expected<std::vector<float>> readFloats(const TensorPtr &tensor, std::size_t count,
                                                      const char *what) {
             if (!tensor) {
@@ -412,11 +412,11 @@ namespace otter::tifa {
             return std::vector<float>(view.begin(), view.end());
         }
 
-        /// Checks that one output is a tensor of exactly the shape a graph promised.
-        ///
-        /// The text graphs describe a grid the host handed over, and the two meet in these shapes:
-        /// a tensor of another rank or of another capacity is one whose values cannot be read at
-        /// the offsets the grid is in, so it is refused where it arrives rather than indexed into.
+        // Checks that one output is a tensor of exactly the shape a graph promised.
+        //
+        // The text graphs describe a grid the host handed over, and the two meet in these shapes:
+        // a tensor of another rank or of another capacity is one whose values cannot be read at
+        // the offsets the grid is in, so it is refused where it arrives rather than indexed into.
         srt::Expected<std::vector<std::int64_t>> expectShape(const TensorPtr &tensor,
                                                              const std::vector<std::int64_t> &shape,
                                                              const char *what) {
@@ -642,12 +642,12 @@ namespace otter::tifa {
             }
 
         private:
-            /// The spectrogram of one span, and the frames of it that carry audio.
+            // The spectrogram of one span, and the frames of it that carry audio.
             struct Features {
                 TensorPtr spectrogram;
                 TensorPtr maskT;
 
-                /// The frame indices the mask keeps, in order.
+                // The frame indices the mask keeps, in order.
                 std::vector<std::size_t> heard;
             };
 
@@ -714,28 +714,28 @@ namespace otter::tifa {
                 return features;
             }
 
-            /// The template a grid is scored through: the token the model is asked about in every
-            /// row before any reading has been picked, and the rows and segments the fragments are
-            /// made of.
+            // The template a grid is scored through: the token the model is asked about in every
+            // row before any reading has been picked, and the rows and segments the fragments are
+            // made of.
             struct Template {
-                /// The tokens the model is asked about, one per grid row: the exporter's own
-                /// template, which reads a slot a reading could move as its MASK rather than as the
-                /// first reading.
+                // The tokens the model is asked about, one per grid row: the exporter's own
+                // template, which reads a slot a reading could move as its MASK rather than as the
+                // first reading.
                 TensorPtr tokens;
 
-                /// Which rows of that template carry a token at all.
+                // Which rows of that template carry a token at all.
                 TensorPtr maskN;
 
                 std::vector<std::int64_t> values;
                 std::vector<std::int64_t> segments;
                 std::vector<std::int64_t> mapping;
 
-                /// Whether any row is a slot a reading could move, which is all there is to choose
-                /// between: with none of them every reading of every word is the same phrase.
+                // Whether any row is a slot a reading could move, which is all there is to choose
+                // between: with none of them every reading of every word is the same phrase.
                 bool scored = false;
             };
 
-            /// The template one grid makes, as the prepare graph reads it.
+            // The template one grid makes, as the prepare graph reads it.
             srt::Expected<Template> prepareTemplate(const otter::tifa::Grid &grid) const {
                 if (!m_models.prepare) {
                     return srt::Error(srt::Error::InvalidFormat,
@@ -982,31 +982,31 @@ namespace otter::tifa {
                 return picked.take();
             }
 
-            /// The tokens the decode runs on: one per row of the grid, chosen by the graph that
-            /// picks between a word's readings, with the rows it left empty marked out.
+            // The tokens the decode runs on: one per row of the grid, chosen by the graph that
+            // picks between a word's readings, with the rows it left empty marked out.
             struct ChosenTokens {
                 TensorPtr tensor;
 
-                /// The rows the graph chose a token for, masked out of the score where it did not.
+                // The rows the graph chose a token for, masked out of the score where it did not.
                 TensorPtr mask;
 
-                /// The chosen token number of each row, 0 where the row holds no token.
+                // The chosen token number of each row, 0 where the row holds no token.
                 std::vector<std::int64_t> values;
 
                 std::vector<std::uint8_t> valid;
 
-                /// The word and the group the select graph reports for each row of its own output.
-                ///
-                /// They are read from the graph rather than taken from the grid row of the same
-                /// number because that graph compacts: it removes the rows a chosen reading leaves
-                /// empty, so from the first such row on, row p of its output is a later row of the
-                /// grid. Reading the grid at p instead would hand one word the rows of the next,
-                /// and the label of a row that reading left empty, which is no label at all.
+                // The word and the group the select graph reports for each row of its own output.
+                //
+                // They are read from the graph rather than taken from the grid row of the same
+                // number because that graph compacts: it removes the rows a chosen reading leaves
+                // empty, so from the first such row on, row p of its output is a later row of the
+                // grid. Reading the grid at p instead would hand one word the rows of the next,
+                // and the label of a row that reading left empty, which is no label at all.
                 std::vector<std::int64_t> words;
                 std::vector<std::int64_t> groups;
 
-                /// The reading each word of the grid was read as, as a column of the grid, numbered
-                /// from zero.
+                // The reading each word of the grid was read as, as a column of the grid, numbered
+                // from zero.
                 std::vector<std::size_t> candidates;
             };
 
@@ -1047,8 +1047,8 @@ namespace otter::tifa {
                     }
                     inputs["groups"] = groups.take();
 
-                    // The graph numbers candidate columns from one and reads zero as "this word was
-                    // not read at all", which is what the host's whole-word program reported: a
+                    // The graph numbers candidate columns from one and reads zero as a word that
+                    // was not read at all, which is what the host's whole-word program reported: a
                     // word that is not in the grid has no column, so every choice is a column the
                     // grid holds.
                     auto tensor = int64s({1, static_cast<std::int64_t>(choices.size())}, choices);
@@ -1094,8 +1094,8 @@ namespace otter::tifa {
 
                 chosen.candidates.assign(choices.size(), 0);
                 for (std::size_t word = 0; word < choices.size(); ++word) {
-                    // The graph numbers candidate columns from one and reads zero as "this word was
-                    // not read at all", which is what the host's whole-word program reported: a
+                    // The graph numbers candidate columns from one and reads zero as a word that
+                    // was not read at all, which is what the host's whole-word program reported: a
                     // word that is not in the grid has no column, so every choice is a column the
                     // grid holds.
                     if (choices[word] < 0 || choices[word] > columns) {
@@ -1226,12 +1226,12 @@ namespace otter::tifa {
                 // reference's zero-width handling drops, so it is dropped here rather than reported
                 // as a phone of no length, which the contract has no way to express.
                 struct Placed {
-                    /// The word of the grid the row is a phone of, numbered from zero.
+                    // The word of the grid the row is a phone of, numbered from zero.
                     std::size_t word = 0;
 
-                    /// What the reading that word was read as spells at that phone, as the result
-                    /// reports it. Never empty: a reading whose phoneme the vocabulary cannot spell
-                    /// is no reading at all, so it was never handed to the model.
+                    // What the reading that word was read as spells at that phone, as the result
+                    // reports it. Never empty: a reading whose phoneme the vocabulary cannot spell
+                    // is no reading at all, so it was never handed to the model.
                     std::string label;
 
                     std::size_t first = 0;
@@ -1448,7 +1448,7 @@ namespace otter::tifa {
             // Each dictionary names the language it holds rather than the model's code for it,
             // because the file is the package's own choice and two languages sharing a code would
             // otherwise have to share one. A key with no matching language is refused here, so a
-            // misspelled one is not read as "this language has no dictionary".
+            // misspelled one is not read as a language without a dictionary.
             for (const auto &[language, key] : DICTIONARY_KEYS) {
                 const auto it = object.find(key);
                 if (it == object.end()) {
@@ -1640,7 +1640,8 @@ namespace otter::tifa {
             }
 
             // The model has no non-speech head: it cannot report a breath or a cough, so promising
-            // one would make "none found" and "nothing was looked for" the same answer.
+            // one would make a search that found nothing and a search that never ran the same
+            // answer.
             if (!declared.nonSpeechPhonemes.empty()) {
                 return srt::Error(srt::Error::InvalidFormat,
                                   "the tifa model detects no non-speech sound, so the exports "
