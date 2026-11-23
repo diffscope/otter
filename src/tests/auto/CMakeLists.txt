@@ -1,7 +1,7 @@
 include("${SYNTHRT_MODULES_DIR}/AddAutoTest.cmake")
 
 # The tests load the library under test, synthrt, its stdcorelib dependencies and, if present,
-# dsinfer and ONNX Runtime at run time. Windows resolves those through PATH; the ELF and Mach-O
+# dsinfer and ONNX Runtime at run time. Windows resolves those through PATH. The ELF and Mach-O
 # loaders need their own variables, so all three are set. Every test target receives the same
 # environment.
 #

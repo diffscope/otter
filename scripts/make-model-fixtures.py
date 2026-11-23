@@ -61,7 +61,7 @@ HFA_SPANS = 5
 HFA_BREATH_START_OFFSET = 3
 HFA_BREATH_END_OFFSET = 5
 
-# Logit of the breath class; the logits of the other two non-speech classes are zero.
+# Logit of the breath class. The logits of the other two non-speech classes are zero.
 HFA_BREATH_LOGIT = 1.0
 
 # The tifa variant declares the same frame length as the hfa one at a different rate, and its five
@@ -434,7 +434,7 @@ def build_note_estimator(path: Path) -> None:
         helper.make_node("Unsqueeze", ["scores_flat", "axis"], ["scores"]),
         # presence alternates between present and absent so that a presence cutoff has an
         # observable effect. It is a boolean because the shipped model outputs a boolean presence
-        # flag instead of a confidence; a host interprets it as a confidence of one or zero.
+        # flag instead of a confidence. A host interprets it as a confidence of one or zero.
         _const("hundred", np.array([2], dtype=np.int64)),
         helper.make_node("Mod", ["index", "hundred"], ["parity"]),
         _const("zero_p", np.array([0], dtype=np.int64)),
@@ -534,7 +534,7 @@ def build_hfa(path: Path, classes: list = HFA_CLASSES) -> None:
         helper.make_node("Or", ["before_q", "is_separator"], ["sp_head"]),
         helper.make_node("Or", ["sp_head", "from_q4"], ["is_sp"]),
         # The breath lies strictly inside the separator. The breath span must exceed the minimum
-        # duration that the decoder reports; otherwise the fixture would test the duration
+        # duration that the decoder reports. Otherwise the fixture would test the duration
         # threshold instead of the schedule.
         _const("three_pad", np.array([HFA_BREATH_START_OFFSET], dtype=np.int64)),
         _const("five_pad", np.array([HFA_BREATH_END_OFFSET], dtype=np.int64)),
@@ -1003,7 +1003,7 @@ def build_tifa_select(path: Path) -> None:
     nodes.append(helper.make_node("Equal", ["words", "zero"], ["padding"]))
     nodes.append(helper.make_node("Or", ["unread", "padding"], ["no_word"]))
     # The choice numbers the columns from one and zero already means "no column", so the token's own
-    # index is the choice minus one; an unread row's index is pulled back into the table for the same
+    # index is the choice minus one. An unread row's index is pulled back into the table for the same
     # reason as above and then thrown away by the mask rather than read from a neighbour.
     nodes.append(helper.make_node("Sub", ["choice", "one"], ["chosen_column"]))
     nodes.append(helper.make_node("Less", ["chosen_column", "zero"], ["before_table"]))
@@ -1345,7 +1345,7 @@ TIFA_SIGNATURES = {
             ("segments", TensorProto.INT64, ["B", "P"]),
             ("mapping", TensorProto.INT64, ["B", "P"]),
         ],
-        # The export annotates `descriptors` with two axes while the graph produces three, because
+        # The export annotates descriptors with two axes while the graph produces three, because
         # its dynamic axes rewrote the annotation. The host has to read the tensor the graph writes,
         # so this fixture declares, and produces, the rank the export actually returns.
         "outputs": [
@@ -1440,7 +1440,7 @@ def _assert_tensor(where: str, name: str, got: np.ndarray, want: np.ndarray) -> 
         raise AssertionError(f"{where}: {name} is {got.dtype}, the reference says {want.dtype}")
     if np.issubdtype(want.dtype, np.floating):
         # A cost a graph writes where nothing is reachable may be an infinity, and equal infinities
-        # compare equal; the tolerance is for the finite values, which are sums in single precision.
+        # compare equal. The tolerance is for the finite values, which are sums in single precision.
         agrees = np.allclose(got, want, rtol=1e-6, atol=1e-6, equal_nan=True)
     else:
         agrees = np.array_equal(got, want)
@@ -1709,7 +1709,7 @@ def main() -> int:
     write_hfa_schedule(align)
 
     # The same schedule with a different class order, in which the separator is not class zero.
-    # The reference implementation assumes that it is; a provider with the same assumption would
+    # The reference implementation assumes that it is. A provider with the same assumption would
     # decode "a" as the separator and place no word at the positions of the lyrics.
     reordered_classes = ["zh/a", "zh/b", "AP", "EP", "", "SP"]
     reordered = output / "fixture-align-reordered"

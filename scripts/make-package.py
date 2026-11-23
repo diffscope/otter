@@ -90,7 +90,8 @@ def load_lint():
 CHUNK = 1 << 20
 
 # Timestamp of every entry, so that two runs produce identical archives. Zip stores local time in
-# MS-DOS format, which cannot represent dates before 1980; 1980-01-01 is the conventional minimum.
+# MS-DOS format, which cannot represent dates before 1980. The date 1980-01-01 is the conventional
+# minimum.
 FIXED_TIME = (1980, 1, 1, 0, 0, 0)
 
 

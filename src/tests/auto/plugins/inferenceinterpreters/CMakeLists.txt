@@ -143,7 +143,7 @@ endforeach()
 
 # The ggml tests load packages they write themselves and need no fixtures, packages directory or
 # driver. Their execution cases run against a stand-in command line tool that answers the engines'
-# protocols with canned output, which the build compiles beside the tests; the real-engine cases
+# protocols with canned output, which the build compiles beside the tests. The real-engine cases
 # name the engine through the environment and report themselves as a skip without it.
 add_executable(otterfakecli fakecli.cpp)
 target_compile_features(otterfakecli PRIVATE cxx_std_17)

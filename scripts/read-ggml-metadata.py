@@ -105,7 +105,7 @@ def tifa_facts(metadata: dict) -> None:
 
     vocabulary = json.loads(metadata["tifa.vocab.json"])
     symbols = vocabulary.get("symbols", {})
-    # The symbols of one language are the ones its code prefixes; a symbol without a prefix is
+    # The symbols of one language are the ones its code prefixes. A symbol without a prefix is
     # shared, and any language's result may report it.
     prefixed: dict[str, list[str]] = {}
     shared: list[str] = []

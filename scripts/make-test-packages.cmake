@@ -696,7 +696,7 @@ set(_otter_test_package_data_27 [[{
 #
 # The bytes below were recorded from the packages that were tracked before they were removed, so the
 # content is the content the tests read from the source directory. CMake writes text files in text
-# mode, so a run on Windows writes CRLF where the recording used LF; the readers parse JSON and do
+# mode, so a run on Windows writes CRLF where the recording used LF. The readers parse JSON and do
 # not care, and the check below normalises line endings, so a directory generated on either platform
 # passes either way.
 
@@ -732,7 +732,7 @@ set(_otter_bad "")
 foreach(_i RANGE ${_otter_package_last})
     list(GET _otter_test_package_files ${_i} _otter_name)
     set(_otter_data "${_otter_test_package_data_${_i}}")
-    # The script itself may have been checked out with CRLF; the recorded content is LF, so the
+    # The script itself may have been checked out with CRLF. The recorded content is LF, so the
     # carriage returns are dropped here rather than carried into the packages.
     string(REPLACE "" "" _otter_data "${_otter_data}")
     set(_otter_path "${_otter_root}/${_otter_name}")

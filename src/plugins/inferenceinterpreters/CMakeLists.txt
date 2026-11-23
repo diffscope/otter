@@ -1,6 +1,6 @@
 get_filename_component(_dir_name ${CMAKE_CURRENT_LIST_DIR} NAME)
 set(CURRENT_PLUGIN_CATEGORY ${_dir_name})
-# The inference category belongs to synthrt; these interpreters therefore use synthrt's plugin IID.
+# The inference category belongs to synthrt. These interpreters therefore use synthrt's plugin IID.
 set(CURRENT_PLUGIN_IID org.openvpi.synthrt.plugin.InferenceInterpreter)
 
 # Declares one interpreter plugin of this category, from the directory of that name:

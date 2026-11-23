@@ -304,7 +304,7 @@ class Packages(unittest.TestCase):
     def test_tifa_language_the_variant_does_not_cover(self):
         # The aligner resolves the dictionary of every language its exports declare through its own
         # table of the four languages it covers and rejects a declaration that lists another one
-        # (`tifa/main.cpp`:77-82, `:1610-1619`). The lint skipped such a language, because its own
+        # (tifa/main.cpp:77-82, :1610-1619). The lint skipped such a language, because its own
         # table has no entry either, and so passed a package that cannot load.
         exports = json.loads(json.dumps(TIFA_EXPORTS))
         exports["languages"][0]["language"] = "deu"
@@ -319,7 +319,7 @@ class Packages(unittest.TestCase):
         self.assertIn("which the tifa variant does not cover", output.getvalue())
 
     def test_tifa_phonemes_must_be_the_vocabulary(self):
-        # The shared symbols carry no language prefix, so they may be promised by any language;
+        # The shared symbols carry no language prefix, so they may be promised by any language.
         # a prefixed symbol that is missing or unknown is an error either way.
         for phonemes in (["AP", "a"], ["AP", "a", "b", "c"]):
             exports = json.loads(json.dumps(TIFA_EXPORTS))

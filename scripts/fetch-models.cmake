@@ -1,7 +1,7 @@
 # Fetches the model packages of a release into a directory.
 #
 # The packages are data, not sources: they are published as assets of a release rather than tracked
-# in this repository, and docs/packages.md is the authority on what a release holds. This script
+# in this repository, and docs/Packages.md is the authority on what a release holds. This script
 # downloads the manifest of the release, checks every archive against the SHA512 that manifest
 # states for it, and unpacks it, so that a checkout can be given the real packages in one command,
 # without a Python interpreter.
@@ -16,16 +16,17 @@
 # Every argument is read as a cache variable, so -D has to precede -P.
 #
 #   DOTTER_FETCH_OUTPUT          directory holding the manifest, the archives and the unpacked
-#                                packages; required, because the script exists to write something
-#   DOTTER_FETCH_VARIANTS        variants to fetch, separated by ';' or ',', or "all"; empty lists
+#                                packages. Required, because the script exists to write something.
+#   DOTTER_FETCH_VARIANTS        variants to fetch, separated by semicolons or commas, or the word
+#                                all. An empty value lists the packages and fetches nothing.
 #   DOTTER_FETCH_TAG             release tag (default: models-v0.1)
-#   DOTTER_FETCH_REPOSITORY      owner/name of the repository holding the release; the project's
-#                                homepage by default
-#   DOTTER_FETCH_BASE_URL        where the assets are read from; defaults to the download URL of
-#                                the tag, and is what the self-check points at a local release
+#   DOTTER_FETCH_REPOSITORY      owner/name of the repository holding the release. The project's
+#                                homepage is the default.
+#   DOTTER_FETCH_BASE_URL        where the assets are read from. Defaults to the download URL of
+#                                the tag, and is what the self-check points at a local release.
 #   DOTTER_FETCH_MANIFEST        read this manifest instead of downloading one, which makes the run
-#                                work offline; the manifest of a fetched release is kept in the
-#                                output directory and can be handed back this way
+#                                work offline. The manifest of a fetched release is kept in the
+#                                output directory and can be handed back this way.
 #   DOTTER_FETCH_KEEP_ARCHIVES   keep the archives beside the unpacked packages (default: OFF,
 #                                because a full release is twice its unpacked size)
 #
@@ -46,7 +47,7 @@ cmake_minimum_required(VERSION 3.19)
 # Arguments
 # --------------------------------------------------
 
-# Every setting is read from the environment first and from a cache variable second; see the note
+# Every setting is read from the environment first and from a cache variable second. See the note
 # above on why both are accepted.
 macro(_otter_fetch_setting name default)
     if(DEFINED ENV{${name}} AND NOT "$ENV{${name}}" STREQUAL "")
@@ -119,7 +120,7 @@ if(_entry_count EQUAL 0)
     message(FATAL_ERROR "${_manifest_file} lists no packages")
 endif()
 
-# A release tag is the bundle version without its trailing zero components (docs/packages.md), so a
+# A release tag is the bundle version without its trailing zero components (docs/Packages.md), so a
 # manifest announcing a version whose tag is not the tag this run reads came from another release.
 # Fetching it anyway would put packages of one release beside the name of another.
 set(_trimmed "${_bundle}")

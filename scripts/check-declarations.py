@@ -113,7 +113,7 @@ MODEL_KEYS = {
         "required": ["cli", "model"],
         # The directory the engine's G2P configuration resolves its dictionary references
         # against. A package without it reads the dictionaries from beside the model, so it is
-        # optional here; it is a directory rather than a file, and the path checks below reach it
+        # optional here. It is a directory rather than a file, and the path checks below reach it
         # through DIRECTORY_KEYS.
         "optional": ["dictionaries"],
     },
@@ -127,7 +127,7 @@ DIRECTORY_KEYS = {
 }
 
 # The dictionary key a tifa configuration carries for each language its exports may declare.
-# The model's own code for the language is a separate mapping (`configuration.languages`), because
+# The model's own code for the language is a separate mapping (configuration.languages), because
 # one is the file's name and the other is what the vocabulary prefixes its symbols with.
 TIFA_DICTIONARIES = {
     "cmn": "dictionaryCmn",
@@ -184,7 +184,7 @@ ALIGN_LANGUAGE_KEYS = {"language", "scheme", "lyrics", "phonemes"}
 HFA_VOCAB_KEYS = {"vocab": dict, "silent_phonemes": list, "non_lexical_phonemes": list}
 
 # Type of the model code to which each variant's configuration maps a language identifier. The
-# game model identifies languages by integer; the hfa model identifies its dictionaries by a string
+# game model identifies languages by integer. The hfa model identifies its dictionaries by a string
 # code. In both variants configuration.languages maps host identifiers to model codes, so the lint
 # checks only the type of each value.
 LANGUAGE_NUMBERING = {
@@ -594,7 +594,7 @@ def check_declaration(path: Path, report: Report, declarations_only: bool = Fals
                 if kind == "string" and not (isinstance(value, str) and value):
                     report.error(where, f"the model code of {name} must be a non-empty string")
         # The two blocks must agree: every language listed in the exports requires a model code.
-        # The provider rejects the same inconsistency at load; the lint reports it before
+        # The provider rejects the same inconsistency at load. The lint reports it before
         # publication.
         declared = declared_languages(interface, exports)
         for language in declared:
@@ -650,7 +650,7 @@ def check_align_declaration(where: str, path: Path, variant: str, exports: dict,
         return
     if variant == "tifa-ggml":
         # The engine's vocabulary and G2P configuration live inside the GGUF file, which this lint
-        # cannot read; the interpreter checks the declared phonemes against the model when an
+        # cannot read. The interpreter checks the declared phonemes against the model when an
         # analyzer is created.
         return
     check_hfa_align_declaration(where, path, exports, configuration, numbering, report)
@@ -815,7 +815,7 @@ def check_tifa_align_declaration(where: str, path: Path, exports: dict, configur
         key = TIFA_DICTIONARIES.get(language)
         if key is None:
             # The aligner resolves the dictionary of every language its exports declare through its
-            # own table of the four languages it covers (`tifa/main.cpp`:77-82, `:1610-1619`) and
+            # own table of the four languages it covers (tifa/main.cpp:77-82, :1610-1619) and
             # rejects a declaration that lists another one. A language this table cannot name is
             # therefore an error rather than a case to skip: the lint promises that a package it
             # passes loads, and this one would not.
