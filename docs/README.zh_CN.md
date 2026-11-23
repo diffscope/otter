@@ -91,13 +91,13 @@ CMake 3.20 或更高版本（配置只需要项目声明的 3.19，下文用到�
 
 包括 synthrt 在内的所有依赖都来自 vcpkg。端口依次从两个 overlay 中查找：先是本仓库的 `scripts/vcpkg-ports`，然后是 `scripts/vcpkg-sources.json` 指定的共享 overlay。
 
-+ [synthrt](https://github.com/diffscope/synthrt)，经由本仓库的 `synthrt-main` 端口，该端口钉在主线的 `onnxruntime-builds-uptake` 分支上
++ [synthrt](https://github.com/diffscope/synthrt)，经由本仓库的 `synthrt-main` 端口，该端口钉在 synthrt 主线的某个提交上
 + [stdcorelib](https://github.com/SineStriker/stdcorelib)
 + [qmsetup](https://github.com/stdware/qmsetup)
 
 只有构建测试时才需要 Boost.Test。
 
-随附的四个 provider 都运行 ONNX 模型，只在有 dsinfer 时构建。`onnx` feature（`--x-feature=onnx`）加入 `synthrt-main[onnx]`，它把 dsinfer 的 CMake 包装在 synthrt 的包旁边，`find_package(synthrt-dsinfer)` 因而能找到它。没有这个 feature 时，库照样构建，包照样加载，只是不能执行分析器。synthrt 在没有自己的驱动时也是这样。`game-ggml` 与 `tifa-ggml` 两个 provider 在两个方向上都不受此限：它们不需要 dsinfer，也不需要 ONNX Runtime，而是**运行**一个来自引擎自己发布版、而非来自本仓库的引擎可执行文件。这个可执行文件从 game.cpp 的 `.oudep` 或 tifa.cpp 的 `tifa-cli-*.tar.gz` 解包得到，由声明指名（见 [GgmlProviders.md](GgmlProviders.md)）。
+随附的四个 provider 都通过 dsinfer 运行 ONNX 模型。`synthrt-main` 端口始终安装 dsinfer，因此这些 provider 会随库一起构建。可选的 `onnx` feature（`--x-feature=onnx`）加入 `synthrt-main[onnx]`，由它提供 ONNX Runtime。没有这个 feature 时，库与 provider 照样构建，包照样加载，但分析器无法执行，因为 ONNX 驱动不存在。`game-ggml` 与 `tifa-ggml` 两个 provider 在两个方向上都不受此限：它们不需要 dsinfer，也不需要 ONNX Runtime，而是**运行**一个来自引擎自己发布版、而非来自本仓库的引擎可执行文件。这个可执行文件从 game.cpp 的 `.oudep` 或 tifa.cpp 的 `tifa-cli-*.tar.gz` 解包得到，由声明指名（见 [GgmlProviders.md](GgmlProviders.md)）。
 
 ## 构建
 

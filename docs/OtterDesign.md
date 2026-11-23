@@ -18,7 +18,7 @@
 | 代码树 | 观察点 | 引用写法 |
 | :-- | :-- | :-- |
 | spec 2.4 | synthrt 仓 `docs/ds-spec-2.4.md` 的 main 分支（[在线](https://github.com/diffscope/synthrt/blob/main/docs/ds-spec-2.4.md)） | `spec 2.4 §<章节名>` |
-| synthrt / dsinfer | 分支 `onnxruntime-builds-uptake`（由 `scripts/vcpkg-ports/synthrt-main` 固定） | 文件路径与符号，如 `synthrt/include/synthrt/Core/ContribSpec.h` |
+| synthrt / dsinfer | 分支 `main`（由 `scripts/vcpkg-ports/synthrt-main` 固定提交） | 文件路径与符号，如 `synthrt/include/synthrt/Core/ContribSpec.h` |
 | refactor 抽参子系统 | lite `main` 分支所引用的 synthrt 版本 | `lib/Extract/...`、`plugins/Extract/...` |
 | lite | 分支 `main` | `src/app/Modules/Extractors/...` |
 

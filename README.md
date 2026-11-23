@@ -91,13 +91,13 @@ CMake 3.20 or later (configuring needs the 3.19 the project declares; the `ctest
 
 Every dependency, synthrt included, comes from vcpkg. Ports resolve through two overlays, searched in order: `scripts/vcpkg-ports` in this repository, then the shared overlay that `scripts/vcpkg-sources.json` specifies.
 
-+ [synthrt](https://github.com/diffscope/synthrt), through the in-repo `synthrt-main` port, which pins the `onnxruntime-builds-uptake` branch of the main line
++ [synthrt](https://github.com/diffscope/synthrt), through the in-repo `synthrt-main` port, which pins a commit on the synthrt main branch
 + [stdcorelib](https://github.com/SineStriker/stdcorelib)
 + [qmsetup](https://github.com/stdware/qmsetup)
 
 Boost.Test is needed only to build the tests.
 
-All four shipped providers run ONNX models and are built only if dsinfer is present. The `onnx` feature (`--x-feature=onnx`) adds `synthrt-main[onnx]`, which installs the dsinfer CMake package beside the synthrt package so that `find_package(synthrt-dsinfer)` locates it. Without this feature the library still builds and packages still load; only analyzer execution is unavailable. synthrt behaves in the same way without its own driver. The `game-ggml` and `tifa-ggml` providers sit outside that story in both directions: they build without dsinfer and without ONNX Runtime, and they **run** an engine executable that comes from the engine's own release rather than from this repository — unpacked from game.cpp's `.oudep` or tifa.cpp's `tifa-cli-*.tar.gz` and named by the declaration ([docs/GgmlProviders.md](docs/GgmlProviders.md)).
+All four shipped providers run ONNX models through dsinfer. The `synthrt-main` port always installs dsinfer, so these providers are built with it. The optional `onnx` feature (`--x-feature=onnx`) adds `synthrt-main[onnx]`, which provides ONNX Runtime. Without this feature the library and the providers still build, and packages still load, but analyzer execution is unavailable because the ONNX driver is absent. The `game-ggml` and `tifa-ggml` providers sit outside that story in both directions: they need neither dsinfer nor ONNX Runtime, and they **run** an engine executable that comes from the engine's own release rather than from this repository — unpacked from game.cpp's `.oudep` or tifa.cpp's `tifa-cli-*.tar.gz` and named by the declaration ([docs/GgmlProviders.md](docs/GgmlProviders.md)).
 
 ## Build
 
