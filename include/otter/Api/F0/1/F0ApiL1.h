@@ -51,20 +51,20 @@ namespace otter::Api::F0::L1 {
 
         /// Whether to interpolate the curve across unvoiced frames instead of leaving it at zero.
         Common::L1::FlagKnob interpolateUnvoiced;
-    };
 
-    /// Reads the \c exports block of \a spec as an F0 Level 1 schema.
-    ///
-    /// Every provider of this contract reads its declaration through this function, so two
-    /// variants cannot differ in the interpretation of a key or in the reporting of an invalid
-    /// value. A variant then checks the result against the capabilities of its own models.
-    ///
-    /// \c sampleRate and \c interval are required. \c channelCount defaults to 1,
-    /// \c maxSegmentDuration to no limit, and a knob that is not declared is not honored.
-    ///
-    /// \return The schema, or an \c InvalidFormat error that describes the first invalid value.
-    OTTER_EXPORT srt::Expected<std::unique_ptr<Exports>>
-        readF0Exports(const srt::ContribSpec &spec);
+        /// Reads the \c exports block of \a spec as an F0 Level 1 schema.
+        ///
+        /// Every provider of this contract reads its declaration through this function, so two
+        /// variants cannot differ in the interpretation of a key or in the reporting of an invalid
+        /// value. A variant then checks the result against the capabilities of its own models.
+        ///
+        /// \c sampleRate and \c interval are required. \c channelCount defaults to 1,
+        /// \c maxSegmentDuration to no limit, and a knob that is not declared is not honored.
+        ///
+        /// \return The schema, or an \c InvalidFormat error that describes the first invalid value.
+        OTTER_EXPORT static srt::Expected<std::unique_ptr<Exports>> read(
+            const srt::ContribSpec &spec);
+    };
 
     /// Contains the import options of an F0 analysis module, which identify only the contract.
     ///

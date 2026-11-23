@@ -93,7 +93,7 @@ otter (库，链接进宿主)
 │   ├── AnalysisInterpreter.h       解释器抽象（派生 srt::InferenceInterpreter，拒绝非空 import options）
 │   ├── AnalysisTask.h              执行生命周期：建于 srt::ITask 之上的任务面（A15 及补记），
 │   │                               非模板基类 AnalysisTaskBase 在库内实现（A28）
-│   └── AnalysisInput.h             输入校验：prepareSamples()、chooseKnob()（第 9.5 节）
+│   └── AnalysisInput.h             输入校验：PreparedSamples::prepare()、chooseKnob()（第 9.5 节）
 └── Api/
     ├── Common/1/CommonApiL1.h      AudioSegment、Knob / IntKnob / FlagKnob、ProgressCallback
     ├── F0/1/F0ApiL1.h              org.openvpi.otter.inference.F0 契约面
@@ -129,7 +129,7 @@ SynthUnit::openPackage(...)                       // 装载模型包
        └─ 解释器（插件）读取 exports 与 configuration
 
 宿主:
-  F0Api::readF0Exports(spec)                       // 读取能力：采样率、帧间隔、旋钮域
+  F0Api::Exports::read(spec)                       // 读取能力：采样率、帧间隔、旋钮域
   F0Api::createAnalyzer(*spec->as<InferenceSpec>())
       // = spec.createInference(ImportOptions(), RuntimeOptions())
       // → unique_ptr<Executive>
@@ -212,12 +212,11 @@ namespace otter::Api::F0::L1 {
         Common::L1::Knob voicingThreshold;
         /// 是否对清音段的 f0 进行插值填充。
         Common::L1::FlagKnob interpolateUnvoiced;
-    };
 
-    /// 读取声明的 exports 块。契约语法归接口所有，每个 variant 均经此函数读取，再各自核对
-    /// 自身模型能否满足。configuration 块归 variant 所有，其类型定义在各自的提供者中。
-    OTTER_EXPORT srt::Expected<std::unique_ptr<Exports>>
-        readF0Exports(const srt::ContribSpec &spec);
+        /// 读取声明的 exports 块。契约语法归接口所有，每个 variant 均经此函数读取，再各自核对
+        /// 自身模型能否满足。
+        static srt::Expected<std::unique_ptr<Exports>> read(const srt::ContribSpec &spec);
+    };
 
     class ImportOptions : public otter::AnalysisImportOptions { /* 只标识契约 */ };
     class RuntimeOptions : public otter::AnalysisRuntimeOptions { /* 只标识契约 */ };
@@ -321,12 +320,11 @@ namespace otter::Api::Note::L1 {
         Common::L1::Knob notePresenceCutoff;
         /// 迭代步数。
         Common::L1::IntKnob steps;
-    };
 
-    /// 读取声明的 exports 块，与 F0 相同。game variant 的 configuration（五个模型路径、timestep、
-    /// 语言编号映射、扩散起点）是该 variant 自有的类型，宿主不读取。
-    OTTER_EXPORT srt::Expected<std::unique_ptr<Exports>>
-        readNoteExports(const srt::ContribSpec &spec);
+        /// 读取声明的 exports 块，与 F0 相同。game variant 的 configuration（五个模型路径、
+        /// timestep、语言编号映射、扩散起点）是该 variant 自有的类型，宿主不读取。
+        static srt::Expected<std::unique_ptr<Exports>> read(const srt::ContribSpec &spec);
+    };
 
     class ImportOptions : public otter::AnalysisImportOptions { /* 同 F0 */ };
     class RuntimeOptions : public otter::AnalysisRuntimeOptions { /* 同 F0 */ };
@@ -419,10 +417,10 @@ namespace otter::Api::Align::L1 {
         Common::L1::Knob nonSpeechThreshold;    ///< 判定非语音的帧概率阈值
         Common::L1::Knob nonSpeechMinDuration;  ///< 报告的最短非语音段（秒）
         Common::L1::Knob gapFill;               ///< 短于该值（秒）的词间空隙并入相邻词，而非留作静音
-    };
 
-    OTTER_EXPORT srt::Expected<std::unique_ptr<Exports>>
-        readAlignExports(const srt::ContribSpec &spec);
+        /// 读取声明的 exports 块。
+        static srt::Expected<std::unique_ptr<Exports>> read(const srt::ContribSpec &spec);
+    };
 
     class StartInput : public srt::TaskStartInput {
     public:
@@ -794,7 +792,7 @@ otter 将以下三项职责明确留给宿主，三者缺一不可：
 
 > **接口名与扩展 ID 部分已被 A26 取代。** 接口名现为 `org.openvpi.otter.inference.*`，扩展已删除； `exports` 与 `configuration` 的分工仍然有效。
 
-**决策**：采样率、声道数、帧间隔、段上限、语言标识、`supportsKnownNotes` 与全部旋钮域写在声明的 `exports` 中，由库中每份契约各一个的读取函数（`readF0Exports` / `readNoteExports` / `readAlignExports`）解析，并发布 JSON Schema（`docs/schemas/`）。`configuration` 只包含变体私有内容：rmvpe 的模型路径； game 的五个模型路径、`timestep`、语言编号映射与 `scheduleStart`；hfa 的模型、mel 配置、词表的路径与语言编号映射（词典由词表定位，见 A21）。变体在加载期将两块内容相互核对：模型无法支持的采样率、声明了但缺少模型的对齐路径、词表中缺少对应词典的语言，均在加载期拒绝。接口名当时改为 `org.openvpi.otter.analysis.F0` / `.Note` / `.Align`，扩展 ID 改为 `org.openvpi.otter.extension.*`。
+**决策**：采样率、声道数、帧间隔、段上限、语言标识、`supportsKnownNotes` 与全部旋钮域写在声明的 `exports` 中，由库中每份契约各一个的读取函数（`F0::L1::Exports::read` / `Note::L1::Exports::read` / `Align::L1::Exports::read`）解析，并发布 JSON Schema（`docs/schemas/`）。`configuration` 只包含变体私有内容：rmvpe 的模型路径； game 的五个模型路径、`timestep`、语言编号映射与 `scheduleStart`；hfa 的模型、mel 配置、词表的路径与语言编号映射（词典由词表定位，见 A21）。变体在加载期将两块内容相互核对：模型无法支持的采样率、声明了但缺少模型的对齐路径、词表中缺少对应词典的语言，均在加载期拒绝。接口名当时改为 `org.openvpi.otter.analysis.F0` / `.Note` / `.Align`，扩展 ID 改为 `org.openvpi.otter.extension.*`。
 
 **依据**：spec 2.4 §「三个语法块的归属」规定，`exports` 语法归 `interface + level`、由导入方读取， `configuration` 全部归 `variant`；「需要参与跨模块契约的内容应由 `exports` 公开，而不是作为 `configuration` 中的契约字段」。若将契约事实放入各变体的 `configuration` 再派生 `exports`，每增加一个变体就要为同一批事实另立一套键，`DataOnly` 模式读不到能力，文档示例也与 lint 规则相反。`hfa` 作为第三个变体验证了这一分工：其 `configuration` 只含私有的文件路径与语言映射，没有重复任何契约事实。接口名采用与 `org.openvpi.dsinfer.inference.*`、`org.openvpi.wolf.inference.*` 一致的项目段写法，并在尚无已发布包时完成改名。
 
@@ -850,7 +848,7 @@ otter 将以下三项职责明确留给宿主，三者缺一不可：
 
 ### A24 — 不做解码、重采样与自动切段，超限即拒绝
 
-**决策**：`hfa` 不读文件、不解码、不重采样（A7 的规则），也不实现参考实现中「超过 60 秒自动切段后逐段拼接」的逻辑。`maxSegmentDuration` 声明为 60，超限由 `otter::prepareSamples()` 拒绝。
+**决策**：`hfa` 不读文件、不解码、不重采样（A7 的规则），也不实现参考实现中「超过 60 秒自动切段后逐段拼接」的逻辑。`maxSegmentDuration` 声明为 60，超限由 `otter::PreparedSamples::prepare()` 拒绝。
 
 **依据**：切段跨越契约边界（每段的结果需要各自回到宿主的时间轴），自动切段出错的后果是不可见的边界错误；参考实现的该路径还包含一个 Python 版本的均值补齐变体，otter 中没有对应实现。宿主本就负责切片（A7），声明清楚上限即可。
 
@@ -900,7 +898,7 @@ otter 将以下三项职责明确留给宿主，三者缺一不可：
 - hfa 变体要求 `exports` 声明 `silenceLabel`，并要求它既在词表的 `silent_phonemes` 中，也是词表 `vocab` 的一个类。词典展开歌词时以它作为词间分隔符，解码时将它的类作为静音类；该类的下标从词表读取，不再像参考实现那样假定为 0。模型自带的 `config.json`、`vocab.json` 与 `exports` 所列语言的词典在加载期由 `createConfiguration` 读取一次并由 configuration 持有，创建分析器时只打开图；只为 `exports` 声明的语言装载词典，configuration 额外映射的语言不再要求有词典。音频短于模型的一帧时以 `InvalidArgument` 拒绝，不再返回空结果。
 - Note：调用方给出的语言必须属于 `exports` 声明的语言（game 先查 `exports.languages`，再查 configuration 的编号；桩变体在未声明任何语言时也拒绝，与头文件中「Must be one the module declares」一致）。`knownNotes` 除原有的三条约束外，还不得结束于片段之后；game 与桩经同一个私有检查函数（`otter::support::checkKnownNotes`），在任何模型运行之前拒绝。
 - F0 的清音插值移入私有库（`otter::support::interpolateUnvoiced`），由 rmvpe 与桩共用：锚点为频率大于 0 的浊音帧，频率为 0 Hz 的浊音帧既不作锚点也不被改写，其两侧照常插值（此前会使其后的整段清音保持模型原值）；插值单遍完成，不再对每个清音帧重新扫描整段。
-- `otter::prepareSamples()` 的返回类型由 `std::vector<float>` 改为 `otter::PreparedSamples`：单声道片段以调用方缓冲区的视图返回，不再整体复制；多声道片段仍平均到自有缓冲区。视图的有效期与 `AudioSegment` 相同。
+- `otter::PreparedSamples::prepare()` 的返回类型由 `std::vector<float>` 改为 `otter::PreparedSamples`：单声道片段以调用方缓冲区的视图返回，不再整体复制；多声道片段仍平均到自有缓冲区。视图的有效期与 `AudioSegment` 相同。
 - linter 与加载器对齐，原则是「加载器拒绝的声明，linter 必须拒绝」：补齐变体事实（rmvpe 16000 Hz / 0.01 s、 game 44100 Hz、三个变体均为单声道）、hfa 的 `configuration.languages` 必填、`config.json` 的 `hop_size` 与 `vocab.json` 的三个必需键、`silenceLabel` 必须声明且是词表的类、game 的 `timestep > 0` 与 `scheduleStart ∈ [0, 1]`、整数上界 2^31−1、包 id 与贡献 id 的文法、版本号各段不超过 int，以及写给本包分析器的 `imports[].options` 非空即拒绝；相对路径中的 `\` 按 `/` 解析。版本文法与加载器一致，为 1 至 4 段，不要求四段（已发布的包使用四段，但加载器不作要求）。自测逐条覆盖上述拒绝规则，并断言键表与 `docs/schemas` 一致；三份 exports JSON Schema 为 `sampleRate`、`channelCount` 与整数旋钮补上与读取器一致的上界。 `make-package.py` 改用 linter 的 JSON 读取器与 `MODEL_KEYS`，分块写入，不再因文件名相同而使伴随文件相互覆盖；同一输入两次打包的结果逐字节一致。
 - `AnalysisTask<Input, Result>` 的通用线程与状态逻辑由 `srt::ITask` 统一提供。`otter::AnalysisTaskBase` 只保留载荷身份验证、`AnalysisError::Cancelled` 分类和异常/worker 错误映射；模板负责 typed body、结果转换和 typed callback。`startWorker()` 仍可覆盖以测试建线程失败。三个分析契约与所有提供者共享同一套 claim、callback、等待和 active-only stop 语义。
 - 三个 ONNX 提供者重复的会话外壳（stop / wait 转发、取消翻译、驱动获取与会话创建、模型调用与输出检查、 `readFloats`、路径读取、波形张量、插件守卫）移入私有静态库 `otter_onnx_support`（今为 `onnxutil`，见 A33）；插件的 CMake 目标由函数 `otter_add_interpreter_plugin` 声明，桩插件改名为 `otterstub`（A33 起为测试里的静态插件）。桩实现 Align 契约，使 Align 读取器在不含 dsinfer 的构建中也有测试覆盖。
@@ -939,7 +937,7 @@ otter 将以下三项职责明确留给宿主，三者缺一不可：
 
 ### A30 — 错误码按条件拆成六个取值
 
-**决策**：`AnalysisError` 从四个取值扩展为六个，每个取值只对应一种条件。`Internal` 收窄为「执行体抛出异常、执行体没有产出结果、解释器在加载期建立的声明对象缺失」；新增 `ContractViolation`，表示产出了其他契约的执行体或结果；`ModelFailed` 收窄为「模型没有产出变体要读的输出（缺失）」；新增 `ModelMismatch`，表示输出存在但元素类型、形状或元素数不符。读取输出时「为空」与「类型不符」不再合判，两种情况各自的码与消息都只说明自己那一种。包自身的文件（`manifest.json`、`config.json`、词汇表、词典、exports 声明）与变体不符时仍用框架的 `srt::Error::InvalidFormat`，宿主传参不合法时仍用 `srt::Error::InvalidArgument`，两者都不属于本类别。「能力缺失」这类条件同样以 `srt::Error::InvalidArgument` 拒绝，如宿主请求了模型没有声明的非语音标签：不合法的是这次请求本身，与「包与变体不符」是两回事，故不取 `FeatureNotSupported`。例外是「不支持」的一方不是包与变体，而是运行它的一份构建、驱动或插件：驱动侧的三项在 `openSession` 中检查（本单元没有注册 ONNX 驱动、注册的服务不是驱动、驱动未能建立会话），插件只服务某个接口/级别/变体则由独立的 `checkServed` 比对，与驱动无关；这些仍用 `srt::Error::FeatureNotSupported`。库自身只支持单声道是执行期限制（`prepareSamples`，取 `srt::Error::FeatureNotSupported`），而四个出厂变体在 `createExports` 里已按「包与变体不符」于装载期以 `srt::Error::InvalidFormat` 拒绝声道数不为 1 的声明。桩没有这一层检查，按 2 声道声明的包仍能装载，直到第一次执行才被库拒绝。「能力缺失」的拒绝消息同样是一句话：说清调用方请求了什么、本模型做不到什么，句尾的「做不到」由本模型承担（`which this model cannot <动词>`），不写包、不写环境；`tifa`、`hfa` 与桩拒绝未声明的非语音音素时即 `the caller asked for the non-speech phoneme <标签>, which this model cannot report`。
+**决策**：`AnalysisError` 从四个取值扩展为六个，每个取值只对应一种条件。`Internal` 收窄为「执行体抛出异常、执行体没有产出结果、解释器在加载期建立的声明对象缺失」；新增 `ContractViolation`，表示产出了其他契约的执行体或结果；`ModelFailed` 收窄为「模型没有产出变体要读的输出（缺失）」；新增 `ModelMismatch`，表示输出存在但元素类型、形状或元素数不符。读取输出时「为空」与「类型不符」不再合判，两种情况各自的码与消息都只说明自己那一种。包自身的文件（`manifest.json`、`config.json`、词汇表、词典、exports 声明）与变体不符时仍用框架的 `srt::Error::InvalidFormat`，宿主传参不合法时仍用 `srt::Error::InvalidArgument`，两者都不属于本类别。「能力缺失」这类条件同样以 `srt::Error::InvalidArgument` 拒绝，如宿主请求了模型没有声明的非语音标签：不合法的是这次请求本身，与「包与变体不符」是两回事，故不取 `FeatureNotSupported`。例外是「不支持」的一方不是包与变体，而是运行它的一份构建、驱动或插件：驱动侧的三项在 `openSession` 中检查（本单元没有注册 ONNX 驱动、注册的服务不是驱动、驱动未能建立会话），插件只服务某个接口/级别/变体则由独立的 `checkServed` 比对，与驱动无关；这些仍用 `srt::Error::FeatureNotSupported`。库自身只支持单声道是执行期限制（`PreparedSamples::prepare`，取 `srt::Error::FeatureNotSupported`），而四个出厂变体在 `createExports` 里已按「包与变体不符」于装载期以 `srt::Error::InvalidFormat` 拒绝声道数不为 1 的声明。桩没有这一层检查，按 2 声道声明的包仍能装载，直到第一次执行才被库拒绝。「能力缺失」的拒绝消息同样是一句话：说清调用方请求了什么、本模型做不到什么，句尾的「做不到」由本模型承担（`which this model cannot <动词>`），不写包、不写环境；`tifa`、`hfa` 与桩拒绝未声明的非语音音素时即 `the caller asked for the non-speech phoneme <标签>, which this model cannot report`。
 
 **依据**：A28 引入的 `Internal` 与 `ModelFailed` 各自混合了多种互不相同的条件，宿主只能把它们一并当作「模型跑不动」处理，而「模型文件不完整」与「模型与变体不匹配」需要不同的处置。spec 2.4 要求契约规定其错误语义，一个取值对应多种条件时，宿主无法按码分支。
 
@@ -993,7 +991,7 @@ otter 将以下三项职责明确留给宿主，三者缺一不可：
 
 | 编号 | 类别 | 问题 | 处置 |
 | :-- | :-- | :-- | :-- |
-| **X1** | 正确性 | `channelCount` 读入成员后未被使用，两个提供者无条件降混，声明为 2 声道的模型会被静默送入单声道输入 | 校验下沉到 `otter::prepareSamples()`，模型声明的声道数无法满足时直接拒绝 |
+| **X1** | 正确性 | `channelCount` 读入成员后未被使用，两个提供者无条件降混，声明为 2 声道的模型会被静默送入单声道输入 | 校验下沉到 `otter::PreparedSamples::prepare()`，模型声明的声道数无法满足时直接拒绝 |
 | **X2** | 正确性 | 未校验 `samples.size()` 是否为整帧数，尾部不完整的帧被整除丢弃，表现为后续的时间漂移而非错误 | 同上，拒绝而非丢弃 |
 | **X3** | 契约 | `knownNotes` 的时间基准不一致：头文件规定与音频同一时间轴（绝对时间），实现却按相对于片段起点处理，而输出为绝对时间。宿主分析第一段时结果无差异，之后每一段均出错且无任何提示 | 统一为绝对时间；提供者减去 `startTime` 并校验落在片段内。用例改为 `startTime = 30` |
 | **X4** | 规范符合度 | `createImportOptions` 无条件报错，使 spec 2.4 允许的情形变为加载失败；规范明确允许 import 一个不提供 Factory 的类别的贡献，加载器也接受空工厂 | 返回空 options 与惰性 binding；只有显式写出 options 时才拒绝（Level 1 契约不读取 import options） |

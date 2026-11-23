@@ -148,24 +148,25 @@ namespace otter::Api::Align::L1 {
         /// Longest gap between two aligned words that is absorbed into the surrounding words
         /// rather than left as silence, in seconds.
         Common::L1::Knob gapFill;
-    };
 
-    /// Reads the \c exports block of \a spec as an Align Level 1 schema.
-    ///
-    /// Every provider of this contract reads its declaration through this function, so two
-    /// variants cannot differ in the interpretation of a key or in the reporting of an invalid
-    /// value. A variant then checks the result against the capabilities of its own model.
-    ///
-    /// \c sampleRate is required. \c channelCount defaults to 1, \c maxSegmentDuration to no
-    /// limit, \c languages and \c nonSpeechPhonemes to none, \c silenceLabel to empty, and a knob
-    /// that is not declared is not honored. A language must be an ISO 639-3 code, and a scheme
-    /// must follow wolf's grammar. Each language and scheme pair must appear at most once, the
-    /// phonemes of an entry must not repeat, a default language is required if languages are
-    /// declared, and the default non-speech labels must be among the declared labels.
-    ///
-    /// \return The schema, or an \c InvalidFormat error that describes the first invalid value.
-    OTTER_EXPORT srt::Expected<std::unique_ptr<Exports>>
-        readAlignExports(const srt::ContribSpec &spec);
+        /// Reads the \c exports block of \a spec as an Align Level 1 schema.
+        ///
+        /// Every provider of this contract reads its declaration through this function, so two
+        /// variants cannot differ in the interpretation of a key or in the reporting of an invalid
+        /// value. A variant then checks the result against the capabilities of its own model.
+        ///
+        /// \c sampleRate is required. \c channelCount defaults to 1, \c maxSegmentDuration to no
+        /// limit, \c languages and \c nonSpeechPhonemes to none, \c silenceLabel to empty, and a
+        /// knob that is not declared is not honored. A language must be an ISO 639-3 code, and a
+        /// scheme must follow wolf's grammar. Each language and scheme pair must appear at most
+        /// once, the phonemes of an entry must not repeat, a default language is required if
+        /// languages are declared, and the default non-speech labels must be among the declared
+        /// labels.
+        ///
+        /// \return The schema, or an \c InvalidFormat error that describes the first invalid value.
+        OTTER_EXPORT static srt::Expected<std::unique_ptr<Exports>> read(
+            const srt::ContribSpec &spec);
+    };
 
     /// Contains the import options of an Align analysis module, which identify only the contract.
     ///

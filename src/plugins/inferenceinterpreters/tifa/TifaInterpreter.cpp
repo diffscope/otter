@@ -457,7 +457,7 @@ namespace otter::tifa {
             srt::Expected<std::unique_ptr<AlignApi::Result>>
                 run(const AlignApi::StartInput &input) override {
                 const auto &audio = input.audio;
-                auto prepared = otter::prepareSamples(
+                auto prepared = otter::PreparedSamples::prepare(
                     audio, m_schema.sampleRate, m_schema.channelCount, m_schema.maxSegmentDuration);
                 if (!prepared) {
                     return prepared.takeError();
@@ -1655,7 +1655,7 @@ namespace otter::tifa {
 
     srt::Expected<std::unique_ptr<srt::ContribExports>>
         TifaInterpreter::createExports(const srt::ContribSpec &spec) const {
-        auto schema = AlignApi::readAlignExports(spec);
+        auto schema = AlignApi::Exports::read(spec);
         if (!schema) {
             return schema.takeError();
         }

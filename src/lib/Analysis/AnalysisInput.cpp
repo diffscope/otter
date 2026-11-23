@@ -5,9 +5,9 @@
 
 namespace otter {
 
-    srt::Expected<PreparedSamples> prepareSamples(const Api::Common::L1::AudioSegment &audio,
-                                                  int sampleRate, int channelCount,
-                                                  double maxSegmentDuration) {
+    srt::Expected<PreparedSamples>
+        PreparedSamples::prepare(const Api::Common::L1::AudioSegment &audio, int sampleRate,
+                                 int channelCount, double maxSegmentDuration) {
         if (channelCount != 1) {
             // This code cannot widen a span, so a model that declares a channel count other than
             // one cannot receive the audio it declares. Rejecting the model at the first execution

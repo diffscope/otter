@@ -62,33 +62,33 @@ namespace otter {
             return data() + size();
         }
 
+        /// Checks one span against the audio format of a model and returns the samples to supply
+        /// to the model.
+        ///
+        /// The two format fields are treated differently by design. Channels are averaged to one
+        /// channel, because the caller would otherwise have to perform the same arithmetic with the
+        /// same result. The sample rate is never converted, because resampling changes the result,
+        /// and silent resampling would conceal that the host prepared audio at the wrong rate.
+        ///
+        /// \a sampleRate and \a channelCount are the values that the model declares, and
+        /// \a maxSegmentDuration is the declared longest span in seconds, 0 indicating no limit. A
+        /// mono span is returned as a view of the samples of \a audio. \a audio must therefore
+        /// outlive the result.
+        ///
+        /// \return The prepared samples. An error with \c FeatureNotSupported if \a channelCount
+        /// is not 1. An error with \c InvalidArgument if the span has another sample rate,
+        /// declares no channels, holds no samples, is not a whole number of frames or is longer
+        /// than \a maxSegmentDuration.
+        OTTER_EXPORT static srt::Expected<PreparedSamples>
+            prepare(const Api::Common::L1::AudioSegment &audio, int sampleRate, int channelCount,
+                    double maxSegmentDuration);
+
     private:
         PreparedSamples() = default;
 
         const std::vector<float> *m_viewed = nullptr;
         std::vector<float> m_owned;
     };
-
-    /// Checks one span against the audio format of a model and returns the samples to supply to
-    /// the model.
-    ///
-    /// The two format fields are treated differently by design. Channels are averaged to one
-    /// channel, because the caller would otherwise have to perform the same arithmetic with the
-    /// same result. The sample rate is never converted, because resampling changes the result,
-    /// and silent resampling would conceal that the host prepared audio at the wrong rate.
-    ///
-    /// \a sampleRate and \a channelCount are the values that the model declares, and
-    /// \a maxSegmentDuration is the declared longest span in seconds, 0 indicating no limit. A
-    /// mono span is returned as a view of the samples of \a audio. \a audio must therefore
-    /// outlive the result.
-    ///
-    /// \return The prepared samples. An error with \c FeatureNotSupported if \a channelCount is
-    /// not 1. An error with \c InvalidArgument if the span has another sample rate, declares no
-    /// channels, holds no samples, is not a whole number of frames or is longer than
-    /// \a maxSegmentDuration.
-    OTTER_EXPORT srt::Expected<PreparedSamples>
-        prepareSamples(const Api::Common::L1::AudioSegment &audio, int sampleRate, int channelCount,
-                       double maxSegmentDuration);
 
     /// Returns the value to use for a knob, or an error if the supplied value is outside the
     /// declared range.

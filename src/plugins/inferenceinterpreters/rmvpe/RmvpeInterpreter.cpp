@@ -78,7 +78,7 @@ namespace otter::rmvpe {
             srt::Expected<std::unique_ptr<F0Api::Result>>
                 run(const F0Api::StartInput &input) override {
                 const auto &audio = input.audio;
-                auto prepared = otter::prepareSamples(
+                auto prepared = otter::PreparedSamples::prepare(
                     audio, m_schema.sampleRate, m_schema.channelCount, m_schema.maxSegmentDuration);
                 if (!prepared) {
                     return prepared.takeError();
@@ -186,7 +186,7 @@ namespace otter::rmvpe {
 
     srt::Expected<std::unique_ptr<srt::ContribExports>>
         RmvpeInterpreter::createExports(const srt::ContribSpec &spec) const {
-        auto schema = F0Api::readF0Exports(spec);
+        auto schema = F0Api::Exports::read(spec);
         if (!schema) {
             return schema.takeError();
         }

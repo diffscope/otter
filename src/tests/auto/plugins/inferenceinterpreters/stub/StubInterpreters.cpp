@@ -126,9 +126,9 @@ namespace otter::stub {
             //
             // \return An empty value if the audio matches the declared format. Otherwise the error
             // of
-            //         otter::prepareSamples().
+            //         otter::PreparedSamples::prepare().
             srt::Expected<void> validate(const CommonApi::AudioSegment &audio) const {
-                auto prepared = otter::prepareSamples(
+                auto prepared = otter::PreparedSamples::prepare(
                     audio, m_schema.sampleRate, m_schema.channelCount, m_schema.maxSegmentDuration);
                 if (!prepared) {
                     return prepared.takeError();
@@ -489,7 +489,7 @@ namespace otter::stub {
 
     srt::Expected<std::unique_ptr<srt::ContribExports>>
         StubF0Interpreter::createExports(const srt::ContribSpec &spec) const {
-        auto schema = F0Api::readF0Exports(spec);
+        auto schema = F0Api::Exports::read(spec);
         if (!schema) {
             return schema.takeError();
         }
@@ -515,7 +515,7 @@ namespace otter::stub {
 
     srt::Expected<std::unique_ptr<srt::ContribExports>>
         StubNoteInterpreter::createExports(const srt::ContribSpec &spec) const {
-        auto schema = NoteApi::readNoteExports(spec);
+        auto schema = NoteApi::Exports::read(spec);
         if (!schema) {
             return schema.takeError();
         }
@@ -541,7 +541,7 @@ namespace otter::stub {
 
     srt::Expected<std::unique_ptr<srt::ContribExports>>
         StubAlignInterpreter::createExports(const srt::ContribSpec &spec) const {
-        auto schema = AlignApi::readAlignExports(spec);
+        auto schema = AlignApi::Exports::read(spec);
         if (!schema) {
             return schema.takeError();
         }

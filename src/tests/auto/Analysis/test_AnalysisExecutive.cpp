@@ -748,14 +748,14 @@ BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_RefusesAnExecutiveOfAnotherContract)
 // audio. A stereo span is averaged into a separate buffer.
 BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_PassesAMonoSpanWithoutCopying) {
     auto mono = silence(1.0);
-    auto prepared = otter::prepareSamples(mono, RATE, 1, 0);
+    auto prepared = otter::PreparedSamples::prepare(mono, RATE, 1, 0);
     BOOST_REQUIRE_MESSAGE(static_cast<bool>(prepared), otter::test::why(prepared));
     BOOST_CHECK(prepared->data() == mono.samples.data());
     BOOST_CHECK_EQUAL(prepared->size(), mono.samples.size());
 
     auto stereo = silence(1.0, 0, RATE, 2);
     stereo.samples[0] = 1.0f;
-    auto mixed = otter::prepareSamples(stereo, RATE, 1, 0);
+    auto mixed = otter::PreparedSamples::prepare(stereo, RATE, 1, 0);
     BOOST_REQUIRE_MESSAGE(static_cast<bool>(mixed), otter::test::why(mixed));
     BOOST_CHECK(mixed->data() != stereo.samples.data());
     BOOST_CHECK_EQUAL(mixed->size(), stereo.samples.size() / 2);

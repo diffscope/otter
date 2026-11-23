@@ -244,7 +244,7 @@ namespace otter::game {
             srt::Expected<std::unique_ptr<NoteApi::Result>>
                 run(const NoteApi::StartInput &input) override {
                 const auto &audio = input.audio;
-                auto prepared = otter::prepareSamples(
+                auto prepared = otter::PreparedSamples::prepare(
                     audio, m_schema.sampleRate, m_schema.channelCount, m_schema.maxSegmentDuration);
                 if (!prepared) {
                     return prepared.takeError();
@@ -831,7 +831,7 @@ namespace otter::game {
 
     srt::Expected<std::unique_ptr<srt::ContribExports>>
         GameInterpreter::createExports(const srt::ContribSpec &spec) const {
-        auto schema = NoteApi::readNoteExports(spec);
+        auto schema = NoteApi::Exports::read(spec);
         if (!schema) {
             return schema.takeError();
         }

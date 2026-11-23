@@ -108,21 +108,21 @@ namespace otter::Api::Note::L1 {
 
         /// Number of sampling steps.
         Common::L1::IntKnob steps;
-    };
 
-    /// Reads the \c exports block of \a spec as a Note Level 1 schema.
-    ///
-    /// Every provider of this contract reads its declaration through this function, so two
-    /// variants cannot differ in the interpretation of a key or in the reporting of an invalid
-    /// value. A variant then checks the result against the capabilities of its own models.
-    ///
-    /// \c sampleRate is required. \c channelCount defaults to 1, \c maxSegmentDuration to no
-    /// limit, \c languages to none, \c supportsKnownNotes to false, and a knob that is not
-    /// declared is not honored.
-    ///
-    /// \return The schema, or an \c InvalidFormat error that describes the first invalid value.
-    OTTER_EXPORT srt::Expected<std::unique_ptr<Exports>>
-        readNoteExports(const srt::ContribSpec &spec);
+        /// Reads the \c exports block of \a spec as a Note Level 1 schema.
+        ///
+        /// Every provider of this contract reads its declaration through this function, so two
+        /// variants cannot differ in the interpretation of a key or in the reporting of an invalid
+        /// value. A variant then checks the result against the capabilities of its own models.
+        ///
+        /// \c sampleRate is required. \c channelCount defaults to 1, \c maxSegmentDuration to no
+        /// limit, \c languages to none, \c supportsKnownNotes to false, and a knob that is not
+        /// declared is not honored.
+        ///
+        /// \return The schema, or an \c InvalidFormat error that describes the first invalid value.
+        OTTER_EXPORT static srt::Expected<std::unique_ptr<Exports>> read(
+            const srt::ContribSpec &spec);
+    };
 
     /// Contains the import options of a Note analysis module, which identify only the contract.
     ///

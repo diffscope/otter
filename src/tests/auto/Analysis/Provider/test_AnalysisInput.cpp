@@ -31,20 +31,20 @@ BOOST_AUTO_TEST_CASE(mono_is_borrowed_stereo_is_averaged_and_invalid_audio_is_re
     audio.sampleRate = 100;
     audio.channelCount = 1;
     audio.samples = {1, 3, 5, 7};
-    auto mono = otter::prepareSamples(audio, 100, 1, 0);
+    auto mono = otter::PreparedSamples::prepare(audio, 100, 1, 0);
     BOOST_REQUIRE(mono);
     BOOST_CHECK(mono.value().data() == audio.samples.data());
     audio.channelCount = 2;
-    auto stereo = otter::prepareSamples(audio, 100, 1, 0);
+    auto stereo = otter::PreparedSamples::prepare(audio, 100, 1, 0);
     BOOST_REQUIRE(stereo);
     BOOST_REQUIRE_EQUAL(stereo.value().size(), 2u);
     BOOST_CHECK_EQUAL(stereo.value().data()[0], 2);
     BOOST_CHECK_EQUAL(stereo.value().data()[1], 6);
-    BOOST_CHECK(!otter::prepareSamples(audio, 200, 1, 0));
-    BOOST_CHECK(!otter::prepareSamples(audio, 100, 2, 0));
-    BOOST_CHECK(!otter::prepareSamples(audio, 100, 1, 0.001));
+    BOOST_CHECK(!otter::PreparedSamples::prepare(audio, 200, 1, 0));
+    BOOST_CHECK(!otter::PreparedSamples::prepare(audio, 100, 2, 0));
+    BOOST_CHECK(!otter::PreparedSamples::prepare(audio, 100, 1, 0.001));
     audio.samples.pop_back();
-    BOOST_CHECK(!otter::prepareSamples(audio, 100, 1, 0));
+    BOOST_CHECK(!otter::PreparedSamples::prepare(audio, 100, 1, 0));
 }
 
 BOOST_AUTO_TEST_CASE(knobs_distinguish_ignored_default_and_supplied_values) {
