@@ -75,7 +75,7 @@ refactor 中的已知缺陷，移植时一并修正：
 
 ### 4.1 分析器作为 inference 模块
 
-`srt::InferenceSpec::createInference(importOptions, runtimeOptions)` 是公开方法，只要求模块已载入、两份选项与模块的 (interface, level, variant) 一致，不要求该模块被其他模块 import （`synthrt/include/synthrt/SVS/InferenceContrib.h`、`lib/SVS/InferenceContrib.cpp`）。因此宿主可以直接在顶层创建分析器，方式与 wolf 的测试直接创建 G2P/S2P 执行体相同。每份契约头文件提供 `createAnalyzer(spec)`，该函数用模块自身的 variant 构造该契约的两份选项，调用 `createInference`，再以 `dynamic_cast` 检查并转换为该契约的执行体；解释器返回其他契约的执行体时报 `AnalysisError::ContractViolation`（A30 修订：原报 `Internal`）。其他模块仍可以用普通的 `imports` 条目（`options` 为空）引用分析器，此时框架以相同方式代为创建分析器。
+`srt::InferenceSpec::createInference(importOptions, runtimeOptions)` 是公开方法，只要求模块已载入、两份选项与模块的 (interface, level, variant) 一致，不要求该模块被其他模块 import （`synthrt/include/synthrt/SVS/InferenceContrib.h`、`lib/SVS/InferenceContrib.cpp`）。因此宿主可以直接在顶层创建分析器，方式与 wolf 的测试直接创建 G2P/S2P 执行体相同。每份契约的 `Executive` 类提供 `create(spec)`，该函数用模块自身的 variant 构造该契约的两份选项，调用 `createInference`，再以 `dynamic_cast` 检查并转换为该契约的执行体；解释器返回其他契约的执行体时报 `AnalysisError::ContractViolation`（A30 修订：原报 `Internal`）。其他模块仍可以用普通的 `imports` 条目（`options` 为空）引用分析器，此时框架以相同方式代为创建分析器。
 
 分析器与 wolf 的 G2P/S2P 共用 inference 类别，插件安装在 `lib/synthrt-otter/plugins/inferenceinterpreters`，嵌入 synthrt 的 `InferenceInterpreterPlugin::IID`。宿主经 `SynthUnit::setPluginPaths(srt::InferenceCategory::NAME, ...)` 交给该类别的序列中包含 `prefix / "lib/synthrt-otter/plugins/inferenceinterpreters"`，与 dsinfer 和 wolf 的同名目录并列。CMake 包把每个安装的插件导出为导入目标 `synthrt::<目标名>`，CMake 工程用 `$<TARGET_FILE_DIR:...>` 取得插件所在目录。
 
@@ -93,7 +93,7 @@ otter (库，链接进宿主)
 │   ├── AnalysisInterpreter.h       解释器抽象（派生 srt::InferenceInterpreter，拒绝非空 import options）
 │   ├── AnalysisTask.h              执行生命周期：建于 srt::ITask 之上的任务面（A15 及补记），
 │   │                               非模板基类 AnalysisTaskBase 在库内实现（A28）
-│   └── AnalysisInput.h             输入校验：PreparedSamples::prepare()、chooseKnob()（第 9.5 节）
+│   └── AnalysisInput.h             输入校验：PreparedSamples::prepare()、Knob::choose()（第 9.5 节）
 └── Api/
     ├── Common/1/CommonApiL1.h      AudioSegment、Knob / IntKnob / FlagKnob、ProgressCallback
     ├── F0/1/F0ApiL1.h              org.openvpi.otter.inference.F0 契约面
@@ -130,7 +130,7 @@ SynthUnit::openPackage(...)                       // 装载模型包
 
 宿主:
   F0Api::Exports::read(spec)                       // 读取能力：采样率、帧间隔、旋钮域
-  F0Api::createAnalyzer(*spec->as<InferenceSpec>())
+  F0Api::Executive::create(*spec->as<InferenceSpec>())
       // = spec.createInference(ImportOptions(), RuntimeOptions())
       // → unique_ptr<Executive>
   executive->start(input)    /  startAsync(input, cb)
@@ -265,8 +265,8 @@ namespace otter::Api::F0::L1 {
         bool cancelled() const noexcept;
     };
 
-    /// 创建已载入模块的分析器；以 dynamic_cast 检查执行体属于本契约（A28）。
-    srt::Expected<std::unique_ptr<Executive>> createAnalyzer(srt::InferenceSpec &spec);
+        /// 创建已载入模块的分析器；以 dynamic_cast 检查执行体属于本契约（A28）。
+        static srt::Expected<std::unique_ptr<Executive>> create(srt::InferenceSpec &spec);
 
 }
 ```
@@ -353,7 +353,7 @@ namespace otter::Api::Note::L1 {
     };
 
     class Executive : public otter::AnalysisExecutive {
-        // 与 F0 同形：非虚的 start / startAsync，受保护的纯虚 run 与 cancelled；另有 createAnalyzer
+        // 与 F0 同形：非虚的 start / startAsync，受保护的纯虚 run 与 cancelled；另有 create
     };
 
 }
@@ -866,7 +866,7 @@ otter 将以下三项职责明确留给宿主，三者缺一不可：
 
 ### A26 — 分析器作为 inference 模块，otter 不注册自有类别
 
-**决策**：撤回 A1、A2、A4、A14。F0 / Note / Align 是 synthrt 内置 `inference` 类别下的模块，接口名为 `org.openvpi.otter.inference.{F0,Note,Align}`；解释器派生自 `srt::InferenceInterpreter`，插件嵌入 `srt::InferenceInterpreterPlugin::IID`，安装在 `lib/synthrt-otter/plugins/inferenceinterpreters`；执行体派生自 `srt::InferenceExecutive`。宿主通过契约头文件中的 `createAnalyzer(spec)` 在顶层创建分析器，该函数调用公开的 `srt::InferenceSpec::createInference`。
+**决策**：撤回 A1、A2、A4、A14。F0 / Note / Align 是 synthrt 内置 `inference` 类别下的模块，接口名为 `org.openvpi.otter.inference.{F0,Note,Align}`；解释器派生自 `srt::InferenceInterpreter`，插件嵌入 `srt::InferenceInterpreterPlugin::IID`，安装在 `lib/synthrt-otter/plugins/inferenceinterpreters`；执行体派生自 `srt::InferenceExecutive`。宿主通过契约执行体中的 `Executive::create(spec)` 在顶层创建分析器，该函数调用公开的 `srt::InferenceSpec::createInference`。
 
 **依据**：A1 的前提「`InferenceSpec` 只能经 import 创建执行体」与 synthrt 的实现不符。 `InferenceSpec::createInference` 是公开方法，只校验模块已载入、选项与模块的契约一致，不要求存在 importer；wolf 的测试即以此方式在顶层创建 G2P/S2P 执行体。A1 的另一项理由「扩展 traits 以 spec 类型为键，因此需要自有的 spec 类型」也随之失效，因为不再使用扩展。自有类别不追加字段（A2 的结论对 inference 同样成立），其唯一作用是为扩展提供作为键的 spec 类型。
 
@@ -894,7 +894,7 @@ otter 将以下三项职责明确留给宿主，三者缺一不可：
 - 停止语义保持不变并写入文档：执行检测到停止请求后 `start()` 返回 `AnalysisError::Cancelled`，不返回部分结果，`state()` 为 `Canceled`。这与 wolf linguist「停止后返回已完成部分、状态为 `Canceled`」有意不同。
 - 执行结束后的状态只由错误码决定：`Cancelled` 对应 `Canceled`，其他错误对应 `Failed`，有结果对应 `Succeeded`，不再参考停止标志；工作线程在回调前也不再将状态改为 `Canceled`。
 - `AnalysisError` 新增 `Internal`（执行体抛出异常、解释器在加载期建立的声明对象缺失、产出其他契约的执行体或结果）与 `ModelFailed`（模型输出缺失、元素类型不符、尺寸与输入或其他输出不一致）。这两类错误此前报 `InvalidFormat`，与「声明不合格」混为一谈。取消错误统一由 `otter::cancelledError()` 构造。
-- `srt::ITask` 的公开入口 `start()` / `startAsync()` 在类型转换前校验输入的 `type()` / `version()` 等于 `StartInput::Contract.interfaceId()` / `StartInput::Contract.level()`（各 StartInput 与 Result 类引用同一个 Contract 对象），不符时报 `InvalidArgument`，且在认领执行之前拒绝，不改变状态。类型化入口将结果转换回契约类型前同样校验，不符时报 `ContractViolation`，结果为空时报 `Internal`。`createAnalyzer()` 以 `dynamic_cast` 取代 `static_cast`，失败时报 `ContractViolation`：第三方变体按设计可以提供解释器，其返回的执行体不能被假定属于本契约（A30 修订：结果不符与 `dynamic_cast` 失败原报 `Internal`）。
+- `srt::ITask` 的公开入口 `start()` / `startAsync()` 在类型转换前校验输入的 `type()` / `version()` 等于 `StartInput::Contract.interfaceId()` / `StartInput::Contract.level()`（各 StartInput 与 Result 类引用同一个 Contract 对象），不符时报 `InvalidArgument`，且在认领执行之前拒绝，不改变状态。类型化入口将结果转换回契约类型前同样校验，不符时报 `ContractViolation`，结果为空时报 `Internal`。`Executive::create()` 以 `dynamic_cast` 取代 `static_cast`，失败时报 `ContractViolation`：第三方变体按设计可以提供解释器，其返回的执行体不能被假定属于本契约（A30 修订：结果不符与 `dynamic_cast` 失败原报 `Internal`）。
 - hfa 变体要求 `exports` 声明 `silenceLabel`，并要求它既在词表的 `silent_phonemes` 中，也是词表 `vocab` 的一个类。词典展开歌词时以它作为词间分隔符，解码时将它的类作为静音类；该类的下标从词表读取，不再像参考实现那样假定为 0。模型自带的 `config.json`、`vocab.json` 与 `exports` 所列语言的词典在加载期由 `createConfiguration` 读取一次并由 configuration 持有，创建分析器时只打开图；只为 `exports` 声明的语言装载词典，configuration 额外映射的语言不再要求有词典。音频短于模型的一帧时以 `InvalidArgument` 拒绝，不再返回空结果。
 - Note：调用方给出的语言必须属于 `exports` 声明的语言（game 先查 `exports.languages`，再查 configuration 的编号；桩变体在未声明任何语言时也拒绝，与头文件中「Must be one the module declares」一致）。`knownNotes` 除原有的三条约束外，还不得结束于片段之后；game 与桩经同一个私有检查函数（`otter::support::checkKnownNotes`），在任何模型运行之前拒绝。
 - F0 的清音插值移入私有库（`otter::support::interpolateUnvoiced`），由 rmvpe 与桩共用：锚点为频率大于 0 的浊音帧，频率为 0 Hz 的浊音帧既不作锚点也不被改写，其两侧照常插值（此前会使其后的整段清音保持模型原值）；插值单遍完成，不再对每个清音帧重新扫描整段。
@@ -996,7 +996,7 @@ otter 将以下三项职责明确留给宿主，三者缺一不可：
 | **X3** | 契约 | `knownNotes` 的时间基准不一致：头文件规定与音频同一时间轴（绝对时间），实现却按相对于片段起点处理，而输出为绝对时间。宿主分析第一段时结果无差异，之后每一段均出错且无任何提示 | 统一为绝对时间；提供者减去 `startTime` 并校验落在片段内。用例改为 `startTime = 30` |
 | **X4** | 规范符合度 | `createImportOptions` 无条件报错，使 spec 2.4 允许的情形变为加载失败；规范明确允许 import 一个不提供 Factory 的类别的贡献，加载器也接受空工厂 | 返回空 options 与惰性 binding；只有显式写出 options 时才拒绝（Level 1 契约不读取 import options） |
 | **X5** | 健壮性 | `AnalysisRunner::spawn` 创建线程抛出异常时 `running` 永久为真，分析器此后拒绝一切执行 | 捕获异常并释放认领；任务面中由 `startAsync()` 处理，`startWorker()` 失败时返回 `NoWorker` |
-| **X6** | 契约 | Exports 声明了旋钮的取值域但无任何校验，`steps = -1` 会生成空张量并送入模型 | `otter::chooseKnob()` 按声明的取值域校验，越界即拒绝，不做钳位 |
+| **X6** | 契约 | Exports 声明了旋钮的取值域但无任何校验，`steps = -1` 会生成空张量并送入模型 | `Knob::choose()` 按声明的取值域校验，越界即拒绝，不做钳位 |
 | **X7** | 测试有效性 | 桩提供者不做任何校验，与真实提供者行为不同，针对桩编写的契约用例因此不能证明契约成立 | 桩改为调用同一套库函数；X1、X2、X6 正是在桩上的用例失败后暴露的 |
 
 X1、X2、X6 的共同原因是两个提供者各自实现同一套校验，实现必然产生分歧。与 `AnalysisTask` 相同，校验也下沉到库中（`otter/Analysis/Provider/AnalysisInput.h`），各实现因此保持一致。
@@ -1034,7 +1034,7 @@ X1、X2、X6 的共同原因是两个提供者各自实现同一套校验，实�
 
 ### 验证状态
 
-**已验证**：包加载（含 `DataOnly`）、解释器发现、链接 otter 不引入类别、经 `createAnalyzer` 创建执行体、同步与异步执行、取消、输入校验、旋钮传递、四个提供者在 ONNX 图上的完整链路、对齐路径确实运行 `dur2bd`、 `find_package(synthrt-otter)` 从安装树消费、不含 dsinfer 的最小构建正常降级。
+**已验证**：包加载（含 `DataOnly`）、解释器发现、链接 otter 不引入类别、经 `Executive::create` 创建执行体、同步与异步执行、取消、输入校验、旋钮传递、四个提供者在 ONNX 图上的完整链路、对齐路径确实运行 `dur2bd`、 `find_package(synthrt-otter)` 从安装树消费、不含 dsinfer 的最小构建正常降级。
 
 **已用真实权重验证**：
 - **GAME**：三个合成音 A3 / C4 / E4 转写为 MIDI 57 / 60 / 64，边界位于整秒处，时长与占空比吻合。该验证同时表明，fixture 原先依照提供者的假设声明张量形状，因此测试始终通过而任何真实导出的模型都无法运行； A10 所列的形状修正即由此得出。fixture 现按真实导出编写。

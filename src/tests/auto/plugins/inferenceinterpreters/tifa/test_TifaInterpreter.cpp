@@ -159,7 +159,7 @@ namespace {
 
         std::unique_ptr<AlignApi::Executive> openFrom(const fs::path &directory) {
             auto spec = loadFrom(directory);
-            auto made = AlignApi::createAnalyzer(*spec->as<srt::InferenceSpec>());
+            auto made = AlignApi::Executive::create(*spec->as<srt::InferenceSpec>());
             BOOST_REQUIRE_MESSAGE(static_cast<bool>(made), otter::test::why(made));
             return made.take();
         }
@@ -591,7 +591,7 @@ BOOST_AUTO_TEST_CASE(test_TifaInterpreter_RefusesWhatItCannotHonor) {
 BOOST_AUTO_TEST_CASE(test_TifaInterpreter_AlignsWithTheTrainedModel) {
     Host host;
     auto spec = host.loadFrom(otter::test::realModelsRoot() / "otter-tifa");
-    auto made = AlignApi::createAnalyzer(*spec->as<srt::InferenceSpec>());
+    auto made = AlignApi::Executive::create(*spec->as<srt::InferenceSpec>());
     BOOST_REQUIRE_MESSAGE(static_cast<bool>(made), otter::test::why(made));
     auto analyzer = made.take();
 

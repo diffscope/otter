@@ -202,7 +202,7 @@ namespace {
 
         std::unique_ptr<AlignApi::Executive> open() {
             auto spec = load();
-            auto made = AlignApi::createAnalyzer(*spec->as<srt::InferenceSpec>());
+            auto made = AlignApi::Executive::create(*spec->as<srt::InferenceSpec>());
             BOOST_REQUIRE_MESSAGE(static_cast<bool>(made), why(made));
             return made.take();
         }

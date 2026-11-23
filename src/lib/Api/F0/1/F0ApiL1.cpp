@@ -72,14 +72,14 @@ namespace otter::Api::F0::L1 {
                 return checked.takeError();
             }
             if (const auto knob = knobs.find("voicingThreshold"); knob != knobs.end()) {
-                auto read = manifest::readKnob(knob->second, "voicingThreshold");
+                auto read = Common::L1::Knob::read(knob->second, "voicingThreshold");
                 if (!read) {
                     return read.takeError();
                 }
                 result->voicingThreshold = read.take();
             }
             if (const auto knob = knobs.find("interpolateUnvoiced"); knob != knobs.end()) {
-                auto read = manifest::readFlagKnob(knob->second, "interpolateUnvoiced");
+                auto read = Common::L1::FlagKnob::read(knob->second, "interpolateUnvoiced");
                 if (!read) {
                     return read.takeError();
                 }

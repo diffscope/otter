@@ -127,7 +127,7 @@ namespace {
 
         std::unique_ptr<AlignApi::Executive> open() {
             auto spec = load();
-            auto made = AlignApi::createAnalyzer(*spec->as<srt::InferenceSpec>());
+            auto made = AlignApi::Executive::create(*spec->as<srt::InferenceSpec>());
             BOOST_REQUIRE_MESSAGE(static_cast<bool>(made), otter::test::why(made));
             return made.take();
         }
@@ -296,7 +296,7 @@ BOOST_AUTO_TEST_CASE(test_HfaInterpreter_PlacesTheWordsTheLyricsName) {
 BOOST_AUTO_TEST_CASE(test_HfaInterpreter_AlignsWithTheTrainedModel) {
     Host host;
     auto spec = host.loadDirectory(otter::test::realModelsRoot() / "otter-hfa", "align");
-    auto made = AlignApi::createAnalyzer(*spec->as<srt::InferenceSpec>());
+    auto made = AlignApi::Executive::create(*spec->as<srt::InferenceSpec>());
     BOOST_REQUIRE_MESSAGE(static_cast<bool>(made), otter::test::why(made));
     auto analyzer = made.take();
 
@@ -521,7 +521,7 @@ BOOST_AUTO_TEST_CASE(test_HfaInterpreter_FindsTheSeparatorThroughTheVocabulary) 
     Host host;
     const auto schedule = readSchedule();
     auto spec = host.load("fixture-align-reordered");
-    auto made = AlignApi::createAnalyzer(*spec->as<srt::InferenceSpec>());
+    auto made = AlignApi::Executive::create(*spec->as<srt::InferenceSpec>());
     BOOST_REQUIRE_MESSAGE(static_cast<bool>(made), otter::test::why(made));
     auto analyzer = made.take();
 

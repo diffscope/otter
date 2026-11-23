@@ -138,13 +138,13 @@ namespace otter::gameGgml {
                      &radiusSeconds,                                                                                     "boundaryRadius"    },
             };
             for (const auto &[given, knob, fallback, target, what] : knobs) {
-                auto chosen = otter::chooseKnob(given, knob, fallback, what);
+                auto chosen = knob.choose(given, fallback, what);
                 if (!chosen) {
                     return chosen.takeError();
                 }
                 *target = chosen.take();
             }
-            auto steps = otter::chooseKnob(input.steps, schema.steps, FALLBACK_STEPS, "steps");
+            auto steps = schema.steps.choose(input.steps, FALLBACK_STEPS, "steps");
             if (!steps) {
                 return steps.takeError();
             }

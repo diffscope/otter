@@ -113,14 +113,14 @@ namespace otter::Api::Note::L1 {
                 if (knob == knobs.end()) {
                     continue;
                 }
-                auto read = manifest::readKnob(knob->second, key);
+                auto read = Common::L1::Knob::read(knob->second, key);
                 if (!read) {
                     return read.takeError();
                 }
                 result.get()->*member = read.take();
             }
             if (const auto knob = knobs.find("steps"); knob != knobs.end()) {
-                auto read = manifest::readIntKnob(knob->second, "steps");
+                auto read = Common::L1::IntKnob::read(knob->second, "steps");
                 if (!read) {
                     return read.takeError();
                 }

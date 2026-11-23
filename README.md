@@ -74,10 +74,10 @@ A host passes the otter plugin directory, `lib/synthrt-otter/plugins/inferencein
 
 ```cpp
 auto spec = package.contribution(srt::InferenceCategory::NAME, "f0");
-auto analyzer = otter::Api::F0::L1::createAnalyzer(*spec->as<srt::InferenceSpec>());
+auto analyzer = otter::Api::F0::L1::Executive::create(*spec->as<srt::InferenceSpec>());
 ```
 
-`createAnalyzer` builds the import and runtime options of the contract from the variant of the module and calls `srt::InferenceSpec::createInference`, which rejects a module of another contract before creating an inference. `createAnalyzer` then verifies that the returned executive implements the contract and rejects an executive that does not with `otter::AnalysisError::ContractViolation`. Another module can also import an analyzer through an ordinary `imports` entry with empty `options`.
+`Executive::create` builds the import and runtime options of the contract from the variant of the module and calls `srt::InferenceSpec::createInference`, which rejects a module of another contract before creating an inference. It then verifies that the returned executive implements the contract and rejects an executive that does not with `otter::AnalysisError::ContractViolation`. Another module can also import an analyzer through an ordinary `imports` entry with empty `options`.
 
 ## Versioning and ABI
 

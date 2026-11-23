@@ -120,8 +120,8 @@ namespace otter::Api::Note::L1 {
         /// declared is not honored.
         ///
         /// \return The schema, or an \c InvalidFormat error that describes the first invalid value.
-        OTTER_EXPORT static srt::Expected<std::unique_ptr<Exports>> read(
-            const srt::ContribSpec &spec);
+        OTTER_EXPORT static srt::Expected<std::unique_ptr<Exports>>
+            read(const srt::ContribSpec &spec);
     };
 
     /// Contains the import options of a Note analysis module, which identify only the contract.
@@ -230,6 +230,33 @@ namespace otter::Api::Note::L1 {
             return m_task.state();
         }
 
+        /// Creates the analyzer of a loaded Note module.
+        ///
+        /// A host creates an analyzer through this function without importing the module first. The
+        /// options identify only the interface contract and its level.
+        ///
+        /// The type of the executive is checked rather than assumed, because a third-party variant
+        /// may supply the interpreter. An executive of another contract is rejected with
+        /// \c AnalysisError::ContractViolation instead of being converted.
+        ///
+        /// \return The analyzer, the error of \c srt::InferenceSpec::createInference, or an
+        /// \c AnalysisError::ContractViolation error if the executive is not an Executive.
+        static srt::Expected<std::unique_ptr<Executive>> create(srt::InferenceSpec &spec) {
+            auto made = spec.createInference(ImportOptions(), RuntimeOptions());
+            if (!made) {
+                return made.takeError();
+            }
+            auto executive = made.take();
+            auto typed = dynamic_cast<Executive *>(executive.get());
+            if (typed == nullptr) {
+                return srt::Error(AnalysisError::ContractViolation,
+                                  "the interpreter of " + spec.triplet().variant() +
+                                      " created an executive that is not an Executive");
+            }
+            (void) executive.release();
+            return std::unique_ptr<Executive>(typed);
+        }
+
     protected:
         /// Requests cancellation of the current execution. A provider whose model session blocks
         /// overrides this function, calls it, and then also cancels the session.
@@ -267,32 +294,6 @@ namespace otter::Api::Note::L1 {
         otter::AnalysisTask<StartInput, Result> m_task;
     };
 
-    /// Creates the analyzer of a loaded Note module.
-    ///
-    /// A host creates an analyzer through this function without importing the module first. The
-    /// options identify only the interface contract and its level.
-    ///
-    /// The type of the executive is checked rather than assumed, because a third-party variant
-    /// may supply the interpreter. An executive of another contract is rejected with
-    /// \c AnalysisError::ContractViolation instead of being converted.
-    ///
-    /// \return The analyzer, the error of \c srt::InferenceSpec::createInference, or an
-    /// \c AnalysisError::ContractViolation error if the executive is not a Executive.
-    inline srt::Expected<std::unique_ptr<Executive>> createAnalyzer(srt::InferenceSpec &spec) {
-        auto made = spec.createInference(ImportOptions(), RuntimeOptions());
-        if (!made) {
-            return made.takeError();
-        }
-        auto executive = made.take();
-        auto typed = dynamic_cast<Executive *>(executive.get());
-        if (typed == nullptr) {
-            return srt::Error(AnalysisError::ContractViolation,
-                              "the interpreter of " + spec.triplet().variant() +
-                                  " created an executive that is not a Executive");
-        }
-        (void) executive.release();
-        return std::unique_ptr<Executive>(typed);
-    }
 
 }
 

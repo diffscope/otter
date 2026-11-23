@@ -49,20 +49,20 @@ BOOST_AUTO_TEST_CASE(mono_is_borrowed_stereo_is_averaged_and_invalid_audio_is_re
 
 BOOST_AUTO_TEST_CASE(knobs_distinguish_ignored_default_and_supplied_values) {
     Common::Knob continuous{true, 0, 1, 0.5};
-    auto defaultValue = otter::chooseKnob(std::optional<double>(), continuous, 9.0, "threshold");
+    auto defaultValue = continuous.choose(std::optional<double>(), 9.0, "threshold");
     BOOST_REQUIRE(defaultValue);
     BOOST_CHECK_EQUAL(defaultValue.value(), 0.5);
-    BOOST_CHECK(!otter::chooseKnob(std::optional<double>(1.1), continuous, 9.0, "threshold"));
+    BOOST_CHECK(!continuous.choose(std::optional<double>(1.1), 9.0, "threshold"));
     continuous.honored = false;
-    auto ignored = otter::chooseKnob(std::optional<double>(1.1), continuous, 9.0, "threshold");
+    auto ignored = continuous.choose(std::optional<double>(1.1), 9.0, "threshold");
     BOOST_REQUIRE(ignored);
     BOOST_CHECK_EQUAL(ignored.value(), 9);
     Common::IntKnob integral{true, 1, 4, 2};
-    auto value = otter::chooseKnob(std::optional<int>(4), integral, 9, "steps");
+    auto value = integral.choose(std::optional<int>(4), 9, "steps");
     BOOST_REQUIRE(value);
     BOOST_CHECK_EQUAL(value.value(), 4);
-    BOOST_CHECK(!otter::chooseKnob(std::optional<int>(0), integral, 9, "steps"));
+    BOOST_CHECK(!integral.choose(std::optional<int>(0), 9, "steps"));
     Common::FlagKnob flag{true, true};
-    BOOST_CHECK(otter::chooseKnob(std::optional<bool>(), flag, false));
-    BOOST_CHECK(!otter::chooseKnob(std::optional<bool>(false), flag, true));
+    BOOST_CHECK(flag.choose(std::optional<bool>(), false));
+    BOOST_CHECK(!flag.choose(std::optional<bool>(false), true));
 }

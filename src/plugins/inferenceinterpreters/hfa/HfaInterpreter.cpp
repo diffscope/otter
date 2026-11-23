@@ -574,7 +574,7 @@ namespace otter::hfa {
                          "gapFill"                                                                                                                    },
                 };
                 for (const auto &[given, knob, fallback, target, what] : knobs) {
-                    auto chosen = otter::chooseKnob(given, knob, fallback, what);
+                    auto chosen = knob.choose(given, fallback, what);
                     if (!chosen) {
                         return chosen.takeError();
                     }

@@ -86,37 +86,6 @@ BOOST_AUTO_TEST_CASE(test_ManifestValues_RejectsAKeyTheContractDoesNotDefine) {
     BOOST_CHECK(refused.error().message().find("sampleRate") != std::string::npos);
 }
 
-// A knob declaration consists of three ordered numbers or of one boolean. Any other form is a
-// misspelling, and an accepted misspelled knob would make the module appear to honor no knob.
-BOOST_AUTO_TEST_CASE(test_ManifestValues_ReadsKnobsAndRefusesTheMalformed) {
-    auto knob = otter::manifest::readKnob(
-        parse(R"({"minimum": 0.0, "maximum": 1.0, "default": 0.25})"), "voicingThreshold");
-    BOOST_REQUIRE(knob);
-    BOOST_CHECK(knob->honored);
-    BOOST_CHECK_CLOSE(knob->defaultValue, 0.25, 1e-9);
-
-    BOOST_CHECK(!otter::manifest::readKnob(parse(R"({"minimum": 0.0, "maximum": 1.0})"), "k"));
-    BOOST_CHECK(!otter::manifest::readKnob(
-        parse(R"({"minimum": 0.5, "maximum": 1.0, "default": 0.25})"), "k"));
-    BOOST_CHECK(!otter::manifest::readKnob(
-        parse(R"({"minimum": 0.0, "maximum": 1.0, "default": 0.5, "step": 0.1})"), "k"));
-    BOOST_CHECK(!otter::manifest::readKnob(
-        parse(R"({"minimum": "0", "maximum": 1.0, "default": 0.5})"), "k"));
-
-    auto steps = otter::manifest::readIntKnob(
-        parse(R"({"minimum": 1, "maximum": 64, "default": 8})"), "steps");
-    BOOST_REQUIRE(steps);
-    BOOST_CHECK_EQUAL(steps->maximum, 64);
-    BOOST_CHECK(!otter::manifest::readIntKnob(
-        parse(R"({"minimum": 1, "maximum": 64, "default": 8.5})"), "steps"));
-
-    auto flag = otter::manifest::readFlagKnob(parse(R"({"default": true})"), "interpolate");
-    BOOST_REQUIRE(flag);
-    BOOST_CHECK(flag->honored && flag->defaultValue);
-    BOOST_CHECK(!otter::manifest::readFlagKnob(parse(R"({"default": 1})"), "interpolate"));
-    BOOST_CHECK(!otter::manifest::readFlagKnob(parse(R"({})"), "interpolate"));
-}
-
 // Languages are ISO 639-3 codes and schemes follow wolf's grammar, the same grammars a host
 // reads from a singer, so that an identifier passes between the two unchanged.
 BOOST_AUTO_TEST_CASE(test_ManifestValues_ReadsLanguagesAndSchemes) {

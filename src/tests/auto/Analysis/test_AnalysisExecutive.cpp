@@ -73,11 +73,11 @@ namespace {
             auto &inference = *spec->as<srt::InferenceSpec>();
             auto made = [&] {
                 if constexpr (std::is_same_v<Executive, F0Api::Executive>) {
-                    return F0Api::createAnalyzer(inference);
+                    return F0Api::Executive::create(inference);
                 } else if constexpr (std::is_same_v<Executive, AlignApi::Executive>) {
-                    return AlignApi::createAnalyzer(inference);
+                    return AlignApi::Executive::create(inference);
                 } else {
-                    return NoteApi::createAnalyzer(inference);
+                    return NoteApi::Executive::create(inference);
                 }
             }();
             BOOST_REQUIRE_MESSAGE(static_cast<bool>(made), otter::test::why(made));
@@ -571,7 +571,7 @@ BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_RefusesKnownNotesAPackageDoesNotProm
     auto spec = package.contribution(srt::InferenceCategory::NAME, "note");
     BOOST_REQUIRE(spec != nullptr);
     auto &inference = *spec->as<srt::InferenceSpec>();
-    auto made = NoteApi::createAnalyzer(inference);
+    auto made = NoteApi::Executive::create(inference);
     BOOST_REQUIRE_MESSAGE(static_cast<bool>(made), otter::test::why(made));
     auto analyzer = made.take();
 
@@ -739,7 +739,7 @@ BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_RefusesAnExecutiveOfAnotherContract)
     Loaded loaded("foreign-executive");
     auto spec = loaded.package.contribution(srt::InferenceCategory::NAME, "f0");
     BOOST_REQUIRE(spec != nullptr);
-    auto made = F0Api::createAnalyzer(*spec->as<srt::InferenceSpec>());
+    auto made = F0Api::Executive::create(*spec->as<srt::InferenceSpec>());
     BOOST_REQUIRE(!made);
     BOOST_CHECK(made.error().code() == otter::AnalysisError::ContractViolation);
 }

@@ -87,8 +87,8 @@ namespace otter::rmvpe {
 
                 // The accepted range is the range that the declaration reports. Therefore a value
                 // outside the declared range is rejected instead of being passed to the model.
-                auto voicing = otter::chooseKnob(input.voicingThreshold, m_schema.voicingThreshold,
-                                                 FALLBACK_VOICING_THRESHOLD, "voicingThreshold");
+                auto voicing = m_schema.voicingThreshold.choose(
+                    input.voicingThreshold, FALLBACK_VOICING_THRESHOLD, "voicingThreshold");
                 if (!voicing) {
                     return voicing.takeError();
                 }
@@ -159,8 +159,8 @@ namespace otter::rmvpe {
                 // its documentation. Only one interpretation yields meaningful arithmetic: an
                 // unvoiced frame carries no pitch, so the unvoiced frames are the frames to fill
                 // in. The mask was inverted above. Therefore voiced here marks the voiced frames.
-                if (otter::chooseKnob(input.interpolateUnvoiced, m_schema.interpolateUnvoiced,
-                                      FALLBACK_INTERPOLATE)) {
+                if (m_schema.interpolateUnvoiced.choose(input.interpolateUnvoiced,
+                                                        FALLBACK_INTERPOLATE)) {
                     otter::support::interpolateUnvoiced(result->f0, result->voiced);
                 } else {
                     for (std::size_t i = 0; i < result->f0.size(); ++i) {

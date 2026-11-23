@@ -305,7 +305,7 @@ for (const auto &note : result.notes) {
 1. engine.findAnalyzer(settings.pitchAnalyzer) → AnalyzerEntry，找不到时报告「未配置分析器」
 2. spec = package.contribution(srt::InferenceCategory::NAME, id)
 3. schema = spec->exports()->as<F0::L1::Exports>() → sampleRate、interval、maxSegmentDuration、旋钮域
-4. analyzer = F0Api::createAnalyzer(*spec->as<srt::InferenceSpec>())
+4. analyzer = F0Api::Executive::create(*spec->as<srt::InferenceSpec>())
 5. audio = prepare(io, visibleStartMs, visibleEndMs, schema.sampleRate, cancelled, error)
 6. slices = SlicingProfile::slice(audio, schema.maxSegmentDuration)
 7. 逐片:

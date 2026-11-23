@@ -73,7 +73,7 @@ namespace {
 
         std::unique_ptr<NoteApi::Executive> open() {
             auto spec = load();
-            auto made = NoteApi::createAnalyzer(*spec->as<srt::InferenceSpec>());
+            auto made = NoteApi::Executive::create(*spec->as<srt::InferenceSpec>());
             BOOST_REQUIRE_MESSAGE(static_cast<bool>(made), otter::test::why(made));
             return made.take();
         }
@@ -85,7 +85,7 @@ namespace {
     struct HostWithoutKnownNotes : otter::test::ModelHost {
         std::unique_ptr<NoteApi::Executive> open() {
             auto spec = ModelHost::load("fixture-note-no-known-notes", "note");
-            auto made = NoteApi::createAnalyzer(*spec->as<srt::InferenceSpec>());
+            auto made = NoteApi::Executive::create(*spec->as<srt::InferenceSpec>());
             BOOST_REQUIRE_MESSAGE(static_cast<bool>(made), otter::test::why(made));
             return made.take();
         }
@@ -169,7 +169,7 @@ BOOST_AUTO_TEST_CASE(test_GameInterpreter_ChainsTheStagesAndPlacesNotesInSeconds
 BOOST_AUTO_TEST_CASE(test_GameInterpreter_TranscribesWithTheTrainedModel) {
     Host host;
     auto spec = host.loadDirectory(otter::test::realModelsRoot() / "otter-game", "note");
-    auto made = NoteApi::createAnalyzer(*spec->as<srt::InferenceSpec>());
+    auto made = NoteApi::Executive::create(*spec->as<srt::InferenceSpec>());
     BOOST_REQUIRE_MESSAGE(static_cast<bool>(made), otter::test::why(made));
     auto analyzer = made.take();
 

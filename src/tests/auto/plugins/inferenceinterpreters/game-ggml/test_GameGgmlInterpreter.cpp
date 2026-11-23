@@ -62,7 +62,7 @@ BOOST_AUTO_TEST_CASE(test_GameGgmlInterpreter_AnalyzerCreationChecksTheFiles) {
         Host host;
         host.write("cli/game_ggml_cli.exe");
         auto spec = host.load();
-        auto made = NoteApi::createAnalyzer(*spec->as<srt::InferenceSpec>());
+        auto made = NoteApi::Executive::create(*spec->as<srt::InferenceSpec>());
         BOOST_REQUIRE(!made);
         BOOST_CHECK(made.error().rootCause().message().find("cannot find the game CLI") !=
                     std::string::npos);
@@ -71,7 +71,7 @@ BOOST_AUTO_TEST_CASE(test_GameGgmlInterpreter_AnalyzerCreationChecksTheFiles) {
         Host host;
         host.write(OTTER_TEST_FAKE_CLI, "models/absent.gguf");
         auto spec = host.load();
-        auto made = NoteApi::createAnalyzer(*spec->as<srt::InferenceSpec>());
+        auto made = NoteApi::Executive::create(*spec->as<srt::InferenceSpec>());
         BOOST_REQUIRE(!made);
         BOOST_CHECK(made.error().rootCause().message().find("cannot find the game model") !=
                     std::string::npos);

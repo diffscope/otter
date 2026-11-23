@@ -13,7 +13,7 @@ BOOST_AUTO_TEST_CASE(test_TifaGgmlInterpreter_AlignsLyricsWithTheRealEngine) {
                                              "OTTER_TEST_TIFA_DICTS to run the engine tests");
     host.write(cli, model, dicts);
     auto spec = host.load();
-    auto made = AlignApi::createAnalyzer(*spec->as<srt::InferenceSpec>());
+    auto made = AlignApi::Executive::create(*spec->as<srt::InferenceSpec>());
     BOOST_REQUIRE_MESSAGE(static_cast<bool>(made), why(made));
     const auto analyzer = made.take();
 

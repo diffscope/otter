@@ -10,7 +10,7 @@ BOOST_AUTO_TEST_CASE(test_GameGgmlInterpreter_TranscribesAToneWithTheRealEngine)
                                             "OTTER_TEST_GAME_GGUF to run the engine tests");
     host.write(cli, model);
     auto spec = host.load();
-    auto made = NoteApi::createAnalyzer(*spec->as<srt::InferenceSpec>());
+    auto made = NoteApi::Executive::create(*spec->as<srt::InferenceSpec>());
     BOOST_REQUIRE_MESSAGE(static_cast<bool>(made), why(made));
     const auto analyzer = made.take();
 

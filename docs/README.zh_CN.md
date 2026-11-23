@@ -74,10 +74,10 @@ otter 不含音频处理代码。它不解码、不重采样、不切片、不�
 
 ```cpp
 auto spec = package.contribution(srt::InferenceCategory::NAME, "f0");
-auto analyzer = otter::Api::F0::L1::createAnalyzer(*spec->as<srt::InferenceSpec>());
+auto analyzer = otter::Api::F0::L1::Executive::create(*spec->as<srt::InferenceSpec>());
 ```
 
-`createAnalyzer` 用模块的变体构造该契约的 import options 与运行时选项，再调用 `srt::InferenceSpec::createInference`，后者在创建推理之前就拒绝属于其他契约的模块。随后 `createAnalyzer` 检查返回的执行体是否实现了这份契约，不符合时以 `otter::AnalysisError::ContractViolation` 拒绝。其他模块也可以用普通的 `imports` 条目导入分析器，`options` 留空即可。
+`Executive::create` 用模块的变体构造该契约的 import options 与运行时选项，再调用 `srt::InferenceSpec::createInference`，后者在创建推理之前就拒绝属于其他契约的模块。随后它检查返回的执行体是否实现了这份契约，不符合时以 `otter::AnalysisError::ContractViolation` 拒绝。其他模块也可以用普通的 `imports` 条目导入分析器，`options` 留空即可。
 
 ## 版本与 ABI
 

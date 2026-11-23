@@ -90,7 +90,7 @@ namespace otter::stub {
             double beat = 0.5;
 
             // Makes the interpreter return an executive that implements no contract, as a
-            // defective third-party interpreter could, and which createAnalyzer() must reject.
+            // defective third-party interpreter could, and which Executive::create() must reject.
             bool foreignExecutive = false;
         };
 
@@ -151,9 +151,8 @@ namespace otter::stub {
                 if (auto checked = validate(input.audio); !checked) {
                     return checked.takeError();
                 }
-                if (auto chosen =
-                        otter::chooseKnob(input.voicingThreshold, m_schema.voicingThreshold,
-                                          FALLBACK_VOICING_THRESHOLD, "voicingThreshold");
+                if (auto chosen = m_schema.voicingThreshold.choose(
+                        input.voicingThreshold, FALLBACK_VOICING_THRESHOLD, "voicingThreshold");
                     !chosen) {
                     return chosen.takeError();
                 }
@@ -181,8 +180,8 @@ namespace otter::stub {
                     result->voiced[i] = voiced ? 1 : 0;
                     result->f0[i] = voiced ? static_cast<float>(m_settings.frequency) : 0.0f;
                 }
-                if (otter::chooseKnob(input.interpolateUnvoiced, m_schema.interpolateUnvoiced,
-                                      FALLBACK_INTERPOLATE)) {
+                if (m_schema.interpolateUnvoiced.choose(input.interpolateUnvoiced,
+                                                        FALLBACK_INTERPOLATE)) {
                     otter::support::interpolateUnvoiced(result->f0, result->voiced);
                 }
                 if (input.progress && !input.progress(1)) {
@@ -222,18 +221,16 @@ namespace otter::stub {
                          "noteThreshold"                                                                                   },
                 };
                 for (const auto &[given, knob, fallback, what] : knobs) {
-                    if (auto chosen = otter::chooseKnob(given, knob, fallback, what); !chosen) {
+                    if (auto chosen = knob.choose(given, fallback, what); !chosen) {
                         return chosen.takeError();
                     }
                 }
-                if (auto chosen =
-                        otter::chooseKnob(input.steps, m_schema.steps, FALLBACK_STEPS, "steps");
+                if (auto chosen = m_schema.steps.choose(input.steps, FALLBACK_STEPS, "steps");
                     !chosen) {
                     return chosen.takeError();
                 }
-                auto cutoff =
-                    otter::chooseKnob(input.notePresenceCutoff, m_schema.notePresenceCutoff,
-                                      FALLBACK_NOTE_PRESENCE_CUTOFF, "notePresenceCutoff");
+                auto cutoff = m_schema.notePresenceCutoff.choose(
+                    input.notePresenceCutoff, FALLBACK_NOTE_PRESENCE_CUTOFF, "notePresenceCutoff");
                 if (!cutoff) {
                     return cutoff.takeError();
                 }
@@ -352,7 +349,7 @@ namespace otter::stub {
                         {input.gapFill,              m_schema.gapFill,              FALLBACK_GAP_FILL, "gapFill"             },
                 };
                 for (const auto &[given, knob, fallback, what] : knobs) {
-                    if (auto chosen = otter::chooseKnob(given, knob, fallback, what); !chosen) {
+                    if (auto chosen = knob.choose(given, fallback, what); !chosen) {
                         return chosen.takeError();
                     }
                 }

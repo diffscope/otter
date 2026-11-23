@@ -216,7 +216,7 @@ namespace otter::Api::Align::L1 {
                 if (knob == knobs.end()) {
                     continue;
                 }
-                auto read = manifest::readKnob(knob->second, key);
+                auto read = Common::L1::Knob::read(knob->second, key);
                 if (!read) {
                     return read.takeError();
                 }

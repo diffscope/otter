@@ -10,8 +10,6 @@
 #include <synthrt/Support/Expected.h>
 #include <synthrt/Support/Json.h>
 
-#include <otter/Api/Common/1/CommonApiL1.h>
-
 /// Readers shared by the analysis providers, so that two variants that read the same structure
 /// from a declaration interpret it identically and report an invalid value identically.
 ///
@@ -66,20 +64,6 @@ namespace otter::manifest {
     /// The names and their grammar are wolf's, so that a host can pair an analyzer with a linguist
     /// by scheme name.
     srt::Expected<std::string> readScheme(const srt::JsonValue &value, std::string_view what);
-
-    /// Reads one continuous knob declaration: an object with \c minimum, \c maximum and
-    /// \c default, with \c default inside the range. The returned knob is marked as honored,
-    /// because a module that does not honor a knob omits the knob from its declaration.
-    srt::Expected<Api::Common::L1::Knob> readKnob(const srt::JsonValue &value,
-                                                  std::string_view what);
-
-    /// Reads one integral knob declaration, with the same shape as readKnob().
-    srt::Expected<Api::Common::L1::IntKnob> readIntKnob(const srt::JsonValue &value,
-                                                        std::string_view what);
-
-    /// Reads one boolean knob declaration: an object with \c default.
-    srt::Expected<Api::Common::L1::FlagKnob> readFlagKnob(const srt::JsonValue &value,
-                                                          std::string_view what);
 
     /// Rejects an object that contains a key the contract does not define.
     ///

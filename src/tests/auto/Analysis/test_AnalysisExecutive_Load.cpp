@@ -116,10 +116,10 @@ BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_Load_ReadsBothContracts) {
     // Each module implements its own contract only. The options used by a contract to create an
     // analyzer identify that contract, and the framework rejects them for a module of another
     // contract.
-    auto f0Analyzer = F0Api::createAnalyzer(*f0->as<srt::InferenceSpec>());
+    auto f0Analyzer = F0Api::Executive::create(*f0->as<srt::InferenceSpec>());
     BOOST_CHECK_MESSAGE(static_cast<bool>(f0Analyzer), otter::test::why(f0Analyzer));
-    BOOST_CHECK(!NoteApi::createAnalyzer(*f0->as<srt::InferenceSpec>()));
-    auto noteAnalyzer = NoteApi::createAnalyzer(*note->as<srt::InferenceSpec>());
+    BOOST_CHECK(!NoteApi::Executive::create(*f0->as<srt::InferenceSpec>()));
+    auto noteAnalyzer = NoteApi::Executive::create(*note->as<srt::InferenceSpec>());
     BOOST_CHECK_MESSAGE(static_cast<bool>(noteAnalyzer), otter::test::why(noteAnalyzer));
 }
 
@@ -236,7 +236,7 @@ BOOST_AUTO_TEST_CASE(test_AnalysisExecutive_Load_ReadsTheAlignContract) {
     BOOST_CHECK(schema->defaultNonSpeechPhonemes == std::vector<std::string>({"AP"}));
     BOOST_CHECK_EQUAL(schema->silenceLabel, "SP");
     BOOST_CHECK(schema->gapFill.honored);
-    BOOST_CHECK(static_cast<bool>(AlignApi::createAnalyzer(*align->as<srt::InferenceSpec>())));
+    BOOST_CHECK(static_cast<bool>(AlignApi::Executive::create(*align->as<srt::InferenceSpec>())));
     package.reset();
 }
 

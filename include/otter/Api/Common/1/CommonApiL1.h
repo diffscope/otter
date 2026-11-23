@@ -2,7 +2,14 @@
 #define OTTER_API_COMMON_1_COMMONAPIL1_H
 
 #include <functional>
+#include <optional>
+#include <string_view>
 #include <vector>
+
+#include <synthrt/Support/Expected.h>
+#include <synthrt/Support/Json.h>
+
+#include <otter/otter_global.h>
 
 /// Common Level 1 types shared by the otter analysis interfaces.
 ///
@@ -88,6 +95,29 @@ namespace otter::Api::Common::L1 {
 
         /// Value used when the caller supplies none.
         double defaultValue = 0;
+
+        /// Reads one declared knob. \a what names the knob in error messages.
+        ///
+        /// The declaration is the object formed by the keys \c minimum, \c maximum and
+        /// \c default, and a key outside them is rejected.
+        ///
+        /// \return The declaration, or an \c InvalidFormat error that describes the first invalid
+        /// value.
+        OTTER_EXPORT static srt::Expected<Knob> read(const srt::JsonValue &value,
+                                                     std::string_view what);
+
+        /// Returns the value to use for this knob, or an error if \a given is outside the declared
+        /// range.
+        ///
+        /// \a fallback is the constant of the implementation that the knob replaces. A module
+        /// that does not honor the knob ignores \a given, because the declaration excludes the
+        /// knob from the caller's control.
+        ///
+        /// \return \a fallback if the knob is not honored. Otherwise the declared default if
+        /// \a given is empty, \a given if it lies in the declared range, and an
+        /// \c InvalidArgument error if it does not.
+        OTTER_EXPORT srt::Expected<double> choose(const std::optional<double> &given,
+                                                  double fallback, std::string_view what) const;
     };
 
     /// Declaration of one integral knob, with the same fields as Knob.
@@ -96,12 +126,32 @@ namespace otter::Api::Common::L1 {
         int minimum = 0;
         int maximum = 0;
         int defaultValue = 0;
+
+        /// Reads one declared integral knob. \a what names the knob in error messages.
+        OTTER_EXPORT static srt::Expected<IntKnob> read(const srt::JsonValue &value,
+                                                        std::string_view what);
+
+        /// Returns the value to use for this knob, as \c Knob::choose does.
+        OTTER_EXPORT srt::Expected<int> choose(const std::optional<int> &given, int fallback,
+                                               std::string_view what) const;
     };
 
     /// Declaration of one boolean knob, which has no range.
     struct FlagKnob {
         bool honored = false;
         bool defaultValue = false;
+
+        /// Reads one declared boolean knob, which holds only the key \c default.
+        ///
+        /// \a what names the knob in error messages.
+        OTTER_EXPORT static srt::Expected<FlagKnob> read(const srt::JsonValue &value,
+                                                         std::string_view what);
+
+        /// Returns the value to use for this knob, which has no range to check.
+        ///
+        /// \return \a fallback if the knob is not honored. Otherwise the declared default if
+        /// \a given is empty, and \a given otherwise.
+        OTTER_EXPORT bool choose(const std::optional<bool> &given, bool fallback) const;
     };
 
 }

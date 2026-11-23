@@ -2,8 +2,6 @@
 #define OTTER_ANALYSIS_PROVIDER_ANALYSISINPUT_H
 
 #include <cstddef>
-#include <optional>
-#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -89,33 +87,6 @@ namespace otter {
         const std::vector<float> *m_viewed = nullptr;
         std::vector<float> m_owned;
     };
-
-    /// Returns the value to use for a knob, or an error if the supplied value is outside the
-    /// declared range.
-    ///
-    /// \a knob is the declaration of the module, \a fallback is the constant of the
-    /// implementation, and \a what names the knob in the error message. If the module does not
-    /// honor the knob, \a given is ignored, because the declaration excludes the knob from the
-    /// caller's control. A value outside the declared range is rejected rather than clamped, so
-    /// that a caller that requests an unsupported setting receives an error instead of a result
-    /// computed with a different setting.
-    ///
-    /// \return \a fallback if the knob is not honored. Otherwise the declared default if
-    /// \a given is empty, \a given if it lies in the declared range, and an \c InvalidArgument
-    /// error if it does not. The boolean overload has no range and returns \a fallback, the
-    /// declared default or \a given under the same conditions.
-    /// \{
-    OTTER_EXPORT srt::Expected<double> chooseKnob(const std::optional<double> &given,
-                                                  const Api::Common::L1::Knob &knob,
-                                                  double fallback, std::string_view what);
-
-    OTTER_EXPORT srt::Expected<int> chooseKnob(const std::optional<int> &given,
-                                               const Api::Common::L1::IntKnob &knob, int fallback,
-                                               std::string_view what);
-
-    OTTER_EXPORT bool chooseKnob(const std::optional<bool> &given,
-                                 const Api::Common::L1::FlagKnob &knob, bool fallback);
-    /// \}
 
 }
 

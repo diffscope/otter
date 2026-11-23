@@ -60,7 +60,7 @@ BOOST_AUTO_TEST_CASE(test_TifaGgmlInterpreter_AnalyzerCreationChecksTheFiles) {
         Host host;
         host.write("cli/tifa_ggml_cli.exe");
         auto spec = host.load();
-        auto made = AlignApi::createAnalyzer(*spec->as<srt::InferenceSpec>());
+        auto made = AlignApi::Executive::create(*spec->as<srt::InferenceSpec>());
         BOOST_REQUIRE(!made);
         BOOST_CHECK(made.error().rootCause().message().find("cannot find the tifa CLI") !=
                     std::string::npos);
@@ -69,7 +69,7 @@ BOOST_AUTO_TEST_CASE(test_TifaGgmlInterpreter_AnalyzerCreationChecksTheFiles) {
         Host host;
         host.write(OTTER_TEST_FAKE_CLI, "models/absent.gguf");
         auto spec = host.load();
-        auto made = AlignApi::createAnalyzer(*spec->as<srt::InferenceSpec>());
+        auto made = AlignApi::Executive::create(*spec->as<srt::InferenceSpec>());
         BOOST_REQUIRE(!made);
         BOOST_CHECK(made.error().rootCause().message().find("cannot find the tifa model") !=
                     std::string::npos);

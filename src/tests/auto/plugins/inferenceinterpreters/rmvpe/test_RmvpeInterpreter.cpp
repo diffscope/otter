@@ -63,7 +63,7 @@ namespace {
     struct Host : otter::test::ModelHost {
         std::unique_ptr<F0Api::Executive> open() {
             auto spec = load("fixture-rmvpe", "f0");
-            auto made = F0Api::createAnalyzer(*spec->as<srt::InferenceSpec>());
+            auto made = F0Api::Executive::create(*spec->as<srt::InferenceSpec>());
             BOOST_REQUIRE_MESSAGE(static_cast<bool>(made), otter::test::why(made));
             return made.take();
         }
@@ -126,7 +126,7 @@ BOOST_AUTO_TEST_CASE(test_RmvpeInterpreter_RunsTheModelAndAnchorsTheCurve) {
 BOOST_AUTO_TEST_CASE(test_RmvpeInterpreter_EstimatesWithTheTrainedModel) {
     Host host;
     auto spec = host.loadDirectory(otter::test::realModelsRoot() / "otter-rmvpe", "f0");
-    auto made = F0Api::createAnalyzer(*spec->as<srt::InferenceSpec>());
+    auto made = F0Api::Executive::create(*spec->as<srt::InferenceSpec>());
     BOOST_REQUIRE_MESSAGE(static_cast<bool>(made), otter::test::why(made));
     auto analyzer = made.take();
 
