@@ -1,8 +1,8 @@
 # TIFA 接入 otter：Align 变体、`otter/tifa` 包与迁移记录（V1）
 
-> **本文记方案期事实**：文中的状态、版本与读数是方案制定与实施当时的快照；**现行状态见 [`docs/otter-design.md`](../otter-design.md)**。
+> **本文记方案期事实**：文中的状态、版本与读数是方案制定与实施当时的快照；**现行状态见 [`docs/OtterDesign.md`](../OtterDesign.md)**。
 
-> **本文档性质**：本地预开发的方案与实施记录（滚动追加）。**远端 otter 正在重构**，本轮的改动与结论只落在本地分支 `analysis-level-1`，不推送、不发布；迁移者按 §4 的变体形状与 §10 的实施记录接手即可。 **状态**：V1 方案完成；**D1–D4 与 D7–D10 已获用户确认**（结论见 §1 表末与 §9）。**P0–P4 与 P7 已完成并实测通过**； P5（诊断指标）与 P6（完整 G2P）按 D2/D3 缓办（与契约相关的部分不混进主干，见 §9 分期表）。 **门禁最终读数**（当时快照）：宿主调用形态（逐 take）下 **42/42、逐边界零差异**；batch-8 口径同时报出，成因见 §10.8.1。 `ctest` 实测 **10/10**（含 `test_Tifa`）。 **2026-09-30 迁移（历史）**：四个仓的远端分支被**强制重写**，本地分支已不在远端历史内；otter 侧当时把本地 tifa 提交 rebase 到重写后的新头 `f4820d9`（保持单分支）；此后本地历史又**从根重写为 4 个提交**，与 `f4820d9` 无共同祖先。那次重写做了什么、为什么、旧号去哪找，见 **§11 的历史索引附录**。 **本文不含本机绝对路径、用户名与机器名**；模型与素材一律用 `<...>` 占位或仓内相对路径（`docs/plans/hfa-align.md` 早期版本曾在 oracle 与素材说明里残留本机路径，现已改为中性描述）。
+> **本文档性质**：本地预开发的方案与实施记录（滚动追加）。**远端 otter 正在重构**，本轮的改动与结论只落在本地分支 `analysis-level-1`，不推送、不发布；迁移者按 §4 的变体形状与 §10 的实施记录接手即可。 **状态**：V1 方案完成；**D1–D4 与 D7–D10 已获用户确认**（结论见 §1 表末与 §9）。**P0–P4 与 P7 已完成并实测通过**； P5（诊断指标）与 P6（完整 G2P）按 D2/D3 缓办（与契约相关的部分不混进主干，见 §9 分期表）。 **门禁最终读数**（当时快照）：宿主调用形态（逐 take）下 **42/42、逐边界零差异**；batch-8 口径同时报出，成因见 §10.8.1。 `ctest` 实测 **10/10**（含 `test_Tifa`）。 **2026-09-30 迁移（历史）**：四个仓的远端分支被**强制重写**，本地分支已不在远端历史内；otter 侧当时把本地 tifa 提交 rebase 到重写后的新头 `f4820d9`（保持单分支）；此后本地历史又**从根重写为 4 个提交**，与 `f4820d9` 无共同祖先。那次重写做了什么、为什么、旧号去哪找，见 **§11 的历史索引附录**。 **本文不含本机绝对路径、用户名与机器名**；模型与素材一律用 `<...>` 占位或仓内相对路径（`docs/plans/HfaAlign.md` 早期版本曾在 oracle 与素材说明里残留本机路径，现已改为中性描述）。
 
 **范围**：给 otter 增加第四个出厂变体 `tifa`（TIFA 强制对齐器）：把 TIFA 的推理链路（**五张现成 ONNX 图 + 宿主侧解码/打分**）移植成 otter 的 inference 模块，并配套声明、打包、测试与实测比对。
 
@@ -13,21 +13,21 @@
 | otter | 本仓 `analysis-level-1`；方案期的锚点 `f4820d9`（2026-09-30 重写后的远端头）**已不再是基线**——本地历史此后**从根重写为 4 个提交**（tip `bc36a95`），与它**没有共同祖先**，所以 `git rev-list --count f4820d9..HEAD`、`git diff f4820d9..HEAD` 之类的对账都作废。旧提交号与备份分支的去向见 **§11 的历史索引附录** | `src/...:行号` |
 | TIFA | 上游仓 `openvpi/TIFA` @ tag `v1.0.0`（commit `32a0a13`） | `TIFA@v1.0.0:infer.py:90` |
 | TIFA 权重 | release 资产 `TIFA-1.0-ST.zip`，sha256 `6da6832cd2cb981aae1ccc2d9330f8f7c085ce7977d1eb13bff63531d038a88b`（实测复核一致） | §10.1 |
-| OTTER 设计 | `docs/otter-design.md` 的 A 系台账与未决 | `otter-design.md:A27` |
-| wolf | 同层兄弟仓，**scheme 命名与语义的唯一来源**（`pinyin`/`jyutping`/`romaji`/`arpabet`） | `wolf:docs/linguist-distribution.md:72-75` |
+| OTTER 设计 | `docs/OtterDesign.md` 的 A 系台账与未决 | `OtterDesign.md:A27` |
+| wolf | 同层兄弟仓，**scheme 命名与语义的唯一来源**（`pinyin`/`jyutping`/`romaji`/`arpabet`） | `wolf:docs/LinguistDistribution.md:72-75` |
 
 ---
 
 ## 0. 结论先行
 
-1. **形态天然适配。** TIFA 的发布物里没有端到端推理脚本：`ONNX.md` 规定五个模块图（`spectrogram` / `model` / `prepare` / `score` / `select`）由宿主拼装，宿主还要实现候选网格、整词候选 DP、Viterbi 解码、时间轴与文本层（`TIFA@v1.0.0:ONNX.md:5-34`）。这正是 otter「抽参器只跑模型、宿主备音频、otter 不做解码」的定位（`otter-design.md:A24`）。
+1. **形态天然适配。** TIFA 的发布物里没有端到端推理脚本：`ONNX.md` 规定五个模块图（`spectrogram` / `model` / `prepare` / `score` / `select`）由宿主拼装，宿主还要实现候选网格、整词候选 DP、Viterbi 解码、时间轴与文本层（`TIFA@v1.0.0:ONNX.md:5-34`）。这正是 otter「抽参器只跑模型、宿主备音频、otter 不做解码」的定位（`OtterDesign.md:A24`）。
 2. **上游只发 `model.pt`，ONNX 需自行导出，且已实测可行。** release 资产只含 `model.pt` 与配置/词典/G2P 资产；用上游 `deploy.py` 导出成功（约 15 s），五图签名与 `ONNX.md` 一致（§2.3、§10.1）。因此**不需要**在 otter 里维护导出器，只在记录里写清导出命令、参数与产物指纹（D6）。
 3. **契约面不需要新增 Level。** Align L1 的 `languages`（ISO 639-3 + scheme + lyrics + phonemes）、`defaultLanguage`、 `silenceLabel`、`knobs` 足以装下 TIFA 的**对齐输出**（`AlignApiL1.h:99-154`）。但 TIFA 的三处功能装不进现有结果类型： **发音书写层**（TextGrid 的 `words` tier）、**发音候选与分数**、**四个诊断指标**（§3.3）；这三处按 D2 决定「扩契约 / 分期内做 / 只记录」。
 4. **主干是「一个变体插件 + 五会话 + 宿主算法」。** 新目录 `src/plugins/inferenceinterpreters/tifa/`、声明按 `packages/tifa/` 的形状（**声明不入库**，装配时由 `make-package.py --declarations <声明目录>` 指向，一变体一子目录）；`check-declarations.py` 与 `make-model-fixtures.py` 两处**当前写死 `hfa`**，不参数化则新变体被**静默跳过全部 align 校验**（`scripts/check-declarations.py:510-513`）。
 （**时效注 2026-10-03**：`check-declarations.py` 已参数化——`MODEL_KEYS` 现含 `(ALIGN, "tifa")`（`:105`、`:134`、`:150`），
 ALIGN 的语言表文案也按 variant 取名（`:553`）；`make-model-fixtures.py` 的变体是否已参数化以该脚本现文为准。
 上面写死 `hfa` 与所引 `:510-513` 是方案制定时的现状。）
-5. **验证有现成 oracle。** 同一份权重、同一段音频，`TIFA@v1.0.0:infer.py` 产的 TextGrid 即参考输出；判据沿用 hfa 先例：**标签逐条相同、起止偏差 ≤ 1 帧（10 ms）**（`docs/plans/hfa-align.md:83`、`build/hfa-run/compare.py:52-53`）。
+5. **验证有现成 oracle。** 同一份权重、同一段音频，`TIFA@v1.0.0:infer.py` 产的 TextGrid 即参考输出；判据沿用 hfa 先例：**标签逐条相同、起止偏差 ≤ 1 帧（10 ms）**（`docs/plans/HfaAlign.md:83`、`build/hfa-run/compare.py:52-53`）。
 
 ### 0.1 本地预开发与远端重构的关系（迁移者先读）
 
@@ -48,7 +48,7 @@ ALIGN 的语言表文案也按 variant 取名（`:553`）；`make-model-fixtures
 | **D1** | 「TIFA 全部功能」的边界与分期 | **按 §3.4 的 P1–P6 分期，全部功能都做，但契约相关的部分单独成期**（③诊断/④G2P 完整版不与主干混提交） | 一次性全做：单批过大、与远端重构相撞；只做对齐主干、其余不做：与用户"全部功能"口径不符 |
 | **D2** | 诊断指标（agreement/confidence/determinacy/monotonicity）与「发音候选+分数」的**契约承载** | **先不动 Align L1**：主干期把它们算在变体内部、作为**可选出口**（先只写进记录与未决），**待远端重构落地后再提 A 系条目扩契约** | ①本轮直接扩 Align L1（`Result` 加 `diagnostics`、`PhoneInfo/WordInfo` 加候选与分数）：同步面大（头文件、读取器、`docs/schemas`、lint、测试、远端合并冲突）；②永不外露：等于砍掉 TIFA 的两个卖点 |
 | **D3** | 歌词形式与 G2P 归属 | **`lyrics="scheme"`**：宿主给 scheme 写法（拼音/粤拼/romaji/arpabet），变体自带 **「书写单位→音素」四本词典**（release 内随包，共约 3.4 MB）；**不移植** cpp-pinyin / MeCab / LSTM 三套 text→scheme 转换器 | ①变体自带完整 G2P：要到 MeCab+UniDic 与 LSTM ONNX beam search，依赖与工作量最大，且与 wolf 的分工重复；②只声明 cmn：覆盖面倒退 |
-| **D4** | 实测通道与素材 | **以「真实素材 + TIFA Python oracle 逐音素比对」为门禁**；ds-editor-lite 无头合成作为**可选**补充（当前合成声库不在本机，且 lite 尚无 Align 通道，`docs/lite-integration.md`） | 只用合成音频：需先解决声库与 lite 侧新接口，链路长；只用真实素材：覆盖面受素材限制 |
+| **D4** | 实测通道与素材 | **以「真实素材 + TIFA Python oracle 逐音素比对」为门禁**；ds-editor-lite 无头合成作为**可选**补充（当前合成声库不在本机，且 lite 尚无 Align 通道，`docs/LiteIntegration.md`） | 只用合成音频：需先解决声库与 lite 侧新接口，链路长；只用真实素材：覆盖面受素材限制 |
 | **D5** | 模型与图产物是否入库 / 是否发布 | **（历史）当时的决定：声明入库、权重不入库**（当时做法：`packages/.gitignore` 只忽略 `*.onnx`，见 §5.3），本轮只本地装配、不发布。**现行口径：声明亦不入库**——包（声明 + 模型）随模型发布，装配读 `make-package.py --declarations <声明目录>`（一变体一子目录）；现行版本 `0.1.0.0`、发布标签 `models-v0.1`（四包 + 4 项 manifest） | 入库权重：仓库膨胀（五图约 160 MB）；发布：远端重构期不做 |
 | **D6** | ONNX 导出器的归属 | **用上游 `deploy.py` 导出**，otter 只记录命令、参数与产物 sha256 | 在 `otter/scripts/` 维护导出脚本：把上游模型代码搬进 otter，多一份维护面与依赖 |
 | **D7** | 变体/包命名与版本 | `variant="tifa"`、包 `id="otter/tifa"`；**（历史）当时定 `version=compatVersion=0.2.0.0`**（与当时三包同版），**现行四包统一 `0.1.0.0`、随 release `models-v0.1` 发布** | 与现有包不同版：manifest 组装复杂化 |
@@ -76,14 +76,14 @@ ALIGN 的语言表文案也按 variant 取名（`:553`）；`make-model-fixtures
 | 事实 | 证据 |
 | :-- | :-- |
 | Align 是独立契约 `org.openvpi.otter.inference.Align` Level 1；读取函数 `readAlignExports` 对所有变体共用 | `include/otter/Api/Align/1/AlignApiL1.h:23`、`:26`、`:157-169` |
-| 结果类型只有 `language`/`scheme`/`words[{text,start,duration,phones[{text,start,duration}]}]`；结果必须**铺满整段**（未归属的间隔成为 `silenceLabel` 的词） | `AlignApiL1.h:261-271`；`silenceLabel` 为空则「不命名静音、不保证铺满」（`otter-design.md:467`） |
+| 结果类型只有 `language`/`scheme`/`words[{text,start,duration,phones[{text,start,duration}]}]`；结果必须**铺满整段**（未归属的间隔成为 `silenceLabel` 的词） | `AlignApiL1.h:261-271`；`silenceLabel` 为空则「不命名静音、不保证铺满」（`OtterDesign.md:467`） |
 | 声明面：`sampleRate` 必填，`channelCount`/`maxSegmentDuration`/`languages[]`/`defaultLanguage`/`nonSpeechPhonemes`/`defaultNonSpeechPhonemes`/`silenceLabel`/knobs 可选 | `AlignApiL1.h:99-154`、`AlignApiL1.h:164-169`（必填/可选语义）；`src/lib/Api/Align/1/AlignApiL1.cpp:205-207`（knobs 白名单） |
 | Align 目前只有三个 knob：`nonSpeechThreshold` / `nonSpeechMinDuration` / `gapFill`（白名单硬编码） | `AlignApiL1.h:145-154`；`scripts/check-declarations.py:190-191` |
-| 变体形状（hfa 为唯一先例）：`plugin.json` 的 `interpreters[].variant`、解释器构造、声明的 `variant`、变体 `Triplet` 四处一致；插件 IID 为 `org.openvpi.synthrt.plugin.InferenceInterpreter` | `src/plugins/inferenceinterpreters/hfa/plugin.json:1-9`；`docs/otter-design.md:607-620` |
-| ONNX 不直连 onnxruntime：经 dsinfer 驱动 `spec.package().synthUnit().runtimeService(ds::InferenceDriverPlugin::IID, "onnx")` → `createSession()` → `SessionOpenArgs` | `src/plugins/inferenceinterpreters/onnx/OnnxSupport.cpp:33-61`；`otter-design.md:A3` |
+| 变体形状（hfa 为唯一先例）：`plugin.json` 的 `interpreters[].variant`、解释器构造、声明的 `variant`、变体 `Triplet` 四处一致；插件 IID 为 `org.openvpi.synthrt.plugin.InferenceInterpreter` | `src/plugins/inferenceinterpreters/hfa/plugin.json:1-9`；`docs/OtterDesign.md:607-620` |
+| ONNX 不直连 onnxruntime：经 dsinfer 驱动 `spec.package().synthUnit().runtimeService(ds::InferenceDriverPlugin::IID, "onnx")` → `createSession()` → `SessionOpenArgs` | `src/plugins/inferenceinterpreters/onnx/OnnxSupport.cpp:33-61`；`OtterDesign.md:A3` |
 | 会话输入输出名在 C++ 侧硬编码；hfa 用 `waveform` 入，`ph_frame_logits`/`ph_edge_logits`/`cvnt_logits` 出 | `src/plugins/inferenceinterpreters/hfa/main.cpp:64-69` |
 | 模型自带文件的键名、采样率、帧移**来自模型文件**，声明只做一致性对撞（不一致即拒载） | `src/plugins/inferenceinterpreters/hfa/main.cpp:160-163`（模型 `config.json` 的 `sample_rate`/`hop_size`）、`src/plugins/inferenceinterpreters/hfa/main.cpp:742-833`（加载期对撞） |
-| 一次执行一个；取消由 `AnalysisTask` 承载，提供者只在 `run()` 里轮询 `cancelled()`，并在 `stop()`/`waitForFinished()` 里**先调基类** | `AlignApiL1.h:309-320`；`docs/otter-design.md:A15` |
+| 一次执行一个；取消由 `AnalysisTask` 承载，提供者只在 `run()` 里轮询 `cancelled()`，并在 `stop()`/`waitForFinished()` 里**先调基类** | `AlignApiL1.h:309-320`；`docs/OtterDesign.md:A15` |
 | **lint 对未登记的 `(interface, variant)` 静默降级**：只 warn 后 return，后续 exports/configuration/模型互核**全部不发生** | `scripts/check-declarations.py:510-513` |
 | `check_align_declaration` **按契约分派、内容写死 hfa 模型语义**（读 `config.json` 的 `mel_spec_config`、`vocab.json` 的 `vocab`/`silent_phonemes`/`non_lexical_phonemes`/`dictionaries`），错误文案含变体名 | `scripts/check-declarations.py:598-611`、`scripts/check-declarations.py:614-726` `[子代理]` |
 | CI **不跑** `packages/` 的声明 lint（声明不入库，CI 没有声明可跑）；全仓唯一真实调用点是打包脚本 | `.github/workflows/ci.yml:102-106`；`scripts/make-package.py:236-251`、`scripts/make-package.py:388` `[子代理]` |
@@ -154,7 +154,7 @@ ALIGN 的语言表文案也按 variant 取名（`:553`）；`make-model-fixtures
 | 用途 | 内容 |
 | :-- | :-- |
 | **参考输出（oracle）** | `TIFA@v1.0.0:infer.py <audio> -m <model-dir>/model.pt -l <lang> [--skip-penalty …] [--skip-handling …]` → 同目录 `<name>.TextGrid`（三 tier）；`--stat` 另出 `statistics/{scores,diagnosis}.json` |
-| 比对脚本形态 | 判据沿用 hfa 先例「标签逐条相同、起止偏差 ≤ 1 帧（10 ms）」，做法沿用 hfa 的「与参考二进制逐区间对拍」（`docs/plans/hfa-align.md:270`、`docs/plans/hfa-align.md:395-400`）；脚本形态照 hfa 那轮的 scratch 工具（`build/hfa-run/` 的 `runner` + `compare.py`，两侧都不入库），本变体另装一套到 `build/tifa-run/`（§6.1） |
+| 比对脚本形态 | 判据沿用 hfa 先例「标签逐条相同、起止偏差 ≤ 1 帧（10 ms）」，做法沿用 hfa 的「与参考二进制逐区间对拍」（`docs/plans/HfaAlign.md:270`、`docs/plans/HfaAlign.md:395-400`）；脚本形态照 hfa 那轮的 scratch 工具（`build/hfa-run/` 的 `runner` + `compare.py`，两侧都不入库），本变体另装一套到 `build/tifa-run/`（§6.1） |
 | 素材 | 本机「精标数据集」`fox_data` 各版本（**已实测清点，见下表**）提供**真实** cmn 与 jpn 素材；eng/yue 无真实素材 → 走 §2.6 的合成路线。用户已选定合成路线并指定声库，歌词随机自造。 |
 
 **素材清点（本机实测；只记数据集名与计数，不记绝对路径）**
@@ -203,7 +203,7 @@ ALIGN 的语言表文案也按 variant 取名（`:553`）；`make-model-fixtures
 | 语义词（TextGrid `texts` tier） | `WordInfo.text` | 调用方给的词（scheme 写法），逐词原样回写 |
 | 发音组（TextGrid `words` tier） | **无落点** | L1 的词只有一个文本字段；见 §3.3 |
 | 音素（`phones` tier） | `WordInfo.phones[]` | 按语义词聚合：一个词的所有发音组的音素按序拼接 |
-| 空档（无词区间） | `silenceLabel` 的插入词 | L1 要求结果铺满整段（现以 `silenceLabel` 非空为条件，见 `docs/otter-design.md:450-452`）；TIFA 的 gap 状态不产标签，由变体补标签 |
+| 空档（无词区间） | `silenceLabel` 的插入词 | L1 要求结果铺满整段（现以 `silenceLabel` 非空为条件，见 `docs/OtterDesign.md:450-452`）；TIFA 的 gap 状态不产标签，由变体补标签 |
 | `AP/EP/GS` | 声明的 `phonemes`（无前缀标签按语言无关处理）或 `nonSpeechPhonemes` | TIFA **不自行检测**它们 → 见 §4.4 差异登记 |
 | 语言/写法 | `language`（ISO 639-3）+ `scheme`（wolf 命名）+ `lyrics="scheme"` | cmn/pinyin、yue/jyutping、jpn/romaji、eng/arpabet |
 | `skip_penalty` / `skip-handling` / `score_unit` | **knob 面装不下**（三个 knob 白名单硬编码） | 见 §3.3 与 D2 |
@@ -231,7 +231,7 @@ knobs           <按 §3.3 决定>
 | :-- | :-- | :-- | :-- |
 | a | **发音书写层**（TextGrid `words` tier） | `WordInfo` 只有 `text`/`start`/`duration`/`phones` | ①接受丢失（宿主/变体各自 G2P 可复现）；②扩 `WordInfo` 增 `script`；③扩成"词→发音组"两层 |
 | b | **发音候选与分数**（`scores.json`） | 同上 | ①只在变体内部使用（选择结果影响对齐，这已足够）；②扩契约回传候选与分数 |
-| c | **四个诊断指标** | `Result` 只有 `language`/`scheme`/`words`；`docs/otter-design.md` §11 未决 · 「`Align` 的置信度」已明确「Level 1 不含置信度，凭空加字段等于猜语义」 | ①先记录、后扩；②本轮就扩（`Result` 加可选 `diagnostics`） |
+| c | **四个诊断指标** | `Result` 只有 `language`/`scheme`/`words`；`docs/OtterDesign.md` §11 未决 · 「`Align` 的置信度」已明确「Level 1 不含置信度，凭空加字段等于猜语义」 | ①先记录、后扩；②本轮就扩（`Result` 加可选 `diagnostics`） |
 | d | **解码/打分 knob**（`skipPenalty`/`skipHandling`/`scoreUnit`） | knobs 白名单硬编码三键（`AlignApiL1.h:145-154`；`scripts/check-declarations.py:190-191`） | ①不暴露（写死默认：`skipPenalty=0.5`、`skipHandling=omit`、`scoreUnit=levenshtein`，与 Python 默认一致）；②扩契约暴露 |
 
 > **推荐**：a/b/d 走 ①，c 走「①先记录、后扩」，即**主干期不动契约**（D2）。
@@ -267,7 +267,7 @@ src/plugins/inferenceinterpreters/tifa/
 
 ### 4.2 `configuration` 键（变体私有，宿主不读）
 
-键名与逐键路径（五张图、`config`、`vocabulary`、四本 `dictionary*`、`languages` 映射）的**唯一权威**是 `docs/otter-design.md` **§6「模型包结构」**一节的 TIFA 段（`:566-603`，标题见 `:483`）；本文不复制那份清单——同一份键值抄两处必然漂移。本节只记两条与改代码直接相关的约束：
+键名与逐键路径（五张图、`config`、`vocabulary`、四本 `dictionary*`、`languages` 映射）的**唯一权威**是 `docs/OtterDesign.md` **§6「模型包结构」**一节的 TIFA 段（`:566-603`，标题见 `:483`）；本文不复制那份清单——同一份键值抄两处必然漂移。本节只记两条与改代码直接相关的约束：
 
 1. **声明的每门语言都必须有对应词典键**，缺一即拒载（§4.3 第 3 条）。
 2. 键名与集合需**同时**登记进 `scripts/check-declarations.py` 的三张表（`MODEL_KEYS`/`CONFIGURATION_KEYS`/`LANGUAGE_NUMBERING`），否则该包被静默跳过校验（§2.1）。
@@ -294,7 +294,7 @@ src/plugins/inferenceinterpreters/tifa/
 | # | 差异 | 理由 |
 | :-- | :-- | :-- |
 | 1 | 歌词只吃 scheme 写法（不跑 cpp-pinyin/MeCab/LSTM） | D3：与 wolf 分工一致；完整版列为 P6 |
-| 2 | 结果多出 `silenceLabel` 的插入词，且铺满整段（现以 `silenceLabel` 非空为条件，见 `docs/otter-design.md:450-452`） | L1 的结果语义（`AlignApiL1.h:261-271`）；Python 版只留空档 |
+| 2 | 结果多出 `silenceLabel` 的插入词，且铺满整段（现以 `silenceLabel` 非空为条件，见 `docs/OtterDesign.md:450-452`） | L1 的结果语义（`AlignApiL1.h:261-271`）；Python 版只留空档 |
 | 3 | 零宽处理固定 `omit`（Python 默认），`preserve/discard` 不暴露 | §3.3d；以 D2 决定是否扩 knob |
 | 4 | `skip_penalty` 固定 0.5、`score_unit` 固定 `levenshtein` | 同上（两者都是 Python 默认值） |
 | 5 | 不输出 `words` tier（发音书写）与 `scores.json`/`diagnosis.json` | §3.3a/b/c；P5 按 D2 处理 |
@@ -350,7 +350,7 @@ packages/tifa/                       # 形状约定；声明不入库，声明�
 └── inferences/align/inference.json  # interface/level/variant/name/exports/configuration（§3.2 + §4.2）
 ```
 
-**装配后的包形状与逐键路径见 `docs/otter-design.md` §6「模型包结构」的 TIFA 段**（唯一权威， `:566-603`）：打包时才装配五张 `.onnx`、`config.json`、`vocabulary.json` 与四本词典；模型文件与**声明本身都不入库**（声明从 `--declarations` 指定的目录读取，见 D5）。
+**装配后的包形状与逐键路径见 `docs/OtterDesign.md` §6「模型包结构」的 TIFA 段**（唯一权威， `:566-603`）：打包时才装配五张 `.onnx`、`config.json`、`vocabulary.json` 与四本词典；模型文件与**声明本身都不入库**（声明从 `--declarations` 指定的目录读取，见 D5）。
 
 ### 5.2 必须同步的脚本改动（否则静默失效）
 
@@ -364,11 +364,11 @@ packages/tifa/                       # 形状约定；声明不入库，声明�
 | `packages/.gitignore`（**历史**，当时随仓库跟踪，现已不需要） | 若把模型自带文件复制进 `packages/tifa/` 再入库会被 git 收进去 → 补规则（或改为只在本地产物目录装配） | 160 MB 权重入库 |
 | `scripts/make-package.py` | **实测无需改动**（§10.6）：它按声明的后缀收集文件并保持相对路径，tifa 一趟跑通 | — |
 | `packages/README.md`（**历史**）、`README.md` | 变体表与计数、打包示例 | 文档漂移 |
-| `docs/otter-design.md` | §1 契约表变体列、§4.3 分层树、§7 插件形状、§9 新增 A 系条目、§10 里程碑、§11 未决 | 迁移者看不到入口 |
+| `docs/OtterDesign.md` | §1 契约表变体列、§4.3 分层树、§7 插件形状、§9 新增 A 系条目、§10 里程碑、§11 未决 | 迁移者看不到入口 |
 
 ### 5.3 不做的事（本轮）
 
-不推送、不发布、不建 release；不改 `include/otter/Api/Align/1/*`（除非 D2 选扩契约）；不动 lite（`docs/lite-integration.md` 的 Align 范围说明另议）。
+不推送、不发布、不建 release；不改 `include/otter/Api/Align/1/*`（除非 D2 选扩契约）；不动 lite（`docs/LiteIntegration.md` 的 Align 范围说明另议）。
 
 ---
 
@@ -414,7 +414,7 @@ otter 是库，仓内**没有任何 `int main`**（只有插件与测试），�
 | P4 | 真实权重实测与数值比对 | 门禁工具（scratch）+ 读数（§10.8） | **完成**：读数以**逐 take 口径**为主（42/42、逐边界零差异），batch-8 口径同时报出（口径与成因见 §10.8.1） |
 | P5 | 诊断指标与报告出口（按 D2） | `Metrics.{h,cpp}`（+ 契约扩展若 D2 选②） | **未做**（D2 已定本轮缓办；L1 契约没有该输出通道） |
 | P6 | G2P 完整版（若 D3 选②/③） | text→scheme 转换器 | **未做**（D3 已定只支持 `lyrics="scheme"`） |
-| P7 | 文档与迁移收尾 | `otter-design.md` A 系与未决、README、`packages/README.md` | **完成**（设计文档台账 A27–A29、包 README、本文 §10 的实施记录与 §11 的历史索引附录） |
+| P7 | 文档与迁移收尾 | `OtterDesign.md` A 系与未决、README、`packages/README.md` | **完成**（设计文档台账 A27–A29、包 README、本文 §10 的实施记录与 §11 的历史索引附录） |
 
 **构建纪律**：构建/测试命令按 `README.md:106-118` 的相对路径写法（vcpkg manifest、`build/<dir>`），**不写本机绝对路径**；每期先跑门禁再提交。 **迁移后补充**：流程仍是这一套，但**多了一步前置**——先 `git submodule update --init scripts/vcpkg`（overlay 必须先 checkout），再 `vcpkg install` + `cmake -B <dir> …`；旧的手工指定 include/lib 的构建树已**不能配置**。
 
@@ -431,18 +431,18 @@ otter 是库，仓内**没有任何 `int main`**（只有插件与测试），�
 5. **词表里没有 `SP`**：`silenceLabel` 用 `"SP"` 是**变体拼写**而非模型符号；若宿主下游按"标签必须来自模型词表"假设处理会不一致 → 在 §4.4 与声明注释里写明。
 6. **素材**：cmn（`fox_v2.1` 297 条，直接带 `.lab`）与 jpn（`fox_jp_v1` 97 条，带音素级时间）都有**真实**素材； eng/yue 走合成（§2.6 声库），选词只取两边词表的交集。剩下的风险是 **jpn 没有现成的「书写单位」歌词**： `fox_jp_v1` 只给 `ph_seq`，需要反推 romaji 词（用 TIFA 自己的 `japanese_dict_full.txt` 反查，或按 `ph_num` 切分音节）。**等价门禁只需要两边喂同一份歌词**，所以反推结果的质量只影响「对齐是否可信」的读数，不影响门禁有效性 → P4 记录反推手段与命中率。**素材与声库均不得入库、不得随包分发**（§2.6 的声库带 Terms_of_Use，`fox_data` 属本机精标数据），仓库里只记数据集/声库名、版本与计数。
 7. **与远端重构的合并风险**：变体插件是新增目录，冲突面小；但 P1/P2 会碰 `check-declarations.py`、`make-model-fixtures.py`、测试 CMakeLists —— 迁移时按 §5.2 表逐项核对。
-8. **未决（承接 `docs/otter-design.md` §11 未决 · 「`Align` 的置信度」）**：Align L1 的置信度/诊断字段，本轮不扩；P5 若扩，需同时给出 `docs/schemas` 与 lint 的同步面。
+8. **未决（承接 `docs/OtterDesign.md` §11 未决 · 「`Align` 的置信度」）**：Align L1 的置信度/诊断字段，本轮不扩；P5 若扩，需同时给出 `docs/schemas` 与 lint 的同步面。
 
 ---
 
-## 9. 决策台账（本方案编号，落地后并入 `docs/otter-design.md` 的 A 系）
+## 9. 决策台账（本方案编号，落地后并入 `docs/OtterDesign.md` 的 A 系）
 
 | 编号 | 决策 | 依据 / 来源 | 状态 |
 | :-- | :-- | :-- | :-- |
 | D1 | 「全部功能」分期（P1–P6），契约相关部分单独成期 | §3.4；用户原始请求「支持 tifa 的全部功能」 | **已确认**（第 1 轮） |
-| D2 | 主干期不动 Align L1；诊断指标/候选报告先记录、后扩 | §3.3；`docs/otter-design.md` §11 未决 · 「`Align` 的置信度」 | **已确认**（第 1 轮） |
-| D3 | `lyrics="scheme"` + 变体自带四本「书写单位→音素」词典；不移植 cpp-pinyin/MeCab/LSTM | §2.2 G2P 分层；`wolf:docs/linguist-distribution.md:72-75`（romaji/cl 命名一致） | **已确认**（第 1 轮） |
-| D4 | 以真实素材 + Python oracle 逐音素比对为门禁；合成通道可选 | `docs/plans/hfa-align.md:83`（先例）；D 子代理实测「本机无声库、lite 无 Align 通道」 | **已确认**（第 1 轮） |
+| D2 | 主干期不动 Align L1；诊断指标/候选报告先记录、后扩 | §3.3；`docs/OtterDesign.md` §11 未决 · 「`Align` 的置信度」 | **已确认**（第 1 轮） |
+| D3 | `lyrics="scheme"` + 变体自带四本「书写单位→音素」词典；不移植 cpp-pinyin/MeCab/LSTM | §2.2 G2P 分层；`wolf:docs/LinguistDistribution.md:72-75`（romaji/cl 命名一致） | **已确认**（第 1 轮） |
+| D4 | 以真实素材 + Python oracle 逐音素比对为门禁；合成通道可选 | `docs/plans/HfaAlign.md:83`（先例）；D 子代理实测「本机无声库、lite 无 Align 通道」 | **已确认**（第 1 轮） |
 | D5 | **（历史）声明入库、权重不入库**、本轮不发布；**现行：声明亦不入库**，装配读 `make-package.py --declarations <声明目录>`（见上文决策表 D5） | 历史依据：`packages/.gitignore:10`；用户口径「远端重构中，本地预开发」 | 按推荐执行（可回退） |
 | D6 | 用上游 `deploy.py` 导出 ONNX，otter 只记录 | §10.1 实测（约 15 s，五图签名符合 `ONNX.md`） | 按推荐执行（可回退） |
 | D7 | `variant="tifa"`、`otter/tifa`；**（历史）`0.2.0.0`，现行 `0.1.0.0`** | 当时先例（本机声明目录）：`packages/hfa/desc.json:2-14` | 按推荐执行 |
@@ -601,7 +601,7 @@ otter 是库，仓内**没有任何 `int main`**（只有插件与测试），�
 
 ## 11. 附录：历史重写与迁移索引（2026-09-30）
 
-> **本节性质**：方案期的迁移过程记录已收束成这一节索引，只留**仍然成立的知识**：那次历史重写做了什么、为什么这么做、旧提交号现在去哪找，以及当时踩过的工具坑。**本节不含可执行的门禁读数**：读数与口径见 §10.8.1，本仓现行状态见 [`docs/otter-design.md`](../otter-design.md)。
+> **本节性质**：方案期的迁移过程记录已收束成这一节索引，只留**仍然成立的知识**：那次历史重写做了什么、为什么这么做、旧提交号现在去哪找，以及当时踩过的工具坑。**本节不含可执行的门禁读数**：读数与口径见 §10.8.1，本仓现行状态见 [`docs/OtterDesign.md`](../OtterDesign.md)。
 
 **重写做过什么**：2026-09-30 前后，四个仓（otter / ds-editor-lite / synthrt / wolf）的**远端分支被强制重写**（重新撰写的提交序列，不含任何 tifa 工作），本地分支因此都不再位于远端历史内；otter 侧把本地 tifa 增量落到重写后的新结构上（保持单分支），冲突一律按上游的结构与措辞落位。
 

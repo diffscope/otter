@@ -4,9 +4,9 @@
 
 目录及命名遵守 SynthRT 的 Development.md 与 DirectoryStructure.md。具体行为作为用例名，独立拆分的行为保留 test_<头文件名>_<行为>.cpp 名称。新增或移动类时应同时更新测试注册和本表。
 
-四组 ONNX 模型夹具测试已启用并运行。Game、Tifa 的假引擎协议与停止测试独立通过。两个 _RealEngine 测试需要外部引擎和模型，当前跳过，不计为通过。
+四个依赖真实模型包的单模型用例（`test_RmvpeInterpreter`、`test_GameInterpreter`、`test_HfaInterpreter`、`test_TifaInterpreter`）在当前工作区跳过。Game、Tifa 的假引擎协议与停止测试独立通过。两个 `_RealEngine` 测试需要外部引擎和模型，当前也跳过，不计为通过。
 
-本轮完整工作区验证：先确认构建退出码为 0，再运行 CTest。otter 注册 30 项测试，Boost.Test 实际执行 2030 条断言。其中 28 项为 C++ 测试程序，另有 Python 脚本检查和安装布局检查。两个真实引擎测试跳过，计为 28 项通过、2 项跳过。EngineFiles 与 EnginePipe 的两项测试依赖工作区原有的进程重构，目前尚未提交。
+本轮完整工作区验证：先确认构建退出码为 0，再运行 CTest。otter 注册 30 项测试，Boost.Test 实际执行 1122 条断言。其中 28 项为 C++ 测试程序，另有 Python 脚本检查和安装布局检查。六个依赖真实模型的用例跳过，计为 24 项通过、6 项跳过。
 
 | 产品文件 | 类及内部类型 | 测试入口 | 验证方式 |
 |---|---|---|---|
@@ -56,4 +56,4 @@
 
 ONNX 四组模型测试实际执行生成的计算图。ggml 两组协议测试实际启动替身进程，分别验证结果、失败和停止。替身进程不能验证真实引擎与模型的兼容性或识别质量。真实引擎测试需要各自的可执行文件与模型，当前不能计为完成。
 
-插件测试按所属头文件放在 plugins/<类别>/<插件目录>，真实动态入口集中在 Core/test_ContribInterpreterPlugin_Otter.cpp。已有 ggml 进程实现替换的工作区改动及相关测试尚待独立提交验证，不与本轮接口测试提交混合。
+插件测试按所属头文件放在 plugins/<类别>/<插件目录>，真实动态入口集中在 Core/test_ContribInterpreterPlugin_Otter.cpp。ggml 进程实现及其测试已独立提交。

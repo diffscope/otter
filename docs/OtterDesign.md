@@ -11,7 +11,7 @@
 1. **[DiffSinger 数据格式与推理接口规范 2.4](https://github.com/diffscope/synthrt/blob/main/docs/ds-spec-2.4.md)**：上位规范；
 2. **synthrt / dsinfer 实际代码**：框架能力的唯一事实来源；
 3. **本文**：分层与跨层决策；
-4. **[wolf](../../wolf/docs/linguist-architecture.md)**：同构先例，不属于规范。wolf 的做法可供参考，但不构成 otter 的约束。
+4. **[wolf](../../wolf/docs/LinguistArchitecture.md)**：同构先例，不属于规范。wolf 的做法可供参考，但不构成 otter 的约束。
 
 ## 锚点口径
 
@@ -632,7 +632,7 @@ otter 将以下三项职责明确留给宿主，三者缺一不可：
 2. **切片。** 宿主以 RMS 静音切片将音频分段，每段不超过 `Exports::maxSegmentDuration`，逐段调用，并为每段正确填写 `audio.startTime`。otter 不切片（A7）。
 3. **时间轴换算。** otter 输出绝对秒，宿主按自身的时间轴换算为 tick，变速曲由宿主处理。
 
-在 lite 中，重采样由 talcs 完成；RMS 切片器取自 lite 历史中已删除的 `src/libs/audio-util`（该目录与 `game-infer`、`rmvpe-infer` 在同一次提交中被删除），现位于 `Modules/Extractors/AudioSlicer.h`，详见 [lite-integration.md](lite-integration.md)。三个算法共用一套切片参数（A8）。
+在 lite 中，重采样由 talcs 完成；RMS 切片器取自 lite 历史中已删除的 `src/libs/audio-util`（该目录与 `game-infer`、`rmvpe-infer` 在同一次提交中被删除），现位于 `Modules/Extractors/AudioSlicer.h`，详见 [LiteIntegration.md](LiteIntegration.md)。三个算法共用一套切片参数（A8）。
 
 ## 9. 决策台账
 
@@ -814,7 +814,7 @@ otter 将以下三项职责明确留给宿主，三者缺一不可：
 
 **依据**：Align 的输入与输出均不同于另两份契约：输入多出一段必填的文本（所唱内容），输出是词与音素两层区间，而非曲线或音高。并入 F0 相当于将词的时间视为另一条曲线，并入 Note 相当于将音素视为音符，两种方式都会使宿主按契约名读到结构不符的结果。该契约名已在 A4 中登记，本条给出其定义。
 
-**来源**：hfa 方案（[plans/hfa-align.md](plans/hfa-align.md)）的决策 D1，经用户确认。
+**来源**：hfa 方案（[plans/HfaAlign.md](plans/HfaAlign.md)）的决策 D1，经用户确认。
 
 ### A20 — `Align` 的输入是歌词文本，缺少歌词时不退化为转写
 
@@ -916,7 +916,7 @@ otter 将以下三项职责明确留给宿主，三者缺一不可：
 
 ### A29 — `tifa` 提供者的取舍：`lyrics="scheme"`、模型自带音素表、五图会话、诊断缓办
 
-**决策**：第四个出厂变体、也是第二个对齐变体 `tifa`（TIFA 强制对齐器）按下列取舍落地。算法与实测细节留在 [plans/tifa-align.md](plans/tifa-align.md)，这里只登记契约面与取舍。
+**决策**：第四个出厂变体、也是第二个对齐变体 `tifa`（TIFA 强制对齐器）按下列取舍落地。算法与实测细节留在 [plans/TifaAlign.md](plans/TifaAlign.md)，这里只登记契约面与取舍。
 
 - **四门语言全部 `lyrics="scheme"`**（`cmn`/`pinyin`、`yue`/`jyutping`、`jpn`/`romaji`、`eng`/`arpabet`， `defaultLanguage` 为 `cmn`）：歌词由调用方按该语言的 scheme 写法给出，变体不做「文字 → 书写单位」的转换。
 - **音素表取自模型自带的 `vocabulary.json`，`phonemes` 承诺裸音素**：加载期将每门语言的 `phonemes` 与词表中带该语言前缀的符号集合去前缀后逐一比对，多一个少一个都拒绝载入（A27 的规则）。宿主语言标识到模型语言码的映射（`cmn→zh`、`yue→yue`、`jpn→ja`、`eng→en`）在 `configuration.languages` 中（A11）。
@@ -1012,9 +1012,9 @@ X1、X2、X6 的共同原因是两个提供者各自实现同一套校验，实�
 | **M3** | `rmvpe` 提供者 | **完成**。`test_RmvpeInterpreter`，运行于 ONNX 图 fixture |
 | **M4** | `game` 提供者，补回 `dur2bd` | **完成**。`test_GameInterpreter`，含对齐路径 |
 | **M5** | 打包 lint 与模型 fixture | **完成**。`scripts/check-declarations.py`、`scripts/make-model-fixtures.py`、`scripts/make-package.py` |
-| **M6** | lite 接入 | **完成**。L1 至 L6 六个阶段全部实现，见 [lite-integration.md](lite-integration.md) |
-| **M7** | `Align` 契约与 `hfa` 提供者 | **完成**。契约头、提供者、fixture 用例与打包脚本均已实现；0.1.0.0 版 hfa 包曾随 [models-v0.2.0.0](https://github.com/diffscope/otter/releases/tag/models-v0.2.0.0) 发布，其后的 0.2.0.0 版曾由 `models-v0.3.0.0` 提供（历史，两个标签均已删除）；A31 起版本回到 0.1.0.0，现行发布为 `models-v0.1`；实测与决策见 [plans/hfa-align.md](plans/hfa-align.md) |
-| **M8** | `tifa` 提供者 | **完成**（P5 诊断指标与 P6 完整 G2P 按 D2/D3 缓办，属分期决策而非漏做）。声明、插件（五张图各一会话、加载期互检）、候选打分路径、帧解码与时间轴均已落地，`test_TifaInterpreter` 随夹具一起通过。**实测门禁：宿主调用形态（逐 take）下与参考逐边界一致**；batch-8 口径的差异归因于参考自身对批组成敏感（不是移植缺陷）。两种口径的读数、口径裁决与迁移记录见 [plans/tifa-align.md](plans/tifa-align.md) §11.10–§11.11 |
+| **M6** | lite 接入 | **完成**。L1 至 L6 六个阶段全部实现，见 [LiteIntegration.md](LiteIntegration.md) |
+| **M7** | `Align` 契约与 `hfa` 提供者 | **完成**。契约头、提供者、fixture 用例与打包脚本均已实现；0.1.0.0 版 hfa 包曾随 [models-v0.2.0.0](https://github.com/diffscope/otter/releases/tag/models-v0.2.0.0) 发布，其后的 0.2.0.0 版曾由 `models-v0.3.0.0` 提供（历史，两个标签均已删除）；A31 起版本回到 0.1.0.0，现行发布为 `models-v0.1`；实测与决策见 [plans/HfaAlign.md](plans/HfaAlign.md) |
+| **M8** | `tifa` 提供者 | **完成**（P5 诊断指标与 P6 完整 G2P 按 D2/D3 缓办，属分期决策而非漏做）。声明、插件（五张图各一会话、加载期互检）、候选打分路径、帧解码与时间轴均已落地，`test_TifaInterpreter` 随夹具一起通过。**实测门禁：宿主调用形态（逐 take）下与参考逐边界一致**；batch-8 口径的差异归因于参考自身对批组成敏感（不是移植缺陷）。两种口径的读数、口径裁决与迁移记录见 [plans/TifaAlign.md](plans/TifaAlign.md) §11.10–§11.11 |
 
 ### 测试集
 
@@ -1040,13 +1040,13 @@ X1、X2、X6 的共同原因是两个提供者各自实现同一套校验，实�
 
 **已用真实权重验证**：
 - **GAME**：三个合成音 A3 / C4 / E4 转写为 MIDI 57 / 60 / 64，边界位于整秒处，时长与占空比吻合。该验证同时表明，fixture 原先依照提供者的假设声明张量形状，因此测试始终通过而任何真实导出的模型都无法运行； A10 所列的形状修正即由此得出。fixture 现按真实导出编写。
-- **HFA**：v0.0.7 权重经打包后的包，在 `BaiMaRuLuHua_0.wav`（中文）上与参考实现 `dstools-cli hfa` 逐音素比对区间：27 段，标签序列一致，最大边界差 7.5e-7 s（帧长 10 ms）。命令与产物见 [plans/hfa-align.md](plans/hfa-align.md) 的真实权重验收一节。
-- **TIFA**：四门语言均通过等价门禁——11 条真实素材 + 31 条合成素材共 42 条，对参考实现音素与词标签序列逐个相等、**逐边界零差异**（判据用宿主的调用形态：一次一个 span）。口径裁决与读数见 [plans/tifa-align.md](plans/tifa-align.md) §11.10–§11.11。
+- **HFA**：v0.0.7 权重经打包后的包，在 `BaiMaRuLuHua_0.wav`（中文）上与参考实现 `dstools-cli hfa` 逐音素比对区间：27 段，标签序列一致，最大边界差 7.5e-7 s（帧长 10 ms）。命令与产物见 [plans/HfaAlign.md](plans/HfaAlign.md) 的真实权重验收一节。
+- **TIFA**：四门语言均通过等价门禁——11 条真实素材 + 31 条合成素材共 42 条，对参考实现音素与词标签序列逐个相等、**逐边界零差异**（判据用宿主的调用形态：一次一个 span）。口径裁决与读数见 [plans/TifaAlign.md](plans/TifaAlign.md) §11.10–§11.11。
 
 **未验证**：
 - RMVPE 的数值。权重随 rmvpe 包发布（现行版为随 `models-v0.1` 发布的 0.1.0.0 版；此前的 0.2.0.0 版在 `models-v0.3.0.0` 中，该标签已删除），但未与参考实现进行数值比对；相关用例在缺少 fixture 时报告跳过，而不是报告通过。
 - HFA 的英语与日语词典。词典是数据而非代码，但缺少对应素材，无法验证；`merged_phoneme_groups` 路径按 C++ 参考实现的行为对齐，与 Python 版本不一致（见第 11 章）。
-- TIFA 的英语与粤语真实素材。真实录音只覆盖 `cmn`（5 条）与 `jpn`（6 条），`eng`/`yue` 的等价性由合成素材覆盖，尚无真实录音进场。四门语言共 42 条的读数见 [plans/tifa-align.md](plans/tifa-align.md) §11.11。
+- TIFA 的英语与粤语真实素材。真实录音只覆盖 `cmn`（5 条）与 `jpn`（6 条），`eng`/`yue` 的等价性由合成素材覆盖，尚无真实录音进场。四门语言共 42 条的读数见 [plans/TifaAlign.md](plans/TifaAlign.md) §11.11。
 
 ## 11. 未决事项
 

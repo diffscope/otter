@@ -1,8 +1,8 @@
 # otter 接入 ds-editor-lite（M6）
 
-本文记录 otter 在 lite 侧的接入方案，只涉及 lite 一侧的改动。otter 自身的分层与契约见 [otter-design.md](otter-design.md)，两者冲突时以 otter-design.md 为准。
+本文记录 otter 在 lite 侧的接入方案，只涉及 lite 一侧的改动。otter 自身的分层与契约见 [OtterDesign.md](OtterDesign.md)，两者冲突时以 OtterDesign.md 为准。
 
-**范围**：本文覆盖 F0 与 Note 两份契约（`rmvpe`、`game` 两个包）。第三份契约 `Align`（`hfa` 包） **不在本轮 lite 接入范围内**，因为它需要新的任务与 UI，而非迁移已有的抽参路径。otter 侧的契约、解释器与包均已就绪，见 [plans/hfa-align.md](plans/hfa-align.md)。
+**范围**：本文覆盖 F0 与 Note 两份契约（`rmvpe`、`game` 两个包）。第三份契约 `Align`（`hfa` 包） **不在本轮 lite 接入范围内**，因为它需要新的任务与 UI，而非迁移已有的抽参路径。otter 侧的契约、解释器与包均已就绪，见 [plans/HfaAlign.md](plans/HfaAlign.md)。
 
 ## 前置条件
 
@@ -191,7 +191,7 @@ struct AnalyzerEntry {
 
 常见的两处错误：
 
-1. **`wolf/packages` 不是分析器包的安装根**，而是 wolf 语言包的**依赖查找**根：lite 将它作为 `packagePaths` 传给 Bootstrap，用于查找声库所声明依赖的语言包。**扫描根**是用户设置的包搜索路径（`SynthrtEngine` 的 `voicebankPaths` 实参，在 `InferEngine.cpp` 中绑定），`analyzers()` 读取的正是本次扫描的结果（"the analysers the last scan found"，见 `SynthrtEngine.h`）。安装根错误时的现象即上表第一行，而且 **日志中不留任何记录**：包不在扫描列表中，不会被打开，因此没有可报告的失败。
+1. **`wolf/packages` 不是分析器包的安装根**，而是 wolf 语言包的**依赖查找**根：lite 将它作为 `packagePaths` 传给 Bootstrap，用于查找声库所声明依赖的语言包。**扫描根**是用户设置的包搜索路径（`SynthrtEngine` 的 `voicebankPaths` 实参，在 `InferEngine.cpp` 中绑定），`analyzers()` 读取的正是本次扫描的结果（"the analyzers the last scan found"，见 `SynthrtEngine.h`）。安装根错误时的现象即上表第一行，而且 **日志中不留任何记录**：包不在扫描列表中，不会被打开，因此没有可报告的失败。
 2. **`packages.list` 列出的是声库目录中的包**，分析器包不出现在该清单中。确认分析器是否可用应查询 `extract.get_capabilities`，而非包清单。
 
 ### 声明不合格时的运行期拒载（实测）

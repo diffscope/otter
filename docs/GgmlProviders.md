@@ -1,6 +1,4 @@
-# ggml 提供者（中文对照）
-
-> 本文是 [ggml-providers.md](ggml-providers.md) 的中文对照，两份文件内容对应同一件事；若两者不一致，以英文版为准（英文版是本仓的正式文档）。
+# ggml 提供者
 
 出厂变体把 ONNX 模型跑在 dsinfer 里。另有两个变体：`game-ggml` 与 `tifa-ggml`，它们**把 [game.cpp](https://github.com/KakaruHayate/game.cpp) 与 [tifa.cpp](https://github.com/KakaruHayate/tifa.cpp) 的 ggml 引擎当作外部进程驱动**。它们提供与 ONNX 变体相同的 Level 1 契约——`org.openvpi.otter.inference.Note` 与 `org.openvpi.otter.inference.Align`——因此宿主可以把两者放在同一个设置页里，包则通过在清单里点其中一个变体名来选择后端。
 
@@ -15,7 +13,7 @@
 
 ## 安装引擎
 
-引擎是引擎自己发布的归档，安装方式与 [docs/packages.md](packages.md) 里的模型包相同：把归档解包到任何位置，再让声明指名解包出来的文件。
+引擎是引擎自己发布的归档，安装方式与 [Packages.md](Packages.md) 里的模型包相同：把归档解包到任何位置，再让声明指名解包出来的文件。
 
 **解包到哪**：两份示例都从声明向上两级读它们指名的文件（`../../game_ggml_cli.exe`、`../../models/tifa.gguf`），所以解包出来的内容要落在 `desc.json` 旁边：
 

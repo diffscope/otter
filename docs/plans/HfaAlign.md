@@ -1,8 +1,8 @@
 # HFA 接入 otter：Align 契约、`otter/hfa` 包与发布（V1）
 
-> **本文记方案期事实**：文中的状态、版本与读数是方案制定与实施当时的快照；**现行状态见 [`docs/otter-design.md`](../otter-design.md)**。
+> **本文记方案期事实**：文中的状态、版本与读数是方案制定与实施当时的快照；**现行状态见 [`docs/OtterDesign.md`](../OtterDesign.md)**。
 
-> **状态：本方案已实施。** 本文保留为方案与实施记录；决策已并入 [`docs/otter-design.md`](../otter-design.md) 的台账（A19–A25）。此后的变更以 otter-design.md 为准，主要有：
+> **状态：本方案已实施。** 本文保留为方案与实施记录；决策已并入 [`docs/OtterDesign.md`](../OtterDesign.md) 的台账（A19–A25）。此后的变更以 OtterDesign.md 为准，主要有：
 > - A26：分析器改为 synthrt 内置 `inference` 类别下的模块，接口名为 `org.openvpi.otter.inference.{F0,Note,Align}`，执行体派生 `srt::InferenceExecutive`，扩展 ID 与 `AnalysisSpec` 已删除；解释器位于 `src/plugins/inferenceinterpreters/hfa`；包声明位于 `inferences/align/inference.json`。
 > - A27：Align 的 `exports.languages` 每项为 `{language, scheme, lyrics, phonemes}`；`defaultLanguage` 与 `defaultNonSpeechPhonemes` 从 `configuration` 移至 `exports`。
 > - 发布（**现行**）：`otter-rmvpe`、`otter-game`、`otter-hfa`、`otter-tifa` 当前均为 **0.1.0.0**（`inferences/` 布局），由 release **`models-v0.1`** 提供（一份 `manifest.json`，列出四个包；zip 由 `scripts/make-package.py` 生成）。**（历史）**本方案执行时发布的是 `models-v0.2.0.0`，A26 之后的 0.2.0.0 包由 `models-v0.3.0.0` 提供，更早的 `models-v0.1.0.0` 装的是旧布局的 0.1.0.0 包——**这三个旧标签都已删除**，那些旧布局的包当前 otter 也载入不了。
@@ -15,7 +15,7 @@
 
 ## 0. 结论
 
-HFA 是**强制对齐器**：输入是「音频 + 已知歌词文本」，输出是**音素/词的时间区间**。它既不是 F0（基频曲线）也不是 Note（音符区间），输入与输出都与两者根本不同。按规范 2.4「输入输出根本不同时另立 `interface`」，必须新立契约。otter 已为它预留了名字与类别位置（`docs/otter-design.md` §1 表：`Align`，音素/词的时间区间；方案制定时名为 `org.openvpi.otter.analysis.Align`，现为 `org.openvpi.otter.inference.Align`），并把契约面列为未决项；该未决项现已由台账 A19 与 §5.4 落地。本方案的内容：
+HFA 是**强制对齐器**：输入是「音频 + 已知歌词文本」，输出是**音素/词的时间区间**。它既不是 F0（基频曲线）也不是 Note（音符区间），输入与输出都与两者根本不同。按规范 2.4「输入输出根本不同时另立 `interface`」，必须新立契约。otter 已为它预留了名字与类别位置（`docs/OtterDesign.md` §1 表：`Align`，音素/词的时间区间；方案制定时名为 `org.openvpi.otter.analysis.Align`，现为 `org.openvpi.otter.inference.Align`），并把契约面列为未决项；该未决项现已由台账 A19 与 §5.4 落地。本方案的内容：
 
 1. **立契约**：`Align` Level 1（Exports / StartInput / Result / Executive / 读取函数 / JSON Schema / lint 规则）。
 2. **移植变体**：将 dataset-tools 的 C++ HFA 推理移植为解释器插件（方案制定时位于 `src/plugins/analysisproviders/hfa`，现位于 `src/plugins/inferenceinterpreters/hfa`），外壳按 game/rmvpe 的结构重写，算法逐行保留，以保证与参考实现数值可比。
@@ -32,7 +32,7 @@ HFA 是**强制对齐器**：输入是「音频 + 已知歌词文本」，输出
 | **D1** | 是否新立 `Align` L1 契约 | **是**（HFA 只能落在此处） | 并入 `Note`（knownNotes）：输入需要文本，输出需要音素，`Note` 均无法容纳，否决 |
 | **D2** | 发布形态 | **（历史）新 tag `models-v0.2.0.0`，三包齐全 + 全量 `manifest.json`**（rmvpe/game 从旧 release 原样搬运，SHA512 复核） | ①只发 `otter-hfa` 增量包（tag `models-v0.1.1.0`）：上传量小，但一个 bundle 拆成两个 release，安装方需要拼合；②覆盖旧 tag：**禁止**（已发布资产不可变） |
 | **D3** | 授权范围 | **下载 v0.0.7 模型 zip（256 MB）＋ 本地重建 otter＋测试 ＋ 创建 GitHub release** | 分开授权：只做前两步，发布另行授权 |
-| **D4** | 歌词与静音词的契约形态 | `StartInput::lyrics` 为单个字符串；结果**覆盖整段**（现以 `silenceLabel` 非空为条件，见 `docs/otter-design.md:450-452`），静音段以 `exports.silenceLabel`（默认 `"SP"`）为文本出现 | ①歌词改为 `vector<string>` 词表：模型本身按空白切分，多一层无收益；②结果只给出对齐到的词，静音由宿主计算：少一层词汇，但失去模型自带的分区（`fill_small_gaps` 会调整词的边界） |
+| **D4** | 歌词与静音词的契约形态 | `StartInput::lyrics` 为单个字符串；结果**覆盖整段**（现以 `silenceLabel` 非空为条件，见 `docs/OtterDesign.md:450-452`），静音段以 `exports.silenceLabel`（默认 `"SP"`）为文本出现 | ①歌词改为 `vector<string>` 词表：模型本身按空白切分，多一层无收益；②结果只给出对齐到的词，静音由宿主计算：少一层词汇，但失去模型自带的分区（`fill_small_gaps` 会调整词的边界） |
 | **D5** | 旋钮集合 | 三个：`nonSpeechThreshold`(0–1, 0.5)、`nonSpeechMinDuration`(s, 0.1)、`gapFill`(s, 0.1) | 不提供旋钮：用户无法调节呼吸段灵敏度；提供更多（Viterbi 相关）：属模型内部参数，不进契约 |
 | **D6** | 本轮是否同时实现 lite（ds-editor-lite）的 Align 接入 | **否**（本轮只含 otter 侧、包与发布） | 同轮接入：lite 需要新的 UI 与任务（歌词来源、结果所在的层），工作量远大于本轮 |
 
@@ -46,7 +46,7 @@ HFA 是**强制对齐器**：输入是「音频 + 已知歌词文本」，输出
 
 | 事实 | 证据 |
 | :-- | :-- |
-| `Align` 只登记了名字与类别，未定义类型 | `docs/otter-design.md` §1 表与当时的 §11 未决条目（现为台账 A19） |
+| `Align` 只登记了名字与类别，未定义类型 | `docs/OtterDesign.md` §1 表与当时的 §11 未决条目（现为台账 A19） |
 | lint 已把 `Align` 列为保留接口，但不在「已实现」集合中 | `scripts/check-declarations.py` |
 | 契约三件套的形状（Exports / StartInput+Result / Executive + 扩展 traits ID） | `include/otter/Api/Note/1/NoteApiL1.h` |
 | 声明读取集中在库内，每份契约一个函数 | `src/lib/Api/Note/1/NoteApiL1.cpp` |
@@ -86,7 +86,7 @@ HFA 是**强制对齐器**：输入是「音频 + 已知歌词文本」，输出
 
 ## 3. 契约面：`Align` Level 1（新增）
 
-> 本节为方案草案原文。现行契约见 `include/otter/Api/Align/1/AlignApiL1.h` 与 `docs/otter-design.md` §5.4：接口名为 `org.openvpi.otter.inference.Align`，执行体派生 `srt::InferenceExecutive`，下文的扩展 ID 与 `AnalysisSpec` 已随自有类别一并删除（A26）；`languages` 的形状与默认值的归属按 A27 修改。
+> 本节为方案草案原文。现行契约见 `include/otter/Api/Align/1/AlignApiL1.h` 与 `docs/OtterDesign.md` §5.4：接口名为 `org.openvpi.otter.inference.Align`，执行体派生 `srt::InferenceExecutive`，下文的扩展 ID 与 `AnalysisSpec` 已随自有类别一并删除（A26）；`languages` 的形状与默认值的归属按 A27 修改。
 
 新增 `include/otter/Api/Align/1/AlignApiL1.h` ＋ `src/lib/Api/Align/1/AlignApiL1.cpp`（读取函数），形状与 Note/F0 三件套严格一致：
 
@@ -143,12 +143,12 @@ template <> struct srt::ContribSpecExtensionTraits<otter::AnalysisSpec, otter::A
 };
 ```
 
-> 块内 `Result::words` 的「覆盖整段、相邻不重叠不留缝」为草案原文（本节首行已声明），现行口径以 `silenceLabel` 非空为条件，见 `docs/otter-design.md:450-452`。
+> 块内 `Result::words` 的「覆盖整段、相邻不重叠不留缝」为草案原文（本节首行已声明），现行口径以 `silenceLabel` 非空为条件，见 `docs/OtterDesign.md:450-452`。
 
 **语义要点**（写入头文件注释，与既有契约口径一致）
 
 - 时间一律为**绝对秒**，与 `AudioSegment::startTime` 同一基准，与 Note 契约一致。
-- 结果**覆盖整段**（现以 `silenceLabel` 非空为条件，见 `docs/otter-design.md:450-452`）：`words[0].start` 与最后一段的终点分别贴合 `[0, 音频时长]` 的两端，相邻词首尾相接。这是对齐器输出的固有形态（参考实现由 `add_SP` 保证），也免去宿主推算静音段。
+- 结果**覆盖整段**（现以 `silenceLabel` 非空为条件，见 `docs/OtterDesign.md:450-452`）：`words[0].start` 与最后一段的终点分别贴合 `[0, 音频时长]` 的两端，相邻词首尾相接。这是对齐器输出的固有形态（参考实现由 `add_SP` 保证），也免去宿主推算静音段。
 - `lyrics` 的形态由**变体自行约定**（hfa：空白分隔的词/拼音音节，取自模型词典），契约只要求非空字符串。
 - 旋钮一律为 `std::optional`：不填即采用模块默认值，越界即拒绝（`otter::chooseKnob`）。
 - 错误条件沿用既有错误类别（`otter::AnalysisError::Cancelled` / 框架 `InvalidFormat` / `FeatureNotSupported` / `InvalidArgument`），其中 `FeatureNotSupported` 不由 hfa 自身产生，只可能经 ONNX 驱动与会话路径（`onnx/OnnxSupport.cpp`）间接出现。
@@ -265,7 +265,7 @@ otter-hfa/
 | 契约读取 | `test_ManifestValues` 中同类新用例：`readAlignExports` 正反例 | 反例必须报错（缺 sampleRate、未知键、旋钮域倒置等） |
 | 装载互检 | 由 `scripts/make-test-packages.cmake` 生成、不入库的 package fixture ＋ `test_AnalysisLoad` | §4.2 前五条各有一例被拒绝（第 6 条按设计不拒绝） |
 | 执行面 | `test_Hfa`：`make-model-fixtures.py` 新增 hfa 图（真实签名、假权重，输出可预测） | 词/音素时间位置、旋钮确实传入图、取消返回 Cancelled、绝对秒锚定（`startTime=30`） |
-| 真实权重 | 用 v0.0.7 模型 + 真实演唱片段运行一次，检查区间单调、覆盖整段（现以 `silenceLabel` 非空为条件，见 `docs/otter-design.md:450-452`）、AP 段位置 | 无异常、区间自洽 |
+| 真实权重 | 用 v0.0.7 模型 + 真实演唱片段运行一次，检查区间单调、覆盖整段（现以 `silenceLabel` 非空为条件，见 `docs/OtterDesign.md:450-452`）、AP 段位置 | 无异常、区间自洽 |
 | **等价性** | 同模型、同音频、同歌词：otter 解释器与 `dstools-cli hfa` 的 `{phone,start,end}` 逐条比对 | 音素数一致；时间差 ≤ 1 帧（10 ms）并列出最大差；出现系统性偏离时逐条定位到算法步骤 |
 | 打包 | `check-declarations.py`；zip 解压树清单 + 每个文件的 SHA512 | 0 error；`manifest.json` 中的 SHA512 与实测一致 |
 | 回归 | `ctest`（含既有 7 个用例）＋ `python -m unittest discover -s scripts` | 无新增失败 |
@@ -279,7 +279,7 @@ otter-hfa/
 | 期 | 内容 | 交付物 |
 | :-- | :-- | :-- |
 | **P0** | 下载 v0.0.7 zip 并解包核对（`config.json`/`vocab.json`/`VERSION`/词典/许可）；确定语言表与文件清单 | 核对记录（§10.1） |
-| **P1** | `Align` 契约：头文件 + 读取函数 + CMake + JSON Schema + lint 扩展与自测 + 文档（README 表格、`otter-design.md` 台账 A19 起） | `include/otter/Api/Align/1/AlignApiL1.h`、`src/lib/Api/Align/1/AlignApiL1.cpp`、`docs/schemas/align-1-exports.schema.json`、lint 修改 |
+| **P1** | `Align` 契约：头文件 + 读取函数 + CMake + JSON Schema + lint 扩展与自测 + 文档（README 表格、`OtterDesign.md` 台账 A19 起） | `include/otter/Api/Align/1/AlignApiL1.h`、`src/lib/Api/Align/1/AlignApiL1.cpp`、`docs/schemas/align-1-exports.schema.json`、lint 修改 |
 | **P2** | `hfa` 解释器：算法移植 + 外壳 + 构建接线 | `hfa/{main.cpp,plugin.json,CMakeLists.txt}` 及插件目录的 `CMakeLists.txt`（现位于 `src/plugins/inferenceinterpreters/`） |
 | **P3** | 测试与 fixture：`test_Hfa` + hfa fixture 图 + 装载互检 fixture | `src/tests/auto/Analysis/test_Hfa.cpp`、`scripts/make-model-fixtures.py` 新增部分、`src/tests/auto/Analysis/CMakeLists.txt` |
 | **P4** | 包声明与装配（**声明与 `packages/README.md` 属历史，现已不入库**）：`packages/hfa` 形状的声明、`scripts/make-package.py`、`packages/README.md` | 声明 + 装配脚本 |
@@ -300,18 +300,18 @@ otter-hfa/
 
 ---
 
-## 9. 决策台账（本方案编号，已并入 `docs/otter-design.md` 的 A 系列）
+## 9. 决策台账（本方案编号，已并入 `docs/OtterDesign.md` 的 A 系列）
 
 | 编号 | 决策 | 依据 / 来源 | 状态 |
 | :-- | :-- | :-- | :-- |
-| D1 | 新立 `Align` L1 契约，与 F0、Note 同属一个类别 | 规范 2.4「输入输出根本不同时另立 interface」；`otter-design.md` A4 | **已实施**（P1）；并入 A19。类别由 otter 自有的 `analysis` 改为内置 `inference`（A26） |
+| D1 | 新立 `Align` L1 契约，与 F0、Note 同属一个类别 | 规范 2.4「输入输出根本不同时另立 interface」；`OtterDesign.md` A4 | **已实施**（P1）；并入 A19。类别由 otter 自有的 `analysis` 改为内置 `inference`（A26） |
 | D2 | 发布形态：新 tag + 三包 + 全量 manifest | 当时已发布的形状 `models-v0.1.0.0` | **（历史）已实施**（P5：`models-v0.2.0.0`）；并入 A25。**现行发布为 `models-v0.1`（四包 0.1.0.0 + 4 项 manifest）**；`models-v0.1.0.0`／`models-v0.2.0.0`／`models-v0.3.0.0` 三个旧标签均已删除 |
 | D3 | 授权：下载模型 / 本地构建 / 创建 release | 联网、构建、远程写操作各需用户下令 | **已实施**（逐项下令） |
-| D4 | `lyrics` 为单个字符串；结果覆盖整段（现以 `silenceLabel` 非空为条件，见 `docs/otter-design.md:450-452`）；静音以 `silenceLabel` 出现 | 参考实现 `Hfa.cpp:132-208`、`AlignWord.cpp:278-321` | **已实施**（P1/P2）；并入 A20、A22 |
+| D4 | `lyrics` 为单个字符串；结果覆盖整段（现以 `silenceLabel` 非空为条件，见 `docs/OtterDesign.md:450-452`）；静音以 `silenceLabel` 出现 | 参考实现 `Hfa.cpp:132-208`、`AlignWord.cpp:278-321` | **已实施**（P1/P2）；并入 A20、A22 |
 | D5 | 三个旋钮（非语音阈值/最短时长/补缝）+ `maxSegmentDuration=60` | `NonLexicalDecoder.cpp:83`、`AlignWord.h:157,161`、`Hfa.cpp:161-164` | **已实施**（P1/P2）；并入 A23、A24 |
 | D6 | lite 接入不在本轮 | 范围控制（需求只包括 otter 与发布） | **已确认**（本轮未实施） |
 | D7 | 词典路径由 `vocab.json` 的 `dictionaries`（模型自身的约定）给出，lint 核对文件存在 | Python 参考 `infer_base.py`（`vocab_folder / vocab["dictionaries"]`） | **已实施**（P4），并据此发现漏装，见 §10.5；并入 A21 |
-| D8 | 语言 id 使用宿主词汇，模型码写在 `configuration.languages` | [`lite-integration.md`](../lite-integration.md) §6「语言标识采用宿主的词汇表」 | **已实施**（P4）；A27 进一步规定 Align 的语言项形状 |
+| D8 | 语言 id 使用宿主词汇，模型码写在 `configuration.languages` | [`LiteIntegration.md`](../LiteIntegration.md) §6「语言标识采用宿主的词汇表」 | **已实施**（P4）；A27 进一步规定 Align 的语言项形状 |
 | D9 | 打包步骤脚本化（装配/校验/zip/SHA512/manifest），发布动作由用户下令 | 可复现性；部署与发布由用户下令 | **已实施**（P4 脚本；P5 先报告校验和，用户下令后创建 release） |
 
 全部推荐项均经用户确认：D1–D3 逐条选定，D4–D6 为范围确认，D7–D9 为实施方式确认。
@@ -340,7 +340,7 @@ otter-hfa/
 | 库构建 | `otter` 目标 11/11 编译并链接（新的 `AlignApiL1.cpp` 由 GLOB 收入） |
 | lint 自测 | `python -m unittest discover -s scripts -p "test_*.py"` → Ran 11 tests … OK |
 | 发布面 | `docs/schemas/align-1-exports.schema.json`、`align-1-import-options.schema.json` 已提交并通过 JSON 校验 |
-| 文档同步 | `README.md` 契约表由两份改为三份；`otter-design.md` §1 表、新增 §5.4（Align 契约面）、§6 包形状（新增 hfa 两段）、§7 插件名、台账 **A19–A25**、§10 里程碑 M7、§11 未决 |
+| 文档同步 | `README.md` 契约表由两份改为三份；`OtterDesign.md` §1 表、新增 §5.4（Align 契约面）、§6 包形状（新增 hfa 两段）、§7 插件名、台账 **A19–A25**、§10 里程碑 M7、§11 未决 |
 
 ### 10.3 P2 解释器验收
 
@@ -419,5 +419,5 @@ P2 的验收只包括构建与逐行复核，没有实际运行解码通路。P3
 
 ### 10.8 收尾
 
-- 实施后的只读审计发现 24 处文档与代码状态不一致，已逐条修正：三个变体/三个解释器的表述、Align 不再写作「将来」、包根目录名与 zip 名（`otter-hfa`）、rmvpe 声明示例、GAME 声明块与随包发布的声明逐字段一致、 M7 标为完成、RMVPE 的验证状态（权重已发布、数值未比对）、ctest 用例数、文档间的交叉引用、lite-integration.md 的范围说明（不含 Align）。`otter-design.md` §9.5 联合审计与 A17 依据中的「两个提供者/两个变体」保留，因为它们记录的是当时的事实。
+- 实施后的只读审计发现 24 处文档与代码状态不一致，已逐条修正：三个变体/三个解释器的表述、Align 不再写作「将来」、包根目录名与 zip 名（`otter-hfa`）、rmvpe 声明示例、GAME 声明块与随包发布的声明逐字段一致、 M7 标为完成、RMVPE 的验证状态（权重已发布、数值未比对）、ctest 用例数、文档间的交叉引用、LiteIntegration.md 的范围说明（不含 Align）。`OtterDesign.md` §9.5 联合审计与 A17 依据中的「两个提供者/两个变体」保留，因为它们记录的是当时的事实。
 - 实施提交已整理为三个提交（契约 / 解释器与 fixture / 包与脚本），并推送到 `analysis-level-1`。

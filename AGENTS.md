@@ -21,7 +21,7 @@ otter 是建立在 synthrt 之上的分析契约库，开发约定与 synthrt �
 - Markdown **段落不要硬折行**。一段就是一行，让编辑器去换行。代码块和表格不受此限。
 - Markdown 文件**结尾不留多余换行**。
 - 引用上位规范写作 `spec 2.4 §<章节名>`，**不写行号**。规范原文在 synthrt 仓库的 [`docs/ds-spec-2.4.md`](https://github.com/diffscope/synthrt/blob/main/docs/ds-spec-2.4.md)，本仓库不保存副本。
-- 设计决策登记在 [`docs/otter-design.md`](docs/otter-design.md) 的决策台账，以 A 编号引用。其余章节只陈述结论，依据写在台账里。
+- 设计决策登记在 [`docs/OtterDesign.md`](docs/OtterDesign.md) 的决策台账，以 A 编号引用。其余章节只陈述结论，依据写在台账里。
 
 ## 验证
 
@@ -53,6 +53,6 @@ otter 是建立在 synthrt 之上的分析契约库，开发约定与 synthrt �
 |---|---|
 | 值得长期保留的经验、设计记录 | `docs/claude/`（codex 写 `docs/codex/`） |
 | 问题清单、交接、临时分析 | `.cache/claude/`（已 gitignore） |
-| 设计决策 | `docs/otter-design.md` 的决策台账 |
+| 设计决策 | `docs/OtterDesign.md` 的决策台账 |
 | 面向用户的说明 | `README.md`、`docs/` |
 | 实施计划 | `docs/plans/` |

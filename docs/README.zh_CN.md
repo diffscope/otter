@@ -97,7 +97,7 @@ CMake 3.20 或更高版本（配置只需要项目声明的 3.19，下文用到�
 
 只有构建测试时才需要 Boost.Test。
 
-随附的四个 provider 都运行 ONNX 模型，只在有 dsinfer 时构建。`onnx` feature（`--x-feature=onnx`）加入 `synthrt-main[onnx]`，它把 dsinfer 的 CMake 包装在 synthrt 的包旁边，`find_package(synthrt-dsinfer)` 因而能找到它。没有这个 feature 时，库照样构建，包照样加载，只是不能执行分析器。synthrt 在没有自己的驱动时也是这样。`game-ggml` 与 `tifa-ggml` 两个 provider 在两个方向上都不受此限：它们不需要 dsinfer，也不需要 ONNX Runtime，而是**运行**一个来自引擎自己发布版、而非来自本仓库的引擎可执行文件。这个可执行文件从 game.cpp 的 `.oudep` 或 tifa.cpp 的 `tifa-cli-*.tar.gz` 解包得到，由声明指名（见 [ggml-providers.zh.md](ggml-providers.zh.md)）。
+随附的四个 provider 都运行 ONNX 模型，只在有 dsinfer 时构建。`onnx` feature（`--x-feature=onnx`）加入 `synthrt-main[onnx]`，它把 dsinfer 的 CMake 包装在 synthrt 的包旁边，`find_package(synthrt-dsinfer)` 因而能找到它。没有这个 feature 时，库照样构建，包照样加载，只是不能执行分析器。synthrt 在没有自己的驱动时也是这样。`game-ggml` 与 `tifa-ggml` 两个 provider 在两个方向上都不受此限：它们不需要 dsinfer，也不需要 ONNX Runtime，而是**运行**一个来自引擎自己发布版、而非来自本仓库的引擎可执行文件。这个可执行文件从 game.cpp 的 `.oudep` 或 tifa.cpp 的 `tifa-cli-*.tar.gz` 解包得到，由声明指名（见 [GgmlProviders.md](GgmlProviders.md)）。
 
 ## 构建
 
@@ -145,9 +145,9 @@ cmake -B build/cmake -G Ninja \
 
 ## 模型包
 
-一个包就是一份声明加上它指名的模型文件，以一个归档的形式随模型一起发布，而不是从本仓库发布：发布版 `models-v0.1` 提供 `otter-game`、`otter-hfa`、`otter-rmvpe` 与 `otter-tifa`，版本均为 0.1.0.0，并附有列出这四个包的 `manifest.json`。声明不在本仓库跟踪，组装时从 `--declarations` 给出的目录读取，一个发布版包含什么以 [packages.md](packages.md) 为准。另有两个变体运行它们自己发布版中的引擎而不是 ONNX 图，打包的是引擎归档而不是权重，[ggml-providers.zh.md](ggml-providers.zh.md) 介绍了它们以及 [examples/packages](examples/packages) 下的声明。
+一个包就是一份声明加上它指名的模型文件，以一个归档的形式随模型一起发布，而不是从本仓库发布：发布版 `models-v0.1` 提供 `otter-game`、`otter-hfa`、`otter-rmvpe` 与 `otter-tifa`，版本均为 0.1.0.0，并附有列出这四个包的 `manifest.json`。声明不在本仓库跟踪，组装时从 `--declarations` 给出的目录读取，一个发布版包含什么以 [Packages.md](Packages.md) 为准。另有两个变体运行它们自己发布版中的引擎而不是 ONNX 图，打包的是引擎归档而不是权重，[GgmlProviders.md](GgmlProviders.md) 介绍了它们以及 [examples/packages](examples/packages) 下的声明。
 
-`game-ggml` 与 `tifa-ggml` 是另一种包，这一点值得在这里直接说明：它们驱动的是一个**既不属于本仓库、也不属于模型发布版的外部引擎可执行文件**。它们的包由引擎自己发布版中的引擎归档组装而成，也随包发布这个归档：game 来自 [game.cpp v0.1.3](https://github.com/KakaruHayate/game.cpp/releases/tag/v0.1.3) 的 `game_ggml-<platform>-<backend>[-q8].oudep`，tifa 来自 [tifa.cpp v0.1.6](https://github.com/KakaruHayate/tifa.cpp/releases/tag/v0.1.6) 的 `tifa-cli-<platform>-<precision>.tar.gz`，tifa 的 q4 版是另一个发布版中的 `.oudep`，标签为 [`oudep`](https://github.com/KakaruHayate/tifa.cpp/releases/tag/oudep)。包中放着引擎的可执行文件、GGUF 权重与 ggml 运行库，与经由 `cli`、`model` 和 `dictionaries` 指名它们的声明放在一起。它们不会回退到对应的 ONNX 变体：没有引擎归档的安装在创建分析器时就失败，报 `cannot find the game CLI at <path>` 或 `cannot find the tifa CLI at <path>`，所以宿主只在装有引擎的地方提供这两个变体。安装步骤、平台与后端矩阵以及一次运行的代价见 [ggml-providers.zh.md](ggml-providers.zh.md)。
+`game-ggml` 与 `tifa-ggml` 是另一种包，这一点值得在这里直接说明：它们驱动的是一个**既不属于本仓库、也不属于模型发布版的外部引擎可执行文件**。它们的包由引擎自己发布版中的引擎归档组装而成，也随包发布这个归档：game 来自 [game.cpp v0.1.3](https://github.com/KakaruHayate/game.cpp/releases/tag/v0.1.3) 的 `game_ggml-<platform>-<backend>[-q8].oudep`，tifa 来自 [tifa.cpp v0.1.6](https://github.com/KakaruHayate/tifa.cpp/releases/tag/v0.1.6) 的 `tifa-cli-<platform>-<precision>.tar.gz`，tifa 的 q4 版是另一个发布版中的 `.oudep`，标签为 [`oudep`](https://github.com/KakaruHayate/tifa.cpp/releases/tag/oudep)。包中放着引擎的可执行文件、GGUF 权重与 ggml 运行库，与经由 `cli`、`model` 和 `dictionaries` 指名它们的声明放在一起。它们不会回退到对应的 ONNX 变体：没有引擎归档的安装在创建分析器时就失败，报 `cannot find the game CLI at <path>` 或 `cannot find the tifa CLI at <path>`，所以宿主只在装有引擎的地方提供这两个变体。安装步骤、平台与后端矩阵以及一次运行的代价见 [GgmlProviders.md](GgmlProviders.md)。
 
 解包后的引擎放在指名它的声明旁边：示例读取 `../../game_ggml_cli.exe` 与 `../../game_medium.gguf`（game），或 `../../tifa_ggml_cli.exe`、`../../models/tifa.gguf` 与 `../../models`（tifa），所以引擎的可执行文件、权重与 DLL 都与该变体目录中的 `desc.json` 相邻，在本仓库中即 `docs/examples/packages/game-ggml/` 与 `docs/examples/packages/tifa-ggml/`。`scripts/make-package.py` 用它们组装包，`--models` 指向归档解包得到的文件夹，也就是放着引擎可执行文件的那一个：game 的 `.oudep` 就是归档本身解包的位置，tifa 的 `.tar.gz` 则是其中的那个文件夹。
 
@@ -187,9 +187,9 @@ target_link_libraries(example synthrt::otter)
 
 ## 文档
 
-+ [otter-design.md](otter-design.md)：设计，包括分层、契约面、宿主职责、决策台账、审计与实施里程碑。
-+ [packages.md](packages.md)：工厂声明、包的组装以及包必须通过的检查。
-+ [ggml-providers.zh.md](ggml-providers.zh.md)：`game-ggml` 与 `tifa-ggml` 变体，它们以外部进程驱动 game.cpp 与 tifa.cpp 的 ggml 引擎，含引擎下载、平台矩阵与运行代价。英文版为 [ggml-providers.md](ggml-providers.md)。
-+ [lite-integration.md](lite-integration.md)：otter 接入 ds-editor-lite 的方式，以及 ds-editor-lite 不再自行实现的功能。
-+ [plans/hfa-align.md](plans/hfa-align.md)：Align 契约与 `hfa` 变体的实施计划与记录。
-+ [plans/tifa-align.md](plans/tifa-align.md)：`tifa` 变体的实施计划与记录，含真实权重验收的读数。
++ [OtterDesign.md](OtterDesign.md)：设计，包括分层、契约面、宿主职责、决策台账、审计与实施里程碑。
++ [Packages.md](Packages.md)：工厂声明、包的组装以及包必须通过的检查。
++ [GgmlProviders.md](GgmlProviders.md)：`game-ggml` 与 `tifa-ggml` 变体，它们以外部进程驱动 game.cpp 与 tifa.cpp 的 ggml 引擎，含引擎下载、平台矩阵与运行代价。
++ [LiteIntegration.md](LiteIntegration.md)：otter 接入 ds-editor-lite 的方式，以及 ds-editor-lite 不再自行实现的功能。
++ [plans/HfaAlign.md](plans/HfaAlign.md)：Align 契约与 `hfa` 变体的实施计划与记录。
++ [plans/TifaAlign.md](plans/TifaAlign.md)：`tifa` 变体的实施计划与记录，含真实权重验收的读数。
