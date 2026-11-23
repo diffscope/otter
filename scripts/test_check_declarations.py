@@ -492,7 +492,7 @@ class Packages(unittest.TestCase):
             "game-schedule": lambda n: self.write(
                 n, lint.NOTE, "game", NOTE_EXPORTS,
                 configuration(NOTE_CONFIGURATION, scheduleStart=1.5), "note"),
-            # readIntKnob: each bound fits an int.
+            # IntKnob::read: each bound fits an int.
             "int-knob-range": lambda n: self.write(
                 n, lint.NOTE, "game",
                 exports(NOTE_EXPORTS, knobs={"steps": {"minimum": 1, "maximum": 2**31,
